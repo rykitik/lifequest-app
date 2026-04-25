@@ -6,6 +6,11 @@
 
 Сейчас backend не реализуется. Этот документ фиксирует будущий sync protocol, payload-форматы и conflict policy до начала server skeleton.
 
+Связанные документы:
+
+- [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md)
+- [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md)
+
 ## Режимы
 
 ### Local mode
@@ -252,6 +257,11 @@ interface SyncConflict {
 - используется при миграции из local mode в account mode;
 - сервер импортирует только безопасные `lifequest-*` данные;
 - после импорта клиент делает bootstrap и работает дальше уже как account-backed cache.
+
+## Связь с клиентской state machine
+
+- состояния клиента и переходы описаны в [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md)
+- retry и pause/resume правила описаны в [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md)
 
 ## Ограничения до backend skeleton
 
