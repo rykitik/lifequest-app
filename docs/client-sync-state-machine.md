@@ -212,3 +212,49 @@ interface SyncQueueItem {
 - не терять локальные изменения из-за временной ошибки
 - не начислять reward повторно при retry
 - не смешивать transient UI state с sync state
+
+## useSyncStore contract
+
+Будущий `useSyncStore` хранит только клиентское sync-состояние и queue contract. Он не должен заменять domain stores и не должен брать на себя бизнес-логику самих сущностей.
+
+### Поля
+
+- `status`: текущий sync status клиента
+- `queue`: локальная очередь будущих операций для account mode
+- `latestSyncCursor`: курсор последней успешной синхронизации
+- `lastSyncAt`: время последнего завершённого sync cycle
+- `lastError`: последняя ошибка sync-слоя
+- `conflicts`: конфликты, требующие resolution
+- `retryPolicy`: конфигурация retry
+- `networkOnline`: runtime-снимок сети
+- `deviceId`: стабильный идентификатор устройства
+
+### Actions
+
+- `bootstrapLocalSync()`
+- `setNetworkOnline(value)`
+- `enqueueChange(item)`
+- `markItemSyncing(id)`
+- `markItemResolved(id)`
+- `markItemFailed(id, error)`
+- `clearResolvedItems()`
+- `setStatus(status)`
+- `setLastError(error)`
+- `setConflicts(conflicts)`
+- `clearConflicts()`
+- `resetSyncState()`
+- `initializeDeviceId()`
+
+### Как это будет использоваться позже
+
+- после логина client bootstrap сможет заполнить `deviceId`, курсор и status
+- локальные изменения в account mode будут вызывать `enqueueChange`
+- sync runner later будет переключать item-статусы через `markItemSyncing / markItemResolved / markItemFailed`
+- conflict handling UI later будет читать `conflicts` и вызывать `clearConflicts`
+
+### Почему сейчас store не делает сетевых запросов
+
+- backend ещё не реализован
+- auth пока placeholder
+- local-first UX не должен зависеть от несуществующей сети
+- store фиксирует контракт и persist-модель заранее, чтобы backend later подключался к уже согласованному клиентскому интерфейсу, а не наоборот

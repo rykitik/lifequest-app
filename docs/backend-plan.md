@@ -6,6 +6,7 @@
 
 Backend skeleton должен начинаться только после утверждения sync protocol из [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md).
 Клиентская sync state machine должна быть зафиксирована в [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md), а retry policy — в [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md).
+Дополнительно перед backend skeleton должны быть зафиксированы `useSyncStore` contract, `syncQueue` helpers и auth plan.
 
 ## Режимы
 
