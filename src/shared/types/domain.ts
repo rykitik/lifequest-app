@@ -16,6 +16,8 @@ export type QuestClassification =
   | 'money'
   | 'stability'
   | 'later'
+export type QuestEffort = 'tiny' | 'light' | 'medium' | 'heavy'
+export type QuestImpact = 'small' | 'medium' | 'high'
 
 export interface UserProfile {
   id: string
@@ -56,9 +58,9 @@ export interface QuestItem {
 }
 
 export interface TodayRoute {
-  mainQuest: QuestItem
-  quickWin: QuestItem
-  recoveryQuest: QuestItem
+  mainQuest: QuestItem | null
+  quickWin: QuestItem | null
+  recoveryQuest: QuestItem | null
 }
 
 export type TodayRouteKey = keyof TodayRoute
@@ -72,6 +74,13 @@ export interface SectorProgress {
   color: string
 }
 
+export interface DailyProgressSummary {
+  date: string
+  xpToday: number
+  completedTasks: number
+  sectorXp: Record<SectorKey, number>
+}
+
 export interface ProgressProfile {
   level: number
   totalXp: number
@@ -82,6 +91,7 @@ export interface ProgressProfile {
   recoveryXp: number
   achievements: string[]
   sectors: SectorProgress[]
+  dailySummary: DailyProgressSummary
 }
 
 export interface ProgressReward {
@@ -89,6 +99,8 @@ export interface ProgressReward {
   recoveryXp?: number
   consistencyXp?: number
   sector: SectorKey
+  completedTask?: boolean
+  sourceId?: string
 }
 
 export interface BodySnapshot {
@@ -151,6 +163,9 @@ export interface PromptContext {
   quickWin: string
   recoveryOption: string
   relevantGoals: string[]
+  activeQuests: string[]
+  parkedQuests: string[]
+  progressSummary: string[]
   userRequest: string
   preferredResponseFormat: string
 }

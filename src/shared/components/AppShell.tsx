@@ -1,3 +1,4 @@
+import { RewardToast } from '@/features/progress/components/RewardToast'
 import { Outlet } from 'react-router-dom'
 import { PromptCenterSheet } from '@/features/prompt-center/components/PromptCenterSheet'
 import { RescueModal } from '@/features/rescue/components/RescueModal'
@@ -24,6 +25,7 @@ export function AppShell() {
 
       <RescueModal />
       <PromptCenterSheet />
+      <RewardToast />
     </div>
   )
 }

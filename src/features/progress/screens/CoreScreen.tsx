@@ -1,10 +1,17 @@
 import { motion } from 'framer-motion'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
+import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
 import { formatCompact, formatPercent } from '@/shared/lib/format'
+import { useBodyStore } from '@/stores/useBodyStore'
 import { useCompanionStore } from '@/stores/useCompanionStore'
+import { useMoneyStore } from '@/stores/useMoneyStore'
 import { useProgressStore } from '@/stores/useProgressStore'
+import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
+import { useQuestStore } from '@/stores/useQuestStore'
+import { useRescueStore } from '@/stores/useRescueStore'
+import { useTodayStore } from '@/stores/useTodayStore'
 import type { CompanionState } from '@/shared/types'
 
 const evolutionMilestones = [
@@ -38,9 +45,36 @@ export function CoreScreen() {
   const recoveryXp = useProgressStore((state) => state.recoveryXp)
   const achievements = useProgressStore((state) => state.achievements)
   const sectors = useProgressStore((state) => state.sectors)
+  const resetProgress = useProgressStore((state) => state.resetDemoData)
+  const resetCompanion = useCompanionStore((state) => state.resetDemoData)
+  const resetQuests = useQuestStore((state) => state.resetDemoData)
+  const resetToday = useTodayStore((state) => state.resetDemoData)
+  const resetBody = useBodyStore((state) => state.resetDemoData)
+  const resetMoney = useMoneyStore((state) => state.resetDemoData)
+  const resetPromptCenter = usePromptCenterStore((state) => state.resetDemoData)
+  const resetRescue = useRescueStore((state) => state.resetRescueState)
 
   const progressPercent = (currentLevelXp / nextLevelXp) * 100
   const activeEvolutionIndex = evolutionLevel % evolutionMilestones.length
+
+  const handleResetDemoData = () => {
+    const shouldReset = window.confirm(
+      'Сбросить локальные demo-данные LifeQuest и вернуть приложение к исходному состоянию?',
+    )
+
+    if (!shouldReset) {
+      return
+    }
+
+    resetQuests()
+    resetToday()
+    resetProgress()
+    resetBody()
+    resetMoney()
+    resetCompanion()
+    resetPromptCenter()
+    resetRescue()
+  }
 
   return (
     <section className="pb-6">
@@ -161,6 +195,17 @@ export function CoreScreen() {
             </span>
           ))}
         </div>
+      </GlassCard>
+
+      <GlassCard className="mt-5 border border-danger/20 bg-danger/5">
+        <p className="text-xs uppercase tracking-[0.24em] text-danger/80">Локальные данные</p>
+        <p className="mt-3 text-sm leading-6 text-slate-200">
+          Всё хранится локально на этом устройстве. Если нужно вернуться к demo-состоянию, можно
+          сбросить маршрут, задачи, прогресс, настройки Центра промптов и локальные логи.
+        </p>
+        <PrimaryButton tone="warning" fullWidth className="mt-4" onClick={handleResetDemoData}>
+          Сбросить demo-данные
+        </PrimaryButton>
       </GlassCard>
     </section>
   )

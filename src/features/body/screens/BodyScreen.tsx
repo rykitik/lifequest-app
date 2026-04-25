@@ -1,24 +1,23 @@
+import { applyLifeQuestReward } from '@/services/gameplay'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { MiniSparkline } from '@/shared/components/MiniSparkline'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
 import { useBodyStore } from '@/stores/useBodyStore'
-import { useCompanionStore } from '@/stores/useCompanionStore'
-import { useProgressStore } from '@/stores/useProgressStore'
 
 export function BodyScreen() {
   const today = useBodyStore((state) => state.today)
   const history = useBodyStore((state) => state.history)
   const saveCheckin = useBodyStore((state) => state.saveCheckin)
-  const applyReward = useProgressStore((state) => state.applyReward)
-  const setActiveMessage = useCompanionStore((state) => state.setActiveMessage)
 
   const handleAddWater = () => {
     saveCheckin({
       waterLiters: Number((today.waterLiters + 0.25).toFixed(2)),
     })
-    applyReward({ xp: 6, sector: 'body' })
-    setActiveMessage('Контур тела обновлён. Ещё один спокойный базовый шаг закреплён.')
+    applyLifeQuestReward(
+      { xp: 6, sector: 'body' },
+      'Контур тела обновлён. Ещё один спокойный базовый шаг закреплён.',
+    )
   }
 
   const handleWorkoutDone = () => {
@@ -29,8 +28,10 @@ export function BodyScreen() {
     saveCheckin({
       workoutDone: true,
     })
-    applyReward({ xp: 18, sector: 'body', consistencyXp: 2 })
-    setActiveMessage('Тренировка записана. Сектор тела становится устойчивее.')
+    applyLifeQuestReward(
+      { xp: 18, sector: 'body', consistencyXp: 2 },
+      'Тренировка записана. Сектор тела становится устойчивее.',
+    )
   }
 
   return (

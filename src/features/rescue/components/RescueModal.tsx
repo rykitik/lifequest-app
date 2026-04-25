@@ -1,10 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
+import { applyLifeQuestReward } from '@/services/gameplay'
 import { mockRescueProblems } from '@/services/mockData'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
-import { useCompanionStore } from '@/stores/useCompanionStore'
-import { useProgressStore } from '@/stores/useProgressStore'
 import { useRescueStore } from '@/stores/useRescueStore'
 
 export function RescueModal() {
@@ -15,8 +14,6 @@ export function RescueModal() {
   const acceptSuggestion = useRescueStore((state) => state.acceptSuggestion)
   const completeSuggestion = useRescueStore((state) => state.completeSuggestion)
   const closeRescue = useRescueStore((state) => state.closeRescue)
-  const applyReward = useProgressStore((state) => state.applyReward)
-  const setActiveMessage = useCompanionStore((state) => state.setActiveMessage)
 
   const handleStart = () => {
     if (!suggestion) {
@@ -24,12 +21,14 @@ export function RescueModal() {
     }
 
     acceptSuggestion()
-    applyReward({
-      xp: suggestion.rewardXp,
-      recoveryXp: suggestion.rewardXp,
-      sector: suggestion.sector,
-    })
-    setActiveMessage('Маршрут восстановления выбран. Сделай только первый шаг и потом оцени состояние заново.')
+    applyLifeQuestReward(
+      {
+        xp: suggestion.rewardXp,
+        recoveryXp: suggestion.rewardXp,
+        sector: 'stability',
+      },
+      'Маршрут восстановления выбран. Сделай только первый шаг и потом оцени состояние заново.',
+    )
     completeSuggestion()
   }
 

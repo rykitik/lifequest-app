@@ -1,19 +1,16 @@
+import { applyLifeQuestReward } from '@/services/gameplay'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
 import { MiniSparkline } from '@/shared/components/MiniSparkline'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
 import { formatCurrency } from '@/shared/lib/format'
-import { useCompanionStore } from '@/stores/useCompanionStore'
 import { useMoneyStore } from '@/stores/useMoneyStore'
-import { useProgressStore } from '@/stores/useProgressStore'
 
 export function MoneyScreen() {
   const snapshot = useMoneyStore((state) => state.snapshot)
   const dailyMoneyQuests = useMoneyStore((state) => state.dailyMoneyQuests)
   const completeMoneyQuest = useMoneyStore((state) => state.completeMoneyQuest)
-  const applyReward = useProgressStore((state) => state.applyReward)
-  const setActiveMessage = useCompanionStore((state) => state.setActiveMessage)
 
   const debtProgress = ((snapshot.debtGoal - snapshot.debt) / snapshot.debtGoal) * 100
 
@@ -23,8 +20,10 @@ export function MoneyScreen() {
     }
 
     completeMoneyQuest(id)
-    applyReward({ xp: rewardXp, sector: 'money', consistencyXp: 1 })
-    setActiveMessage(`Финансовый маршрут сдвинулся: ${label}. Спокойный контроль лучше избегания.`)
+    applyLifeQuestReward(
+      { xp: rewardXp, sector: 'money', consistencyXp: 1 },
+      `Финансовый маршрут сдвинулся: ${label}. Спокойный контроль лучше избегания.`,
+    )
   }
 
   return (

@@ -2,16 +2,18 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getMockPromptCards } from '@/services/mockData'
 import { buildPrompt } from '@/services/promptBuilder'
+import { mergePersistedState } from '@/shared/lib/persist'
 import type { PromptCard, PromptContext } from '@/shared/types'
 
 interface PromptCenterState {
   isOpen: boolean
   cards: PromptCard[]
-  selectedCard: PromptCard | null
+  selectedCardId: string | null
   generatedPrompt: string
   userRequest: string
   preferredResponseFormat: string
   hasCopied: boolean
+  showCopyFallback: boolean
   setSelectedCard: (cardId: string) => void
   setUserRequest: (value: string) => void
   setResponseFormat: (value: string) => void
@@ -20,47 +22,95 @@ interface PromptCenterState {
   openChatGPT: () => void
   openPromptCenter: () => void
   closePromptCenter: () => void
+  resetDemoData: () => void
 }
 
 const cards = getMockPromptCards()
+
+type PromptCenterPersistedState = Pick<
+  PromptCenterState,
+  'selectedCardId' | 'userRequest' | 'preferredResponseFormat'
+>
+
+function getDefaultPromptCard() {
+  return cards[0] ?? null
+}
+
+function createPromptCenterPersistedState(): PromptCenterPersistedState {
+  const defaultCard = getDefaultPromptCard()
+
+  return {
+    selectedCardId: defaultCard?.id ?? null,
+    userRequest: defaultCard?.promptHint ?? '',
+    preferredResponseFormat:
+      defaultCard?.preferredFormat ?? 'Короткий маршрут, где лучший следующий шаг идёт первым',
+  }
+}
 
 export const usePromptCenterStore = create<PromptCenterState>()(
   persist(
     (set, get) => ({
       isOpen: false,
       cards,
-      selectedCard: cards[0] ?? null,
+      ...createPromptCenterPersistedState(),
       generatedPrompt: '',
-      userRequest: cards[0]?.promptHint ?? '',
-      preferredResponseFormat:
-        cards[0]?.preferredFormat ?? 'Короткий маршрут, где лучший следующий шаг идёт первым',
       hasCopied: false,
+      showCopyFallback: false,
       setSelectedCard: (cardId) => {
         const nextCard = get().cards.find((card) => card.id === cardId)
 
-        if (!nextCard) {
+        if (!nextCard || get().selectedCardId === nextCard.id) {
           return
         }
 
         set({
-          selectedCard: nextCard,
+          selectedCardId: nextCard.id,
           userRequest: nextCard.promptHint,
           preferredResponseFormat: nextCard.preferredFormat,
+          generatedPrompt: '',
           hasCopied: false,
+          showCopyFallback: false,
         })
       },
       setUserRequest: (value) =>
-        set({
-          userRequest: value,
-          hasCopied: false,
+        set((state) => {
+          if (
+            state.userRequest === value &&
+            !state.generatedPrompt &&
+            !state.hasCopied &&
+            !state.showCopyFallback
+          ) {
+            return state
+          }
+
+          return {
+            userRequest: value,
+            generatedPrompt: '',
+            hasCopied: false,
+            showCopyFallback: false,
+          }
         }),
       setResponseFormat: (value) =>
-        set({
-          preferredResponseFormat: value,
-          hasCopied: false,
+        set((state) => {
+          if (
+            state.preferredResponseFormat === value &&
+            !state.generatedPrompt &&
+            !state.hasCopied &&
+            !state.showCopyFallback
+          ) {
+            return state
+          }
+
+          return {
+            preferredResponseFormat: value,
+            generatedPrompt: '',
+            hasCopied: false,
+            showCopyFallback: false,
+          }
         }),
       generatePrompt: (context) => {
-        const selectedCard = get().selectedCard
+        const selectedCard =
+          get().cards.find((card) => card.id === get().selectedCardId) ?? get().cards[0]
 
         if (!selectedCard) {
           return
@@ -73,6 +123,7 @@ export const usePromptCenterStore = create<PromptCenterState>()(
             preferredResponseFormat: get().preferredResponseFormat,
           }),
           hasCopied: false,
+          showCopyFallback: false,
         })
       },
       copyPrompt: async () => {
@@ -82,10 +133,29 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           return false
         }
 
-        await navigator.clipboard.writeText(prompt)
+        if (!navigator.clipboard?.writeText) {
+          set({
+            hasCopied: false,
+            showCopyFallback: true,
+          })
+
+          return false
+        }
+
+        try {
+          await navigator.clipboard.writeText(prompt)
+        } catch {
+          set({
+            hasCopied: false,
+            showCopyFallback: true,
+          })
+
+          return false
+        }
 
         set({
           hasCopied: true,
+          showCopyFallback: false,
         })
 
         return true
@@ -94,23 +164,53 @@ export const usePromptCenterStore = create<PromptCenterState>()(
         window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer')
       },
       openPromptCenter: () =>
-        set({
-          isOpen: true,
-        }),
+        set((state) => (state.isOpen ? state : { isOpen: true })),
       closePromptCenter: () =>
+        set((state) => {
+          if (!state.isOpen && !state.hasCopied && !state.showCopyFallback) {
+            return state
+          }
+
+          return {
+            isOpen: false,
+            hasCopied: false,
+            showCopyFallback: false,
+          }
+        }),
+      resetDemoData: () =>
         set({
-          isOpen: false,
+          ...createPromptCenterPersistedState(),
+          generatedPrompt: '',
+          hasCopied: false,
+          showCopyFallback: false,
         }),
     }),
     {
       name: 'lifequest-prompt-center',
-      version: 2,
+      version: 3,
+      migrate: (persistedState) => {
+        const defaults = createPromptCenterPersistedState()
+
+        if (!persistedState || typeof persistedState !== 'object') {
+          return defaults
+        }
+
+        const record = persistedState as Record<string, unknown>
+        const legacySelectedCard =
+          record.selectedCard && typeof record.selectedCard === 'object'
+            ? (record.selectedCard as { id?: string }).id
+            : undefined
+
+        return mergePersistedState(defaults, {
+          ...record,
+          selectedCardId:
+            typeof record.selectedCardId === 'string' ? record.selectedCardId : legacySelectedCard,
+        }) as PromptCenterPersistedState
+      },
       partialize: (state) => ({
-        selectedCard: state.selectedCard,
-        generatedPrompt: state.generatedPrompt,
+        selectedCardId: state.selectedCardId,
         userRequest: state.userRequest,
         preferredResponseFormat: state.preferredResponseFormat,
-        hasCopied: state.hasCopied,
       }),
     },
   ),

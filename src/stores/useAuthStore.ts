@@ -14,16 +14,21 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
       isBootstrapped: false,
-      bootstrap: () =>
+      bootstrap: () => {
+        if (get().isBootstrapped && get().isAuthenticated && get().user) {
+          return
+        }
+
         set({
           user: cloneData(mockUser),
           isAuthenticated: true,
           isBootstrapped: true,
-        }),
+        })
+      },
       login: () =>
         set({
           user: cloneData(mockUser),

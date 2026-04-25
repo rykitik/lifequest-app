@@ -5,11 +5,13 @@ import { PlanScreen } from '@/features/plan/screens/PlanScreen'
 import { CoreScreen } from '@/features/progress/screens/CoreScreen'
 import { TodayScreen } from '@/features/today/screens/TodayScreen'
 import { AppShell } from '@/shared/components/AppShell'
+import { RouteErrorBoundary } from '@/shared/components/RouteErrorBoundary'
 
 const router = createBrowserRouter([
   {
     path: '/',
     element: <AppShell />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         index: true,

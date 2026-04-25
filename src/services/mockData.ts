@@ -1,6 +1,7 @@
 import type {
   BodySnapshot,
   CompanionState,
+  DailyProgressSummary,
   MoneyAction,
   MoneySnapshot,
   ProgressProfile,
@@ -13,6 +14,7 @@ import type {
   TodayRoute,
   UserProfile,
 } from '@/shared/types'
+import { getLocalDateKey } from '@/shared/lib/date'
 
 export const cloneData = <T,>(value: T): T => structuredClone(value)
 
@@ -181,6 +183,7 @@ export const mockProgressProfile: ProgressProfile = {
     { key: 'stability', label: 'Стабильность', level: 4, percent: 74, xp: 740, color: '#A78BFA' },
     { key: 'energy', label: 'Энергия', level: 3, percent: 60, xp: 600, color: '#22D3EE' },
   ],
+  dailySummary: createEmptyDailyProgressSummary(),
 }
 
 export const mockBodySnapshot: BodySnapshot = {
@@ -357,7 +360,10 @@ export function getMockQuestParked() {
 }
 
 export function getMockProgressProfile() {
-  return cloneData(mockProgressProfile)
+  const profile = cloneData(mockProgressProfile)
+  profile.dailySummary = createEmptyDailyProgressSummary()
+
+  return profile
 }
 
 export function getMockBodySnapshot() {
@@ -378,4 +384,19 @@ export function getMockMoneyActions() {
 
 export function getMockPromptCards() {
   return cloneData(mockPromptCards)
+}
+
+export function createEmptyDailyProgressSummary(date = getLocalDateKey()): DailyProgressSummary {
+  return {
+    date,
+    xpToday: 0,
+    completedTasks: 0,
+    sectorXp: {
+      focus: 0,
+      body: 0,
+      money: 0,
+      stability: 0,
+      energy: 0,
+    },
+  }
 }

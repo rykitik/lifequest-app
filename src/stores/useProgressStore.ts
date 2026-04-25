@@ -1,7 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { getMockProgressProfile } from '@/services/mockData'
-import type { ProgressReward, SectorProgress } from '@/shared/types'
+import { createEmptyDailyProgressSummary, getMockProgressProfile } from '@/services/mockData'
+import { getLocalDateKey } from '@/shared/lib/date'
+import { mergePersistedState } from '@/shared/lib/persist'
+import type {
+  DailyProgressSummary,
+  ProgressReward,
+  SectorKey,
+  SectorProgress,
+} from '@/shared/types'
 
 interface ProgressState {
   level: number
@@ -13,7 +20,20 @@ interface ProgressState {
   recoveryXp: number
   achievements: string[]
   sectors: SectorProgress[]
-  applyReward: (reward: ProgressReward) => void
+  dailySummary: DailyProgressSummary
+  appliedRewardIds: string[]
+  applyReward: (reward: ProgressReward) => boolean
+  ensureDailySummaryCurrent: () => void
+  resetDemoData: () => void
+}
+
+type ProgressPersistedState = Omit<
+  ProgressState,
+  'appliedRewardIds' | 'applyReward' | 'ensureDailySummaryCurrent' | 'resetDemoData'
+>
+
+function createProgressPersistedState(): ProgressPersistedState {
+  return getMockProgressProfile()
 }
 
 function applySectorReward(sectors: SectorProgress[], reward: ProgressReward) {
@@ -42,12 +62,47 @@ function applySectorReward(sectors: SectorProgress[], reward: ProgressReward) {
   })
 }
 
+function getFreshDailySummary(summary: DailyProgressSummary) {
+  const todayKey = getLocalDateKey()
+
+  if (summary.date === todayKey) {
+    return summary
+  }
+
+  return createEmptyDailyProgressSummary(todayKey)
+}
+
+function applyDailyReward(summary: DailyProgressSummary, reward: ProgressReward) {
+  const nextSummary = getFreshDailySummary(summary)
+
+  return {
+    ...nextSummary,
+    xpToday: nextSummary.xpToday + reward.xp,
+    completedTasks: nextSummary.completedTasks + (reward.completedTask ? 1 : 0),
+    sectorXp: {
+      ...nextSummary.sectorXp,
+      [reward.sector]:
+        nextSummary.sectorXp[reward.sector as SectorKey] + reward.xp,
+    },
+  }
+}
+
 export const useProgressStore = create<ProgressState>()(
   persist(
     (set) => ({
-      ...getMockProgressProfile(),
-      applyReward: (reward) =>
+      ...createProgressPersistedState(),
+      appliedRewardIds: [],
+      applyReward: (reward) => {
+        let applied = false
+
         set((state) => {
+          const rewardSourceId = reward.sourceId?.trim()
+
+          if (rewardSourceId && state.appliedRewardIds.includes(rewardSourceId)) {
+            return state
+          }
+
+          applied = true
           let level = state.level
           let currentLevelXp = state.currentLevelXp + reward.xp
           let nextLevelXp = state.nextLevelXp
@@ -67,12 +122,41 @@ export const useProgressStore = create<ProgressState>()(
             consistencyXp: state.consistencyXp + (reward.consistencyXp ?? 0),
             recoveryXp: state.recoveryXp + (reward.recoveryXp ?? 0),
             sectors: applySectorReward(state.sectors, reward),
+            dailySummary: applyDailyReward(state.dailySummary, reward),
+            appliedRewardIds: rewardSourceId
+              ? [rewardSourceId, ...state.appliedRewardIds].slice(0, 80)
+              : state.appliedRewardIds,
           }
+        })
+
+        return applied
+      },
+      ensureDailySummaryCurrent: () =>
+        set((state) => {
+          const freshSummary = getFreshDailySummary(state.dailySummary)
+
+          if (freshSummary.date === state.dailySummary.date) {
+            return state
+          }
+
+          return {
+            dailySummary: freshSummary,
+          }
+        }),
+      resetDemoData: () =>
+        set({
+          ...createProgressPersistedState(),
+          appliedRewardIds: [],
         }),
     }),
     {
       name: 'lifequest-progress',
-      version: 2,
+      version: 4,
+      migrate: (persistedState) =>
+        mergePersistedState(
+          createProgressPersistedState(),
+          persistedState,
+        ) as ProgressPersistedState,
       partialize: (state) => ({
         level: state.level,
         totalXp: state.totalXp,
@@ -83,6 +167,7 @@ export const useProgressStore = create<ProgressState>()(
         recoveryXp: state.recoveryXp,
         achievements: state.achievements,
         sectors: state.sectors,
+        dailySummary: state.dailySummary,
       }),
     },
   ),

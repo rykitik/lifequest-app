@@ -6,24 +6,39 @@ import {
   getMockQuestInbox,
   getMockQuestParked,
 } from '@/services/mockData'
+import { mergePersistedState } from '@/shared/lib/persist'
 import type { QuestClassification, QuestItem } from '@/shared/types'
+import { useTodayStore } from '@/stores/useTodayStore'
 
 interface QuestState {
   inbox: QuestItem[]
   active: QuestItem[]
   parked: QuestItem[]
   addQuest: (title: string) => void
+  updateQuestTitle: (id: string, title: string) => void
+  deleteQuest: (id: string) => void
   classifyQuest: (id: string, classification: QuestClassification) => void
   unpackQuest: (id: string) => void
+  toggleQuestStep: (questId: string, stepId: string) => QuestItem | null
   completeQuest: (id: string) => void
+  resetDemoData: () => void
 }
 
 type QuestBucket = 'inbox' | 'active' | 'parked'
+type QuestPersistedState = Pick<QuestState, 'inbox' | 'active' | 'parked'>
+
+const questBuckets: QuestBucket[] = ['inbox', 'active', 'parked']
+
+function createQuestPersistedState(): QuestPersistedState {
+  return {
+    inbox: getMockQuestInbox(),
+    active: getMockQuestActive(),
+    parked: getMockQuestParked(),
+  }
+}
 
 function locateQuest(state: Pick<QuestState, QuestBucket>, id: string) {
-  const buckets: QuestBucket[] = ['inbox', 'active', 'parked']
-
-  for (const bucket of buckets) {
+  for (const bucket of questBuckets) {
     const quest = state[bucket].find((item) => item.id === id)
 
     if (quest) {
@@ -38,12 +53,61 @@ function replaceQuest(items: QuestItem[], id: string, updater: (quest: QuestItem
   return items.map((quest) => (quest.id === id ? updater(quest) : quest))
 }
 
+function updateQuestCollections(
+  state: Pick<QuestState, QuestBucket>,
+  id: string,
+  updater: (quest: QuestItem, bucket: QuestBucket) => QuestItem,
+) {
+  let updatedQuest: QuestItem | null = null
+
+  const nextState = questBuckets.reduce<Pick<QuestState, QuestBucket>>(
+    (accumulator, bucket) => ({
+      ...accumulator,
+      [bucket]: replaceQuest(state[bucket], id, (quest) => {
+        const nextQuest = updater(quest, bucket)
+
+        if (nextQuest !== quest) {
+          updatedQuest = nextQuest
+        }
+
+        return nextQuest
+      }),
+    }),
+    {
+      inbox: state.inbox,
+      active: state.active,
+      parked: state.parked,
+    },
+  )
+
+  return { nextState, updatedQuest }
+}
+
+function syncTodayRouteQuest(quest: QuestItem) {
+  useTodayStore.getState().syncRouteQuest(quest)
+}
+
+function resolveSectorFromClassification(quest: QuestItem, classification: QuestClassification) {
+  switch (classification) {
+    case 'focus':
+    case 'quick_win':
+      return 'focus'
+    case 'body':
+      return 'body'
+    case 'money':
+      return 'money'
+    case 'stability':
+      return 'stability'
+    case 'later':
+    default:
+      return quest.sector
+  }
+}
+
 export const useQuestStore = create<QuestState>()(
   persist(
     (set) => ({
-      inbox: getMockQuestInbox(),
-      active: getMockQuestActive(),
-      parked: getMockQuestParked(),
+      ...createQuestPersistedState(),
       addQuest: (title) =>
         set((state) => {
           const trimmed = title.trim()
@@ -55,18 +119,57 @@ export const useQuestStore = create<QuestState>()(
           const newQuest: QuestItem = {
             id: crypto.randomUUID(),
             title: trimmed,
-            subtitle: 'Быстро захвачено. Классифицируй позже, когда поверхность станет тише.',
+            subtitle: 'Быстро захвачено. Уточни тип позже, когда шум станет тише.',
             minutes: 10,
             xp: 12,
             sector: 'focus',
             progress: 0,
             status: 'ready',
+            classification: 'focus',
           }
 
           return {
             inbox: [newQuest, ...state.inbox],
           }
         }),
+      updateQuestTitle: (id, title) =>
+        set((state) => {
+          const trimmed = title.trim()
+
+          if (!trimmed) {
+            return state
+          }
+
+          const { nextState, updatedQuest } = updateQuestCollections(state, id, (quest) =>
+            quest.title === trimmed
+              ? quest
+              : {
+                  ...quest,
+                  title: trimmed,
+                },
+          )
+
+          if (updatedQuest) {
+            syncTodayRouteQuest(updatedQuest)
+          }
+
+          return updatedQuest ? nextState : state
+        }),
+      deleteQuest: (id) => {
+        const located = locateQuest(useQuestStore.getState(), id)
+
+        if (!located) {
+          return
+        }
+
+        useTodayStore.getState().removeQuestFromRoute(id)
+
+        set((state) => ({
+          inbox: state.inbox.filter((quest) => quest.id !== id),
+          active: state.active.filter((quest) => quest.id !== id),
+          parked: state.parked.filter((quest) => quest.id !== id),
+        }))
+      },
       classifyQuest: (id, classification) =>
         set((state) => {
           const located = locateQuest(state, id)
@@ -80,62 +183,142 @@ export const useQuestStore = create<QuestState>()(
             active: state.active.filter((quest) => quest.id !== id),
             parked: state.parked.filter((quest) => quest.id !== id),
           }
+          const destinationBucket: QuestBucket = classification === 'later' ? 'parked' : 'active'
+          const nextStatus =
+            located.quest.status === 'complete'
+              ? 'complete'
+              : classification === 'later'
+                ? 'parked'
+                : 'active'
+          const nextSector = resolveSectorFromClassification(located.quest, classification)
+
+          if (
+            located.quest.classification === classification &&
+            located.quest.status === nextStatus &&
+            located.quest.sector === nextSector
+          ) {
+            return state
+          }
 
           const updatedQuest: QuestItem = {
             ...located.quest,
             classification,
-            status: classification === 'later' ? 'parked' : 'active',
+            sector: nextSector,
+            status: nextStatus,
           }
 
-          if (classification === 'later') {
-            return {
-              ...filtered,
-              parked: [updatedQuest, ...filtered.parked],
-            }
-          }
+          syncTodayRouteQuest(updatedQuest)
 
           return {
             ...filtered,
-            active: [updatedQuest, ...filtered.active],
+            [destinationBucket]: [updatedQuest, ...filtered[destinationBucket]],
           }
         }),
-      unpackQuest: (id) =>
-        set((state) => ({
-          inbox: replaceQuest(state.inbox, id, (quest) => ({
-            ...quest,
-            steps: quest.steps ?? createQuestSteps(quest.title),
-          })),
-          active: replaceQuest(state.active, id, (quest) => ({
-            ...quest,
-            steps: quest.steps ?? createQuestSteps(quest.title),
-          })),
-          parked: replaceQuest(state.parked, id, (quest) => ({
-            ...quest,
-            steps: quest.steps ?? createQuestSteps(quest.title),
-          })),
-        })),
+      unpackQuest: (id) => {
+        let updatedQuest: QuestItem | null = null
+
+        set((state) => {
+          const { nextState, updatedQuest: nextQuest } = updateQuestCollections(state, id, (quest) =>
+            quest.steps?.length
+              ? quest
+              : {
+                  ...quest,
+                  steps: createQuestSteps(quest.title),
+                },
+          )
+
+          updatedQuest = nextQuest
+
+          return updatedQuest ? nextState : state
+        })
+
+        if (updatedQuest) {
+          syncTodayRouteQuest(updatedQuest)
+        }
+      },
+      toggleQuestStep: (questId, stepId) => {
+        let updatedQuest: QuestItem | null = null
+
+        set((state) => {
+          const { nextState, updatedQuest: nextQuest } = updateQuestCollections(
+            state,
+            questId,
+            (quest, bucket) => {
+              if (!quest.steps?.length || quest.status === 'complete') {
+                return quest
+              }
+
+              const steps = quest.steps.map((step) =>
+                step.id === stepId
+                  ? {
+                      ...step,
+                      done: !step.done,
+                    }
+                  : step,
+              )
+              const doneSteps = steps.filter((step) => step.done).length
+              const allDone = doneSteps === steps.length
+
+              return {
+                ...quest,
+                steps,
+                progress: allDone ? 100 : Math.round((doneSteps / steps.length) * 100),
+                status: allDone ? 'complete' : bucket === 'parked' ? 'parked' : 'active',
+              }
+            },
+          )
+
+          updatedQuest = nextQuest
+
+          return nextState
+        })
+
+        if (updatedQuest) {
+          syncTodayRouteQuest(updatedQuest)
+        }
+
+        return updatedQuest
+      },
       completeQuest: (id) =>
-        set((state) => ({
-          inbox: replaceQuest(state.inbox, id, (quest) => ({
-            ...quest,
-            status: 'complete',
-            progress: 100,
-          })),
-          active: replaceQuest(state.active, id, (quest) => ({
-            ...quest,
-            status: 'complete',
-            progress: 100,
-          })),
-          parked: replaceQuest(state.parked, id, (quest) => ({
-            ...quest,
-            status: 'complete',
-            progress: 100,
-          })),
-        })),
+        set((state) => {
+          let updatedQuest: QuestItem | null = null
+
+          const { nextState } = updateQuestCollections(state, id, (quest) => {
+            if (quest.status === 'complete') {
+              return quest
+            }
+
+            const nextQuest: QuestItem = {
+              ...quest,
+              status: 'complete',
+              progress: 100,
+              steps: quest.steps?.map((step) => ({
+                ...step,
+                done: true,
+              })),
+            }
+
+            updatedQuest = nextQuest
+
+            return nextQuest
+          })
+
+          if (updatedQuest) {
+            syncTodayRouteQuest(updatedQuest)
+          }
+
+          return updatedQuest ? nextState : state
+        }),
+      resetDemoData: () =>
+        set({
+          ...createQuestPersistedState(),
+        }),
     }),
     {
       name: 'lifequest-quests',
-      version: 2,
+      version: 4,
+      migrate: (persistedState) =>
+        mergePersistedState(createQuestPersistedState(), persistedState) as QuestPersistedState,
       partialize: (state) => ({
         inbox: state.inbox,
         active: state.active,

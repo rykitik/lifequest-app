@@ -1,11 +1,24 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { companionMessages } from '@/services/mockData'
+import { mergePersistedState } from '@/shared/lib/persist'
 import type { CompanionContext, CompanionProfile, CompanionState } from '@/shared/types'
 
 interface CompanionStateStore extends CompanionProfile {
   setActiveMessage: (message: string) => void
   updateMoodFromContext: (context: CompanionContext) => void
+  resetDemoData: () => void
+}
+
+type CompanionPersistedState = CompanionProfile
+
+function createCompanionPersistedState(): CompanionPersistedState {
+  return {
+    mood: 'idle',
+    evolutionLevel: 7,
+    activeMessage: companionMessages.idle,
+    stabilityScore: 72,
+  }
 }
 
 function resolveMood(context: CompanionContext): CompanionState {
@@ -34,29 +47,37 @@ function resolveMood(context: CompanionContext): CompanionState {
 
 export const useCompanionStore = create<CompanionStateStore>()(
   persist(
-    (set) => ({
-      mood: 'idle',
-      evolutionLevel: 7,
-      activeMessage: companionMessages.idle,
-      stabilityScore: 72,
+    (set, get) => ({
+      ...createCompanionPersistedState(),
       setActiveMessage: (message) =>
         set({
           activeMessage: message,
         }),
       updateMoodFromContext: (context) => {
         const mood = resolveMood(context)
+        const currentState = get()
 
         set({
           mood,
           evolutionLevel: context.level,
           stabilityScore: context.stability,
-          activeMessage: companionMessages[mood],
+          activeMessage:
+            currentState.mood === mood ? currentState.activeMessage : companionMessages[mood],
         })
       },
+      resetDemoData: () =>
+        set({
+          ...createCompanionPersistedState(),
+        }),
     }),
     {
       name: 'lifequest-companion',
-      version: 2,
+      version: 3,
+      migrate: (persistedState) =>
+        mergePersistedState(
+          createCompanionPersistedState(),
+          persistedState,
+        ) as CompanionPersistedState,
       partialize: (state) => ({
         mood: state.mood,
         evolutionLevel: state.evolutionLevel,
