@@ -1,24 +1,34 @@
 # Архитектура LifeQuest
 
-## Общая схема
+## Главная стратегия
 
-```text
-Mobile-first PWA
-  |
-  |-- React UI
-  |-- Zustand stores
-  |-- Центр промптов
-  |-- Сначала mock data
-  |
-Backend позже
-  |
-  |-- Express API
-  |-- MongoDB
-  |-- Auth
-  |-- Domain services
-```
+LifeQuest строится как `local-first now, multi-user ready later`.
 
-## Структура frontend
+Сейчас продукт остаётся solo-first и работает без аккаунта. Следующий архитектурный слой должен не ломать текущий local-first MVP, а готовить его к будущему account mode и синхронизации.
+
+## Режимы работы
+
+### 1. Local mode
+
+- данные живут в `localStorage` через Zustand persist;
+- backup/export-import заменяет облачное сохранение;
+- UI доступен без входа;
+- устройство считается главным местом хранения.
+
+### 2. Account mode
+
+- позже появятся `register/login/logout`;
+- у каждой сущности появится `userId`;
+- backend станет источником синхронизации;
+- локальное хранилище останется cache/offline-слоем.
+
+### 3. Migration
+
+- пользователь сможет создать аккаунт после периода local-only использования;
+- local data можно будет перенести в аккаунт после регистрации;
+- backup и sync bootstrap помогут не потерять прогресс при миграции.
+
+## Frontend-структура
 
 ```text
 src/
@@ -28,10 +38,8 @@ src/
     providers.tsx
   shared/
     components/
-    hooks/
     lib/
     types/
-    utils/
   features/
     auth/
     today/
@@ -54,81 +62,120 @@ src/
     useRescueStore.ts
     useCompanionStore.ts
     usePromptCenterStore.ts
+    useSettingsStore.ts
   services/
-    apiClient.ts
-    promptBuilder.ts
     mockData.ts
-  styles/
-    globals.css
+    promptBuilder.ts
+    lifequestReset.ts
+    lifequestRuntime.ts
+    lifequestBackup.ts
 ```
 
-## Состояние frontend
+## Frontend stores
 
 ### useAuthStore
-- user
-- isAuthenticated
-- bootstrap
-- login
-- logout
+
+- `mode: "local" | "account"`
+- `user`
+- `isAuthenticated`
+- `isBootstrapping`
+- `bootstrap()`
+- `switchToLocalMode()`
+- placeholder `login/register/logout`
 
 ### useTodayStore
-- currentMode
-- route
-- setMode
-- generateRoute
-- completeRouteItem
+
+- `currentMode`
+- `route`
+- `setMode`
+- `generateRoute`
+- `completeRouteItem`
 
 ### useQuestStore
-- inbox
-- active
-- parked
-- addQuest
-- classifyQuest
-- unpackQuest
-- completeQuest
+
+- `inbox`
+- `active`
+- `parked`
+- `addQuest`
+- `classifyQuest`
+- `unpackQuest`
+- `completeQuest`
 
 ### useProgressStore
-- level
-- totalXp
-- actionXp
-- consistencyXp
-- recoveryXp
-- sectors
-- applyReward
+
+- `level`
+- `totalXp`
+- `actionXp`
+- `consistencyXp`
+- `recoveryXp`
+- `sectors`
+- `applyReward`
 
 ### useBodyStore
-- today
-- history
-- saveCheckin
+
+- `today`
+- `history`
+- `saveCheckin`
 
 ### useMoneyStore
-- snapshot
-- dailyMoneyQuests
-- saveSnapshot
-- completeMoneyQuest
+
+- `snapshot`
+- `dailyMoneyQuests`
+- `saveSnapshot`
+- `completeMoneyQuest`
 
 ### useRescueStore
-- currentProblem
-- suggestion
-- setProblem
-- generateSuggestion
-- acceptSuggestion
-- completeSuggestion
+
+- `currentProblem`
+- `suggestion`
+- `setProblem`
+- `generateSuggestion`
+- `acceptSuggestion`
+- `completeSuggestion`
 
 ### useCompanionStore
-- mood
-- evolutionLevel
-- activeMessage
-- updateMoodFromContext
+
+- `mood`
+- `evolutionLevel`
+- `activeMessage`
+- `updateMoodFromContext`
 
 ### usePromptCenterStore
-- selectedCard
-- generatedPrompt
-- generatePrompt
-- copyPrompt
-- openChatGPT
 
-## Структура backend
+- `selectedCardId`
+- `generatedPrompt`
+- `generatePrompt`
+- `copyPrompt`
+- `openChatGPT`
+
+### useSettingsStore
+
+- `userName`
+- `userRole`
+- `preferredTone`
+- `lastBackupExportAt`
+- `resetDemoData`
+- `clearAllLocalData`
+- `checkPwaStatus`
+- `applyPwaUpdate`
+
+## Готовность доменных типов к multi-user
+
+Следующие сущности уже должны быть готовы к будущему `userId`, даже если local mode продолжает работать без него:
+
+- `Quest`
+- `DailyRoute`
+- `ProgressProfile`
+- `BodyLog`
+- `MoneyLog`
+- `RescueLog`
+- `CompanionProfile`
+- `SettingsProfile`
+- `UserProfile`
+
+Правило: local mode может не иметь `userId`, account mode позже будет требовать его на серверной стороне.
+
+## Будущий backend
 
 ```text
 server/
@@ -140,137 +187,42 @@ server/
     modules/
       auth/
       users/
+      sync/
       quests/
       progress/
       body/
       money/
       rescue/
       companion/
+      settings/
       prompt-presets/
-      telegram/
-    shared/
-      db/
-      errors/
-      utils/
 ```
 
-## Mongo-сущности
+## Будущие API-контракты
 
-### User
-- email
-- name
-- profile
-- preferences
+### Auth
 
-### Quest
-- userId
-- title
-- description
-- domain
-- type
-- effort
-- impact
-- status
-- estimatedMinutes
-- parentQuestId
-- createdAt
-- updatedAt
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
 
-### DailyRoute
-- userId
-- date
-- mode
-- mainQuestId
-- quickWinId
-- recoveryQuestId
+### Sync
 
-### ProgressProfile
-- userId
-- level
-- totalXp
-- actionXp
-- consistencyXp
-- recoveryXp
-- sectors
+- `GET /api/sync/bootstrap`
+- `POST /api/sync/push`
+- `POST /api/sync/pull`
+- `POST /api/sync/import-local-backup`
 
-### BodyLog
-- userId
-- date
-- weight
-- waterMl
-- steps
-- workoutDone
-- foodOnTrack
+### Domain
 
-### MoneyLog
-- userId
-- date
-- balance
-- debt
-- notes
+- `/api/quests`
+- `/api/progress`
+- `/api/body`
+- `/api/money`
+- `/api/rescue`
+- `/api/companion`
+- `/api/settings`
 
-### RescueLog
-- userId
-- date
-- problem
-- suggestionId
-- accepted
-- completed
-
-### CompanionProfile
-- userId
-- evolutionLevel
-- mood
-- unlockedStates
-
-### PromptPreset
-- key
-- title
-- description
-- template
-- category
-
-## API-контракты
-
-Auth:
-- POST /api/auth/login
-- POST /api/auth/refresh
-- POST /api/auth/logout
-- GET /api/auth/me
-
-Quests:
-- GET /api/quests
-- POST /api/quests
-- PATCH /api/quests/:id
-- PATCH /api/quests/:id/complete
-- POST /api/quests/:id/unpack
-
-Today:
-- GET /api/today/route
-- POST /api/today/route/generate
-- PATCH /api/today/mode
-
-Progress:
-- GET /api/progress
-- POST /api/progress/reward
-
-Body:
-- GET /api/body
-- POST /api/body/checkin
-
-Money:
-- GET /api/money
-- POST /api/money/checkin
-
-Rescue:
-- POST /api/rescue/generate
-- POST /api/rescue/accept
-- POST /api/rescue/complete
-
-Companion:
-- GET /api/companion
-- PATCH /api/companion
-
-Prompt Center:
-- GET /api/prompt-presets
-- POST /api/prompt-presets/generate
+Подробный черновик backend-контрактов: [backend-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/backend-plan.md)

@@ -51,6 +51,14 @@ const SettingsScreen = lazy(async () => {
   }
 })
 
+const AuthScreen = lazy(async () => {
+  const module = await import('@/features/auth/screens/AuthScreen')
+
+  return {
+    default: module.AuthScreen,
+  }
+})
+
 const router = createBrowserRouter([
   {
     path: '/',
@@ -84,6 +92,10 @@ const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsScreen />,
+      },
+      {
+        path: 'auth',
+        element: <AuthScreen />,
       },
     ],
   },

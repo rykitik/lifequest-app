@@ -1,4 +1,5 @@
 export const LIFEQUEST_DEMO_STORAGE_KEYS = [
+  'lifequest-auth',
   'lifequest-quests',
   'lifequest-today',
   'lifequest-progress',

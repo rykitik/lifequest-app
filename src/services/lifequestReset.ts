@@ -5,9 +5,11 @@ import { useProgressStore } from '@/stores/useProgressStore'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import { useQuestStore } from '@/stores/useQuestStore'
 import { useRescueStore } from '@/stores/useRescueStore'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { useTodayStore } from '@/stores/useTodayStore'
 
 export function resetLifeQuestDemoData(resetSettings: () => void) {
+  useAuthStore.getState().resetDemoData()
   useQuestStore.getState().resetDemoData()
   useTodayStore.getState().resetDemoData()
   useProgressStore.getState().resetDemoData()

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { Download, RotateCcw, ShieldCheck, Sparkles, Upload } from 'lucide-react'
+import { Download, RefreshCw, ShieldCheck, Sparkles, Upload, UserRound } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { exportLifeQuestBackup, importLifeQuestBackup } from '@/services/lifequestBackup'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
-import type { PreferredTone } from '@/shared/types'
+import type { PreferredTone, SettingsProfile } from '@/shared/types'
 
 const toneOptions: Array<{
   key: PreferredTone
@@ -25,19 +27,13 @@ const toneOptions: Array<{
   {
     key: 'supportive',
     label: 'Поддерживающий',
-    description: 'Больше валидации и опоры без давления и токсичной мотивации.',
+    description: 'Больше опоры и валидации без давления и токсичной мотивации.',
   },
 ]
 
 interface ProfileSettingsFormProps {
-  initialName: string
-  initialRole: string
-  initialTone: PreferredTone
-  onSave: (profile: {
-    userName: string
-    userRole: string
-    preferredTone: PreferredTone
-  }) => void
+  initialProfile: SettingsProfile
+  onSave: (profile: Partial<SettingsProfile>) => void
 }
 
 function getInstallStatusLabel(isInstalledAsApp: boolean) {
@@ -53,6 +49,14 @@ function getServiceWorkerStatusLabel(
   }
 
   return hasActiveServiceWorker ? 'Service Worker активен' : 'Service Worker недоступен'
+}
+
+function getAccountStatusLabel(mode: 'local' | 'account', isAuthenticated: boolean) {
+  if (mode === 'account' && isAuthenticated) {
+    return 'Режим аккаунта'
+  }
+
+  return 'Локальный режим'
 }
 
 function normalizeProfileValue(value: string) {
@@ -76,20 +80,17 @@ function formatBackupDate(value: string | null) {
   }).format(date)
 }
 
-function ProfileSettingsForm({
-  initialName,
-  initialRole,
-  initialTone,
-  onSave,
-}: ProfileSettingsFormProps) {
-  const [draftName, setDraftName] = useState(initialName)
-  const [draftRole, setDraftRole] = useState(initialRole)
-  const [draftTone, setDraftTone] = useState<PreferredTone>(initialTone)
+function ProfileSettingsForm({ initialProfile, onSave }: ProfileSettingsFormProps) {
+  const [draftName, setDraftName] = useState(initialProfile.userName)
+  const [draftRole, setDraftRole] = useState(initialProfile.userRole)
+  const [draftTone, setDraftTone] = useState<PreferredTone>(initialProfile.preferredTone)
 
   const normalizedName = normalizeProfileValue(draftName)
   const normalizedRole = normalizeProfileValue(draftRole)
   const isDirty =
-    normalizedName !== initialName || normalizedRole !== initialRole || draftTone !== initialTone
+    normalizedName !== initialProfile.userName ||
+    normalizedRole !== initialProfile.userRole ||
+    draftTone !== initialProfile.preferredTone
 
   return (
     <div className="mt-4 space-y-4">
@@ -157,6 +158,7 @@ function ProfileSettingsForm({
 }
 
 export function SettingsScreen() {
+  const navigate = useNavigate()
   const userName = useSettingsStore((state) => state.userName)
   const userRole = useSettingsStore((state) => state.userRole)
   const preferredTone = useSettingsStore((state) => state.preferredTone)
@@ -172,6 +174,9 @@ export function SettingsScreen() {
   const clearAllLocalData = useSettingsStore((state) => state.clearAllLocalData)
   const checkPwaStatus = useSettingsStore((state) => state.checkPwaStatus)
   const applyPwaUpdate = useSettingsStore((state) => state.applyPwaUpdate)
+  const authMode = useAuthStore((state) => state.mode)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const authUser = useAuthStore((state) => state.user)
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
@@ -187,7 +192,20 @@ export function SettingsScreen() {
     () => `${userName}|${userRole}|${preferredTone}`,
     [preferredTone, userName, userRole],
   )
+  const profileDefaults = useMemo<SettingsProfile>(
+    () => ({
+      userName,
+      userRole,
+      preferredTone,
+      userId: authUser?.userId,
+    }),
+    [authUser?.userId, preferredTone, userName, userRole],
+  )
   const lastBackupLabel = useMemo(() => formatBackupDate(lastBackupExportAt), [lastBackupExportAt])
+  const accountStatusLabel = useMemo(
+    () => getAccountStatusLabel(authMode, isAuthenticated),
+    [authMode, isAuthenticated],
+  )
 
   useEffect(() => {
     void checkPwaStatus()
@@ -219,7 +237,7 @@ export function SettingsScreen() {
 
   const handleClearAllLocalData = async () => {
     const shouldClear = window.confirm(
-      'Очистить все локальные данные на этом устройстве? Это удалит сохранённые маршруты, прогресс, настройки и перезагрузит приложение.',
+      'Очистить все локальные данные на этом устройстве? Это удалит маршруты, прогресс, настройки и локальный cache приложения.',
     )
 
     if (!shouldClear) {
@@ -323,25 +341,52 @@ export function SettingsScreen() {
     <section className="pb-6">
       <ScreenHeader
         title="Настройки"
-        subtitle="Управляй локальными данными, тоном системы и состоянием PWA без лишнего шума."
+        subtitle="Управляй локальными данными, профилем, режимом приложения и будущей готовностью к аккаунтам без лишнего шума."
       />
 
       <GlassCard tone="strong" className="mb-5">
         <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Профиль</p>
         <ProfileSettingsForm
           key={profileFormKey}
-          initialName={userName}
-          initialRole={userRole}
-          initialTone={preferredTone}
+          initialProfile={profileDefaults}
           onSave={updateProfile}
         />
+      </GlassCard>
+
+      <GlassCard className="mb-5 border border-cyan/20 bg-cyan/5">
+        <p className="text-xs uppercase tracking-[0.24em] text-cyan/80">Аккаунт и синхронизация</p>
+        <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Статус</p>
+          <p className="mt-2 text-sm font-medium text-white">{accountStatusLabel}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-200">
+            Аккаунты и синхронизация будут добавлены позже. Сейчас LifeQuest работает локально на
+            этом устройстве, а backup остаётся рекомендуемым способом сохранить данные.
+          </p>
+        </div>
+
+        <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Профиль режима</p>
+          <p className="mt-2 text-sm text-white">
+            {userName ? `Локальный профиль: ${userName}` : 'Локальный профиль готов'}
+          </p>
+        </div>
+
+        <PrimaryButton
+          tone="secondary"
+          fullWidth
+          className="mt-4"
+          icon={<UserRound className="h-4 w-4" />}
+          onClick={() => navigate('/auth')}
+        >
+          Открыть экран аккаунта
+        </PrimaryButton>
       </GlassCard>
 
       <GlassCard className="mb-5 border border-warning/20 bg-warning/5">
         <p className="text-xs uppercase tracking-[0.24em] text-warning/80">Локальные данные</p>
         <p className="mt-3 text-sm leading-6 text-slate-200">
-          Всё хранится локально на этом устройстве. Можно вернуть demo-состояние или полностью
-          очистить локальный контур и загрузить приложение заново.
+          Всё хранится локально на этом устройстве. Можно вернуть demo-состояние, импортировать
+          backup или полностью очистить локальный контур и загрузить приложение заново.
         </p>
         <p className="mt-3 text-sm leading-6 text-slate-200">
           Backup нужен, пока приложение работает local-first без аккаунта и backend. Сохрани файл,
@@ -388,7 +433,7 @@ export function SettingsScreen() {
             tone="secondary"
             fullWidth
             disabled={isImportingBackup || isExportingBackup}
-            icon={<RotateCcw className="h-4 w-4" />}
+            icon={<RefreshCw className="h-4 w-4" />}
             onClick={handleResetDemoData}
           >
             Сбросить demo-данные
@@ -397,7 +442,9 @@ export function SettingsScreen() {
             tone="warning"
             fullWidth
             disabled={isImportingBackup || isExportingBackup}
-            onClick={() => void handleClearAllLocalData()}
+            onClick={() => {
+              void handleClearAllLocalData()
+            }}
           >
             Очистить все локальные данные
           </PrimaryButton>
@@ -446,7 +493,9 @@ export function SettingsScreen() {
             fullWidth
             disabled={isCheckingUpdate}
             icon={<Sparkles className="h-4 w-4" />}
-            onClick={() => void handleCheckUpdate()}
+            onClick={() => {
+              void handleCheckUpdate()
+            }}
           >
             {isCheckingUpdate ? 'Проверяем обновление…' : 'Проверить обновление'}
           </PrimaryButton>
@@ -455,7 +504,9 @@ export function SettingsScreen() {
             <PrimaryButton
               fullWidth
               disabled={isApplyingUpdate}
-              onClick={() => void handleApplyUpdate()}
+              onClick={() => {
+                void handleApplyUpdate()
+              }}
             >
               {isApplyingUpdate ? 'Обновляем приложение…' : 'Обновить приложение'}
             </PrimaryButton>

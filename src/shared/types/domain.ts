@@ -1,5 +1,6 @@
 export type SectorKey = 'focus' | 'body' | 'money' | 'stability' | 'energy'
 export type ModeKey = 'low' | 'stable' | 'high' | 'drifted'
+export type AuthMode = 'local' | 'account'
 export type PreferredTone = 'calm' | 'direct' | 'supportive'
 export type CompanionState =
   | 'idle'
@@ -20,13 +21,23 @@ export type QuestClassification =
 export type QuestEffort = 'tiny' | 'light' | 'medium' | 'heavy'
 export type QuestImpact = 'small' | 'medium' | 'high'
 
-export interface UserProfile {
+interface UserScopedEntity {
+  userId?: string
+}
+
+export interface UserProfile extends UserScopedEntity {
   id: string
   name: string
   title: string
   mainGoal: string
   relevantGoals: string[]
   timezone: string
+}
+
+export interface SettingsProfile extends UserScopedEntity {
+  userName: string
+  userRole: string
+  preferredTone: PreferredTone
 }
 
 export interface TodayModeOption {
@@ -45,7 +56,7 @@ export interface QuestStep {
   done: boolean
 }
 
-export interface QuestItem {
+export interface Quest extends UserScopedEntity {
   id: string
   title: string
   subtitle: string
@@ -58,13 +69,17 @@ export interface QuestItem {
   steps?: QuestStep[]
 }
 
-export interface TodayRoute {
-  mainQuest: QuestItem | null
-  quickWin: QuestItem | null
-  recoveryQuest: QuestItem | null
+export type QuestItem = Quest
+
+export interface DailyRoute extends UserScopedEntity {
+  date?: string
+  mainQuest: Quest | null
+  quickWin: Quest | null
+  recoveryQuest: Quest | null
 }
 
-export type TodayRouteKey = keyof TodayRoute
+export type TodayRoute = DailyRoute
+export type TodayRouteKey = keyof Pick<DailyRoute, 'mainQuest' | 'quickWin' | 'recoveryQuest'>
 
 export interface SectorProgress {
   key: SectorKey
@@ -82,7 +97,7 @@ export interface DailyProgressSummary {
   sectorXp: Record<SectorKey, number>
 }
 
-export interface ProgressProfile {
+export interface ProgressProfile extends UserScopedEntity {
   level: number
   totalXp: number
   currentLevelXp: number
@@ -104,7 +119,7 @@ export interface ProgressReward {
   sourceId?: string
 }
 
-export interface BodySnapshot {
+export interface BodySnapshot extends UserScopedEntity {
   weightKg: number
   weightTrendKg: number
   waterLiters: number
@@ -115,13 +130,22 @@ export interface BodySnapshot {
   quickAction: string
 }
 
-export interface MoneySnapshot {
+export interface BodyLog extends BodySnapshot {
+  date?: string
+}
+
+export interface MoneySnapshot extends UserScopedEntity {
   balance: number
   weeklyDelta: number
   debt: number
   debtGoal: number
   calmNote: string
   history: number[]
+}
+
+export interface MoneyLog extends MoneySnapshot {
+  date?: string
+  notes?: string
 }
 
 export interface MoneyAction {
@@ -150,6 +174,18 @@ export interface RescueSuggestion {
   supportNote: string
 }
 
+export interface RescueLog extends UserScopedEntity {
+  id: string
+  date?: string
+  problemId: string
+  problemLabel: string
+  suggestionTitle: string
+  accepted: boolean
+  completed: boolean
+  sector: SectorKey
+  rewardXp: number
+}
+
 export interface PromptCard {
   id: string
   title: string
@@ -172,7 +208,7 @@ export interface PromptContext {
   preferredResponseFormat: string
 }
 
-export interface CompanionProfile {
+export interface CompanionProfile extends UserScopedEntity {
   mood: CompanionState
   evolutionLevel: number
   activeMessage: string

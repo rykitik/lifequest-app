@@ -5,7 +5,7 @@ export function AppProviders({ children }: PropsWithChildren) {
   const bootstrap = useAuthStore((state) => state.bootstrap)
 
   useEffect(() => {
-    bootstrap()
+    void bootstrap()
   }, [bootstrap])
 
   return <>{children}</>

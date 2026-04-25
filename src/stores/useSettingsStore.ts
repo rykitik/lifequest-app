@@ -9,23 +9,16 @@ import {
 } from '@/services/lifequestRuntime'
 import { mockUser } from '@/services/mockData'
 import { mergePersistedState } from '@/shared/lib/persist'
-import type { PreferredTone } from '@/shared/types'
+import type { SettingsProfile } from '@/shared/types'
 
-interface SettingsState {
-  userName: string
-  userRole: string
-  preferredTone: PreferredTone
+interface SettingsState extends SettingsProfile {
   lastBackupExportAt: string | null
   appVersion: string
   isInstalledAsApp: boolean
   hasServiceWorkerSupport: boolean
   hasActiveServiceWorker: boolean
   hasWaitingServiceWorker: boolean
-  updateProfile: (profile: {
-    userName?: string
-    userRole?: string
-    preferredTone?: PreferredTone
-  }) => void
+  updateProfile: (profile: Partial<SettingsProfile>) => void
   resetDemoData: () => void
   clearAllLocalData: () => Promise<void>
   checkPwaStatus: (options?: { checkForUpdates?: boolean }) => Promise<void>
@@ -35,11 +28,12 @@ interface SettingsState {
 
 type SettingsPersistedState = Pick<
   SettingsState,
-  'userName' | 'userRole' | 'preferredTone' | 'lastBackupExportAt'
+  'userId' | 'userName' | 'userRole' | 'preferredTone' | 'lastBackupExportAt'
 >
 
 function createSettingsPersistedState(): SettingsPersistedState {
   return {
+    userId: mockUser.userId,
     userName: mockUser.name,
     userRole: 'Оператор системы',
     preferredTone: 'calm',
@@ -62,13 +56,15 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       ...createSettingsPersistedState(),
       ...createSettingsRuntimeState(),
-      updateProfile: ({ userName, userRole, preferredTone }) =>
+      updateProfile: ({ userId, userName, userRole, preferredTone }) =>
         set((state) => {
+          const nextUserId = userId ?? state.userId
           const nextUserName = userName?.trim() || state.userName
           const nextUserRole = userRole?.trim() || state.userRole
           const nextPreferredTone = preferredTone ?? state.preferredTone
 
           if (
+            state.userId === nextUserId &&
             state.userName === nextUserName &&
             state.userRole === nextUserRole &&
             state.preferredTone === nextPreferredTone
@@ -77,6 +73,7 @@ export const useSettingsStore = create<SettingsState>()(
           }
 
           return {
+            userId: nextUserId,
             userName: nextUserName,
             userRole: nextUserRole,
             preferredTone: nextPreferredTone,
@@ -144,13 +141,14 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'lifequest-settings',
-      version: 2,
+      version: 3,
       migrate: (persistedState) =>
         mergePersistedState(
           createSettingsPersistedState(),
           persistedState,
         ) as SettingsPersistedState,
       partialize: (state) => ({
+        userId: state.userId,
         userName: state.userName,
         userRole: state.userRole,
         preferredTone: state.preferredTone,
