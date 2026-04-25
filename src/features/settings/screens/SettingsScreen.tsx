@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import { RotateCcw, ShieldCheck, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { Download, RotateCcw, ShieldCheck, Sparkles, Upload } from 'lucide-react'
+import { exportLifeQuestBackup, importLifeQuestBackup } from '@/services/lifequestBackup'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
@@ -56,6 +57,23 @@ function getServiceWorkerStatusLabel(
 
 function normalizeProfileValue(value: string) {
   return value.trim()
+}
+
+function formatBackupDate(value: string | null) {
+  if (!value) {
+    return 'Ещё не было'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Дата неизвестна'
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
 }
 
 function ProfileSettingsForm({
@@ -142,24 +160,34 @@ export function SettingsScreen() {
   const userName = useSettingsStore((state) => state.userName)
   const userRole = useSettingsStore((state) => state.userRole)
   const preferredTone = useSettingsStore((state) => state.preferredTone)
+  const lastBackupExportAt = useSettingsStore((state) => state.lastBackupExportAt)
   const appVersion = useSettingsStore((state) => state.appVersion)
   const isInstalledAsApp = useSettingsStore((state) => state.isInstalledAsApp)
   const hasServiceWorkerSupport = useSettingsStore((state) => state.hasServiceWorkerSupport)
   const hasActiveServiceWorker = useSettingsStore((state) => state.hasActiveServiceWorker)
   const hasWaitingServiceWorker = useSettingsStore((state) => state.hasWaitingServiceWorker)
   const updateProfile = useSettingsStore((state) => state.updateProfile)
+  const recordBackupExport = useSettingsStore((state) => state.recordBackupExport)
   const resetDemoData = useSettingsStore((state) => state.resetDemoData)
   const clearAllLocalData = useSettingsStore((state) => state.clearAllLocalData)
   const checkPwaStatus = useSettingsStore((state) => state.checkPwaStatus)
   const applyPwaUpdate = useSettingsStore((state) => state.applyPwaUpdate)
 
+  const importInputRef = useRef<HTMLInputElement | null>(null)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [isApplyingUpdate, setIsApplyingUpdate] = useState(false)
+  const [isExportingBackup, setIsExportingBackup] = useState(false)
+  const [isImportingBackup, setIsImportingBackup] = useState(false)
+  const [backupStatus, setBackupStatus] = useState<{
+    tone: 'success' | 'error'
+    message: string
+  } | null>(null)
 
   const profileFormKey = useMemo(
     () => `${userName}|${userRole}|${preferredTone}`,
     [preferredTone, userName, userRole],
   )
+  const lastBackupLabel = useMemo(() => formatBackupDate(lastBackupExportAt), [lastBackupExportAt])
 
   useEffect(() => {
     void checkPwaStatus()
@@ -199,6 +227,76 @@ export function SettingsScreen() {
     }
 
     await clearAllLocalData()
+  }
+
+  const handleExportBackup = () => {
+    setBackupStatus(null)
+    setIsExportingBackup(true)
+
+    try {
+      const result = exportLifeQuestBackup()
+
+      recordBackupExport(result.backup.exportedAt)
+      setBackupStatus({
+        tone: 'success',
+        message: `Backup сохранён: ${result.fileName}`,
+      })
+    } catch {
+      setBackupStatus({
+        tone: 'error',
+        message: 'Не удалось экспортировать backup. Попробуй ещё раз.',
+      })
+    } finally {
+      setIsExportingBackup(false)
+    }
+  }
+
+  const handleImportClick = () => {
+    setBackupStatus(null)
+    importInputRef.current?.click()
+  }
+
+  const handleImportFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    setBackupStatus(null)
+    setIsImportingBackup(true)
+
+    try {
+      const preview = await importLifeQuestBackup(file, { apply: false })
+      const exportDateLabel = formatBackupDate(preview.backup.exportedAt)
+      const shouldImport = window.confirm(
+        `Импортировать backup от ${exportDateLabel}? Это заменит текущие локальные данные LifeQuest на этом устройстве.`,
+      )
+
+      if (!shouldImport) {
+        return
+      }
+
+      const result = await importLifeQuestBackup(file)
+
+      setBackupStatus({
+        tone: 'success',
+        message: `Backup импортирован. Восстановлено ключей: ${result.importedKeys.length}. Перезапускаем приложение…`,
+      })
+
+      window.setTimeout(() => {
+        window.location.replace('/today')
+      }, 450)
+    } catch (error) {
+      setBackupStatus({
+        tone: 'error',
+        message:
+          error instanceof Error ? error.message : 'Не удалось импортировать backup.',
+      })
+    } finally {
+      setIsImportingBackup(false)
+    }
   }
 
   const handleCheckUpdate = async () => {
@@ -245,20 +343,75 @@ export function SettingsScreen() {
           Всё хранится локально на этом устройстве. Можно вернуть demo-состояние или полностью
           очистить локальный контур и загрузить приложение заново.
         </p>
+        <p className="mt-3 text-sm leading-6 text-slate-200">
+          Backup нужен, пока приложение работает local-first без аккаунта и backend. Сохрани файл,
+          чтобы не потерять прогресс.
+        </p>
+
+        <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Последний экспорт</p>
+          <p className="mt-2 text-sm font-medium text-white">{lastBackupLabel}</p>
+        </div>
+
+        {backupStatus ? (
+          <div
+            className={`mt-4 rounded-3xl border p-4 text-sm leading-6 ${
+              backupStatus.tone === 'success'
+                ? 'border-success/20 bg-success/10 text-slate-100'
+                : 'border-danger/20 bg-danger/10 text-slate-100'
+            }`}
+          >
+            {backupStatus.message}
+          </div>
+        ) : null}
 
         <div className="mt-4 grid gap-3">
           <PrimaryButton
             tone="secondary"
             fullWidth
+            disabled={isExportingBackup || isImportingBackup}
+            icon={<Download className="h-4 w-4" />}
+            onClick={handleExportBackup}
+          >
+            {isExportingBackup ? 'Готовим backup…' : 'Экспортировать backup'}
+          </PrimaryButton>
+          <PrimaryButton
+            tone="secondary"
+            fullWidth
+            disabled={isImportingBackup || isExportingBackup}
+            icon={<Upload className="h-4 w-4" />}
+            onClick={handleImportClick}
+          >
+            {isImportingBackup ? 'Импортируем backup…' : 'Импортировать backup'}
+          </PrimaryButton>
+          <PrimaryButton
+            tone="secondary"
+            fullWidth
+            disabled={isImportingBackup || isExportingBackup}
             icon={<RotateCcw className="h-4 w-4" />}
             onClick={handleResetDemoData}
           >
             Сбросить demo-данные
           </PrimaryButton>
-          <PrimaryButton tone="warning" fullWidth onClick={() => void handleClearAllLocalData()}>
+          <PrimaryButton
+            tone="warning"
+            fullWidth
+            disabled={isImportingBackup || isExportingBackup}
+            onClick={() => void handleClearAllLocalData()}
+          >
             Очистить все локальные данные
           </PrimaryButton>
         </div>
+
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={(event) => {
+            void handleImportFileChange(event)
+          }}
+        />
       </GlassCard>
 
       <GlassCard className="mb-5">

@@ -15,6 +15,7 @@ interface SettingsState {
   userName: string
   userRole: string
   preferredTone: PreferredTone
+  lastBackupExportAt: string | null
   appVersion: string
   isInstalledAsApp: boolean
   hasServiceWorkerSupport: boolean
@@ -29,15 +30,20 @@ interface SettingsState {
   clearAllLocalData: () => Promise<void>
   checkPwaStatus: (options?: { checkForUpdates?: boolean }) => Promise<void>
   applyPwaUpdate: () => Promise<void>
+  recordBackupExport: (exportedAt: string) => void
 }
 
-type SettingsPersistedState = Pick<SettingsState, 'userName' | 'userRole' | 'preferredTone'>
+type SettingsPersistedState = Pick<
+  SettingsState,
+  'userName' | 'userRole' | 'preferredTone' | 'lastBackupExportAt'
+>
 
 function createSettingsPersistedState(): SettingsPersistedState {
   return {
     userName: mockUser.name,
     userRole: 'Оператор системы',
     preferredTone: 'calm',
+    lastBackupExportAt: null,
   }
 }
 
@@ -74,6 +80,16 @@ export const useSettingsStore = create<SettingsState>()(
             userName: nextUserName,
             userRole: nextUserRole,
             preferredTone: nextPreferredTone,
+          }
+        }),
+      recordBackupExport: (exportedAt) =>
+        set((state) => {
+          if (state.lastBackupExportAt === exportedAt) {
+            return state
+          }
+
+          return {
+            lastBackupExportAt: exportedAt,
           }
         }),
       resetDemoData: () => {
@@ -128,7 +144,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'lifequest-settings',
-      version: 1,
+      version: 2,
       migrate: (persistedState) =>
         mergePersistedState(
           createSettingsPersistedState(),
@@ -138,6 +154,7 @@ export const useSettingsStore = create<SettingsState>()(
         userName: state.userName,
         userRole: state.userRole,
         preferredTone: state.preferredTone,
+        lastBackupExportAt: state.lastBackupExportAt,
       }),
     },
   ),
