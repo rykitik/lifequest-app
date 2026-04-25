@@ -14,7 +14,7 @@
 
 - `VPS_HOST` — IP или домен VPS;
 - `VPS_USER` — SSH-пользователь для деплоя, например `lifequest-deploy`;
-- `VPS_SSH_KEY` — приватный SSH-ключ, которым GitHub Actions входит на сервер.
+- `VPS_SSH_KEY` — приватный SSH-ключ в формате base64, которым GitHub Actions входит на сервер.
 
 ## Как работает выкладка
 
