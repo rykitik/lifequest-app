@@ -16,6 +16,7 @@ import { useProgressStore } from '@/stores/useProgressStore'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import { useQuestStore } from '@/stores/useQuestStore'
 import { useRescueStore } from '@/stores/useRescueStore'
+import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTodayStore } from '@/stores/useTodayStore'
 import type { QuestItem, SectorKey, TodayRouteKey } from '@/shared/types'
 
@@ -47,6 +48,7 @@ export function TodayScreen() {
   const navigate = useNavigate()
   const [pickerSlot, setPickerSlot] = useState<TodayRouteKey | null>(null)
   const user = useAuthStore((state) => state.user)
+  const userName = useSettingsStore((state) => state.userName)
   const currentMode = useTodayStore((state) => state.currentMode)
   const modes = useTodayStore((state) => state.modes)
   const route = useTodayStore((state) => state.route)
@@ -151,7 +153,7 @@ export function TodayScreen() {
   return (
     <section className="pb-6">
       <ScreenHeader
-        title={`Привет, ${user?.name ?? 'Капитан'}`}
+        title={`Привет, ${userName || user?.name || 'Капитан'}`}
         subtitle="Выбери самый лёгкий полезный маршрут. Прогресс важнее идеала."
       />
 

@@ -1,17 +1,14 @@
+import { Settings2 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
 import { formatCompact, formatPercent } from '@/shared/lib/format'
-import { useBodyStore } from '@/stores/useBodyStore'
 import { useCompanionStore } from '@/stores/useCompanionStore'
-import { useMoneyStore } from '@/stores/useMoneyStore'
 import { useProgressStore } from '@/stores/useProgressStore'
-import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
-import { useQuestStore } from '@/stores/useQuestStore'
-import { useRescueStore } from '@/stores/useRescueStore'
-import { useTodayStore } from '@/stores/useTodayStore'
+import { useSettingsStore } from '@/stores/useSettingsStore'
 import type { CompanionState } from '@/shared/types'
 
 const evolutionMilestones = [
@@ -33,6 +30,7 @@ const moodLabels: Record<CompanionState, string> = {
 }
 
 export function CoreScreen() {
+  const navigate = useNavigate()
   const mood = useCompanionStore((state) => state.mood)
   const evolutionLevel = useCompanionStore((state) => state.evolutionLevel)
   const activeMessage = useCompanionStore((state) => state.activeMessage)
@@ -45,14 +43,7 @@ export function CoreScreen() {
   const recoveryXp = useProgressStore((state) => state.recoveryXp)
   const achievements = useProgressStore((state) => state.achievements)
   const sectors = useProgressStore((state) => state.sectors)
-  const resetProgress = useProgressStore((state) => state.resetDemoData)
-  const resetCompanion = useCompanionStore((state) => state.resetDemoData)
-  const resetQuests = useQuestStore((state) => state.resetDemoData)
-  const resetToday = useTodayStore((state) => state.resetDemoData)
-  const resetBody = useBodyStore((state) => state.resetDemoData)
-  const resetMoney = useMoneyStore((state) => state.resetDemoData)
-  const resetPromptCenter = usePromptCenterStore((state) => state.resetDemoData)
-  const resetRescue = useRescueStore((state) => state.resetRescueState)
+  const resetDemoData = useSettingsStore((state) => state.resetDemoData)
 
   const progressPercent = (currentLevelXp / nextLevelXp) * 100
   const activeEvolutionIndex = evolutionLevel % evolutionMilestones.length
@@ -66,14 +57,7 @@ export function CoreScreen() {
       return
     }
 
-    resetQuests()
-    resetToday()
-    resetProgress()
-    resetBody()
-    resetMoney()
-    resetCompanion()
-    resetPromptCenter()
-    resetRescue()
+    resetDemoData()
   }
 
   return (
@@ -203,9 +187,19 @@ export function CoreScreen() {
           Всё хранится локально на этом устройстве. Если нужно вернуться к demo-состоянию, можно
           сбросить маршрут, задачи, прогресс, настройки Центра промптов и локальные логи.
         </p>
-        <PrimaryButton tone="warning" fullWidth className="mt-4" onClick={handleResetDemoData}>
-          Сбросить demo-данные
-        </PrimaryButton>
+        <div className="mt-4 grid gap-3">
+          <PrimaryButton
+            tone="secondary"
+            fullWidth
+            icon={<Settings2 className="h-4 w-4" />}
+            onClick={() => navigate('/settings')}
+          >
+            Настройки
+          </PrimaryButton>
+          <PrimaryButton tone="warning" fullWidth onClick={handleResetDemoData}>
+            Сбросить demo-данные
+          </PrimaryButton>
+        </div>
       </GlassCard>
     </section>
   )

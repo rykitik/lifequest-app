@@ -1,5 +1,6 @@
 export type SectorKey = 'focus' | 'body' | 'money' | 'stability' | 'energy'
 export type ModeKey = 'low' | 'stable' | 'high' | 'drifted'
+export type PreferredTone = 'calm' | 'direct' | 'supportive'
 export type CompanionState =
   | 'idle'
   | 'focused'
@@ -162,6 +163,7 @@ export interface PromptContext {
   mainQuest: string
   quickWin: string
   recoveryOption: string
+  preferredTone: PreferredTone
   relevantGoals: string[]
   activeQuests: string[]
   parkedQuests: string[]

@@ -43,6 +43,14 @@ const CoreScreen = lazy(async () => {
   }
 })
 
+const SettingsScreen = lazy(async () => {
+  const module = await import('@/features/settings/screens/SettingsScreen')
+
+  return {
+    default: module.SettingsScreen,
+  }
+})
+
 const router = createBrowserRouter([
   {
     path: '/',
@@ -72,6 +80,10 @@ const router = createBrowserRouter([
       {
         path: 'core',
         element: <CoreScreen />,
+      },
+      {
+        path: 'settings',
+        element: <SettingsScreen />,
       },
     ],
   },

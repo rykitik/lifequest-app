@@ -1,5 +1,6 @@
 import { AlertTriangle, RefreshCcw, RotateCcw } from 'lucide-react'
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom'
+import { clearLifeQuestRuntimeData } from '@/services/lifequestRuntime'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 
@@ -19,29 +20,6 @@ function getErrorMessage(error: unknown) {
   }
 
   return 'Произошёл непредвиденный сбой.'
-}
-
-function clearLifeQuestLocalData() {
-  const keysToRemove = Object.keys(window.localStorage).filter((key) => key.startsWith('lifequest-'))
-
-  keysToRemove.forEach((key) => window.localStorage.removeItem(key))
-  window.sessionStorage.clear()
-}
-
-async function clearLifeQuestRuntimeData() {
-  clearLifeQuestLocalData()
-
-  if ('serviceWorker' in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations()
-    await Promise.all(registrations.map((registration) => registration.unregister()))
-  }
-
-  if ('caches' in window) {
-    const cacheKeys = await window.caches.keys()
-    await Promise.all(
-      cacheKeys.filter((key) => key.startsWith('lifequest-')).map((key) => window.caches.delete(key)),
-    )
-  }
 }
 
 export function RouteErrorBoundary() {
@@ -88,7 +66,12 @@ export function RouteErrorBoundary() {
                 fullWidth
                 icon={<RotateCcw className="h-4 w-4" />}
                 onClick={() => {
-                  void clearLifeQuestRuntimeData().then(() => {
+                  void clearLifeQuestRuntimeData({
+                    clearAllLocalStorage: true,
+                    clearSessionStorage: true,
+                    clearCaches: true,
+                    unregisterServiceWorkers: true,
+                  }).then(() => {
                     window.location.reload()
                   })
                 }}

@@ -7,7 +7,20 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { useProgressStore } from '@/stores/useProgressStore'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import { useQuestStore } from '@/stores/useQuestStore'
+import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTodayStore } from '@/stores/useTodayStore'
+
+function getToneLabel(preferredTone: 'calm' | 'direct' | 'supportive') {
+  switch (preferredTone) {
+    case 'direct':
+      return 'Прямой'
+    case 'supportive':
+      return 'Поддерживающий'
+    case 'calm':
+    default:
+      return 'Спокойный'
+  }
+}
 
 export function PromptCenterSheet() {
   const isOpen = usePromptCenterStore((state) => state.isOpen)
@@ -33,6 +46,7 @@ export function PromptCenterSheet() {
   const parked = useQuestStore((state) => state.parked)
   const level = useProgressStore((state) => state.level)
   const sectors = useProgressStore((state) => state.sectors)
+  const preferredTone = useSettingsStore((state) => state.preferredTone)
 
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? cards[0] ?? null
   const currentModeLabel = modes.find((mode) => mode.key === currentMode)?.label ?? currentMode
@@ -68,6 +82,7 @@ export function PromptCenterSheet() {
       mainQuest: route.mainQuest?.title ?? 'Не выбран',
       quickWin: route.quickWin?.title ?? 'Не выбрана',
       recoveryOption: route.recoveryQuest?.title ?? 'Не подготовлен',
+      preferredTone,
       relevantGoals,
       activeQuests,
       parkedQuests,
@@ -79,6 +94,7 @@ export function PromptCenterSheet() {
       activeQuests,
       currentModeLabel,
       parkedQuests,
+      preferredTone,
       preferredResponseFormat,
       progressSummary,
       relevantGoals,
@@ -95,6 +111,7 @@ export function PromptCenterSheet() {
       { label: 'Главный квест', value: context.mainQuest },
       { label: 'Быстрая победа', value: context.quickWin },
       { label: 'Запасной план', value: context.recoveryOption },
+      { label: 'Тон ответа', value: getToneLabel(context.preferredTone) },
       {
         label: 'Активные задачи',
         value: context.activeQuests.length ? context.activeQuests.join(', ') : 'Нет активных задач',
@@ -117,6 +134,7 @@ export function PromptCenterSheet() {
       mainQuest: route.mainQuest?.title ?? 'Не выбран',
       quickWin: route.quickWin?.title ?? 'Не выбрана',
       recoveryOption: route.recoveryQuest?.title ?? 'Не подготовлен',
+      preferredTone,
       relevantGoals: relevantGoalsKey ? relevantGoalsKey.split('|') : [],
       activeQuests: activeQuestsKey ? activeQuestsKey.split('|') : [],
       parkedQuests: parkedQuestsKey ? parkedQuestsKey.split('|') : [],
@@ -131,6 +149,7 @@ export function PromptCenterSheet() {
     generatedPrompt,
     isOpen,
     parkedQuestsKey,
+    preferredTone,
     preferredResponseFormat,
     progressSummaryKey,
     relevantGoalsKey,

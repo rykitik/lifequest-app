@@ -6,6 +6,12 @@ function isSuccessfulResponse(response) {
   return response && response.ok
 }
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    void self.skipWaiting()
+  }
+})
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
