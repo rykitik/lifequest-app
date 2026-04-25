@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { HeartPulse, LifeBuoy, MessageSquareText, Play, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { CompanionCoreWidget } from '@/features/companion/components/CompanionCoreWidget'
 import { ModeSelector } from '@/features/today/components/ModeSelector'
 import { QuestFocusCard } from '@/features/today/components/QuestFocusCard'
-import { RoutePickerSheet } from '@/features/today/components/RoutePickerSheet'
 import { SectorStrip } from '@/features/today/components/SectorStrip'
 import { routeLabels } from '@/services/questMeta'
 import { applyLifeQuestReward } from '@/services/gameplay'
@@ -19,6 +18,14 @@ import { useQuestStore } from '@/stores/useQuestStore'
 import { useRescueStore } from '@/stores/useRescueStore'
 import { useTodayStore } from '@/stores/useTodayStore'
 import type { QuestItem, SectorKey, TodayRouteKey } from '@/shared/types'
+
+const RoutePickerSheet = lazy(async () => {
+  const module = await import('@/features/today/components/RoutePickerSheet')
+
+  return {
+    default: module.RoutePickerSheet,
+  }
+})
 
 function getRouteCompletionMessage(routeKey: TodayRouteKey, quest: QuestItem) {
   if (routeKey === 'mainQuest') {
@@ -316,19 +323,23 @@ export function TodayScreen() {
         </PrimaryButton>
       </GlassCard>
 
-      <RoutePickerSheet
-        isOpen={Boolean(pickerSlot)}
-        slot={pickerSlot}
-        quests={allQuests}
-        route={route}
-        currentMode={currentMode}
-        onClose={() => setPickerSlot(null)}
-        onSelect={handleRouteReplace}
-        onOpenPlan={() => {
-          setPickerSlot(null)
-          navigate('/plan')
-        }}
-      />
+      {pickerSlot ? (
+        <Suspense fallback={null}>
+          <RoutePickerSheet
+            isOpen={Boolean(pickerSlot)}
+            slot={pickerSlot}
+            quests={allQuests}
+            route={route}
+            currentMode={currentMode}
+            onClose={() => setPickerSlot(null)}
+            onSelect={handleRouteReplace}
+            onOpenPlan={() => {
+              setPickerSlot(null)
+              navigate('/plan')
+            }}
+          />
+        </Suspense>
+      ) : null}
     </section>
   )
 }

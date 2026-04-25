@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Clock3, Sparkles, X } from 'lucide-react'
 import { getModeRouteHint, getQuestDomainLabel, getRouteAssignments, routeLabels } from '@/services/questMeta'
@@ -34,12 +35,18 @@ export function RoutePickerSheet({
   onOpenPlan,
 }: RoutePickerSheetProps) {
   const currentQuest = slot ? route[slot] : null
-  const candidates = slot
-    ? getRouteCandidatesForSlot(quests, slot, currentMode, currentQuest ? [currentQuest.id] : []).slice(
-        0,
-        8,
-      )
-    : []
+  const candidates = useMemo(() => {
+    if (!slot) {
+      return []
+    }
+
+    return getRouteCandidatesForSlot(
+      quests,
+      slot,
+      currentMode,
+      currentQuest ? [currentQuest.id] : [],
+    ).slice(0, 8)
+  }, [currentMode, currentQuest, quests, slot])
 
   return (
     <AnimatePresence>

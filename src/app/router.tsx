@@ -1,11 +1,47 @@
+import { lazy } from 'react'
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
-import { BodyScreen } from '@/features/body/screens/BodyScreen'
-import { MoneyScreen } from '@/features/money/screens/MoneyScreen'
-import { PlanScreen } from '@/features/plan/screens/PlanScreen'
-import { CoreScreen } from '@/features/progress/screens/CoreScreen'
-import { TodayScreen } from '@/features/today/screens/TodayScreen'
 import { AppShell } from '@/shared/components/AppShell'
 import { RouteErrorBoundary } from '@/shared/components/RouteErrorBoundary'
+
+const TodayScreen = lazy(async () => {
+  const module = await import('@/features/today/screens/TodayScreen')
+
+  return {
+    default: module.TodayScreen,
+  }
+})
+
+const PlanScreen = lazy(async () => {
+  const module = await import('@/features/plan/screens/PlanScreen')
+
+  return {
+    default: module.PlanScreen,
+  }
+})
+
+const BodyScreen = lazy(async () => {
+  const module = await import('@/features/body/screens/BodyScreen')
+
+  return {
+    default: module.BodyScreen,
+  }
+})
+
+const MoneyScreen = lazy(async () => {
+  const module = await import('@/features/money/screens/MoneyScreen')
+
+  return {
+    default: module.MoneyScreen,
+  }
+})
+
+const CoreScreen = lazy(async () => {
+  const module = await import('@/features/progress/screens/CoreScreen')
+
+  return {
+    default: module.CoreScreen,
+  }
+})
 
 const router = createBrowserRouter([
   {
