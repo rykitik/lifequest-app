@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="hex" x1="46" y1="26" x2="214" y2="228" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9B8CFF" />
+      <stop offset="0.5" stop-color="#6366F1" />
+      <stop offset="1" stop-color="#22D3EE" />
+    </linearGradient>
+    <radialGradient id="core" cx="0" cy="0" r="1" gradientTransform="translate(128 128) rotate(90) scale(64)">
+      <stop offset="0" stop-color="#E5EEF8" />
+      <stop offset="0.2" stop-color="#9B8CFF" />
+      <stop offset="0.58" stop-color="#6366F1" stop-opacity="0.88" />
+      <stop offset="1" stop-color="#22D3EE" stop-opacity="0.08" />
+    </radialGradient>
+  </defs>
+  <path
+    d="M128 16L214 64V160L128 240L42 160V64L128 16Z"
+    fill="#0B1020"
+    stroke="url(#hex)"
+    stroke-width="12"
+  />
+  <circle cx="128" cy="128" r="62" fill="url(#core)" />
+  <circle cx="128" cy="128" r="34" fill="#091120" stroke="url(#hex)" stroke-width="6" />
+  <path
+    d="M128 77L155 96V131C155 151 142 169 128 179C114 169 101 151 101 131V96L128 77Z"
+    fill="#0B1020"
+    stroke="#E5EEF8"
+    stroke-width="5"
+  />
+  <path d="M128 94L142 105V131L128 151L114 131V105L128 94Z" fill="url(#hex)" />
+</svg>

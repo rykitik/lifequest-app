@@ -1,0 +1,18 @@
+{
+  "name": "LifeQuest",
+  "short_name": "LifeQuest",
+  "description": "Mobile-first персональная операционная система жизни для спокойного планирования, восстановления и видимого роста.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B1020",
+  "theme_color": "#0B1020",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/lifequest-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --bg: #0b1020;
+    --surface: #111827;
+    --card: rgba(30, 41, 59, 0.68);
+    --primary: #6366f1;
+    --cyan: #22d3ee;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --text: #e5eef8;
+    --muted: #94a3b8;
+  }
+
+  * {
+    @apply border-white/10;
+  }
+
+  html {
+    @apply bg-bg;
+  }
+
+  body {
+    @apply min-h-screen bg-bg font-sans text-text antialiased;
+    background-image:
+      radial-gradient(circle at top, rgba(99, 102, 241, 0.18), transparent 26%),
+      radial-gradient(circle at 80% 20%, rgba(34, 211, 238, 0.14), transparent 22%),
+      radial-gradient(circle at bottom, rgba(15, 23, 42, 0.9), transparent 28%),
+      linear-gradient(180deg, #08101f 0%, #0b1020 42%, #050915 100%);
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background:
+      linear-gradient(180deg, rgba(17, 24, 39, 0.92) 0%, rgba(15, 23, 42, 0.7) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+    box-shadow:
+      0 18px 50px rgba(8, 15, 33, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(22px);
+  }
+
+  .glass-card-strong {
+    background:
+      linear-gradient(180deg, rgba(11, 16, 32, 0.94) 0%, rgba(15, 23, 42, 0.86) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    box-shadow:
+      0 24px 60px rgba(6, 12, 26, 0.56),
+      0 0 30px rgba(99, 102, 241, 0.08);
+    backdrop-filter: blur(26px);
+  }
+}
+
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 24px rgba(99, 102, 241, 0.35);
+  }
+
+  .safe-bottom {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .safe-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(99, 102, 241, 0.5) transparent;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.45);
+    border-radius: 999px;
+  }
+}

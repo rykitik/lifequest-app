@@ -1,0 +1,7 @@
+services:
+  lifequest-frontend:
+    build: .
+    container_name: lifequest-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
