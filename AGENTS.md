@@ -57,6 +57,14 @@ LifeQuest = local-first now, multi-user ready later.
 - UI должен оставаться local-first даже после появления sync-ready контрактов;
 - `ry-kit.ru` уже используется как публичная web/PWA точка входа, но данные пользователя всё ещё локальные на устройстве.
 
+### Auth readiness
+
+- access token нельзя хранить в `localStorage`;
+- refresh token должен жить только в `httpOnly` cookie;
+- приложение должно оставаться usable без аккаунта;
+- auth не должен ломать local-first режим;
+- аккаунты нужны для друзей и multi-user режима later, а не как обязательный вход в MVP.
+
 ## Язык продукта
 
 Весь пользовательский интерфейс должен быть на русском языке.

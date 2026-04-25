@@ -1,4 +1,4 @@
-import type { AuthMode } from '@/shared/types/domain'
+import type { AuthMode } from '@/shared/types/auth'
 import type { SyncCollectionKey, SyncConflict } from '@/shared/types/sync'
 
 export type SyncStatus =
