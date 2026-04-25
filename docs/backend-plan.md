@@ -4,6 +4,8 @@
 
 Подготовить LifeQuest к режиму аккаунтов и синхронизации, не ломая current local-first MVP.
 
+Backend skeleton должен начинаться только после утверждения sync protocol из [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md).
+
 ## Режимы
 
 ### Local mode
@@ -61,6 +63,14 @@
 - `GET /api/settings`
 - `PATCH /api/settings`
 
+## Порядок реализации backend
+
+1. auth
+2. user profile
+3. sync bootstrap
+4. push/pull
+5. import local backup
+
 ## Sync-модель
 
 1. Клиент запускается в local mode.
@@ -75,4 +85,5 @@
 - не подключать реальный backend;
 - не добавлять настоящую регистрацию;
 - не менять продуктовую концепцию;
-- не делать auth-gating для текущего MVP.
+- не делать auth-gating для текущего MVP;
+- не начинать backend skeleton до фиксации и принятия sync protocol.

@@ -69,6 +69,7 @@ src/
     lifequestReset.ts
     lifequestRuntime.ts
     lifequestBackup.ts
+    deviceIdentity.ts
 ```
 
 ## Frontend stores
@@ -175,6 +176,13 @@ src/
 
 Правило: local mode может не иметь `userId`, account mode позже будет требовать его на серверной стороне.
 
+## Sync protocol
+
+- sync payload-форматы и conflict policy зафиксированы в [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md)
+- до начала backend skeleton protocol должен считаться утверждённым
+- `src/shared/types/sync.ts` содержит sync-ready frontend типы, но пока не подключён к runtime
+- `src/services/deviceIdentity.ts` готовит `deviceId` для будущих push/pull/import flow
+
 ## Будущий backend
 
 ```text
@@ -226,3 +234,5 @@ server/
 - `/api/settings`
 
 Подробный черновик backend-контрактов: [backend-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/backend-plan.md)
+
+Подробный sync protocol, payloads и conflict rules: [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md)
