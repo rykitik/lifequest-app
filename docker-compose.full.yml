@@ -27,10 +27,10 @@ services:
     restart: unless-stopped
 
   mongo:
-    image: mongo:7
+    image: mongo:4.4
     container_name: lifequest-mongo
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      test: ["CMD", "mongo", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
       timeout: 5s
       retries: 5
