@@ -14,7 +14,16 @@
 - Docker-образ для backend;
 - отдельный `docker-compose.full.yml` для frontend + backend + mongo.
 
-Это всё ещё не auth и не sync backend. Текущий шаг нужен только как надёжная основа под следующие модули.
+Сейчас текущий шаг уже расширен до минимального auth backend:
+
+- `User model`;
+- `POST /api/auth/register`;
+- `POST /api/auth/login`;
+- `POST /api/auth/refresh`;
+- `POST /api/auth/logout`;
+- `GET /api/auth/me`.
+
+Это всё ещё не sync backend и ещё не frontend auth integration. Текущий шаг нужен как надёжная основа под account mode later.
 
 Backend skeleton должен начинаться только после утверждения sync protocol из [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md).
 Клиентская sync state machine должна быть зафиксирована в [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md), а retry policy — в [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md).
@@ -91,9 +100,9 @@ HTTP client contract, refresh policy и error model должны быть утв
 
 ## Следующий backend-этап
 
-- добавить `User model`;
-- затем поднять минимальные `auth routes`;
-- только после этого переходить к account session и sync bootstrap.
+- подключить account-aware HTTP client слой на frontend без поломки local-first UX;
+- затем реализовать `sync bootstrap`;
+- только после этого переходить к `sync push/pull` и conflict handling UI.
 
 ## Sync-модель
 

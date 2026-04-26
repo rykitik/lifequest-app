@@ -6,6 +6,23 @@
 
 Сейчас приложение остаётся usable без аккаунта. Auth должен появиться позже так, чтобы не сломать local-first MVP и позволить нескольким людям пользоваться своими аккаунтами и своими данными.
 
+## Текущий backend milestone
+
+На backend уже реализован минимальный auth foundation:
+
+- `User model`;
+- `register`;
+- `login`;
+- `refresh`;
+- `logout`;
+- `me`.
+
+Важно:
+
+- frontend пока не подключён к этим endpoint;
+- local-first UX не меняется;
+- `migrate-local` и sync runtime ещё не реализованы.
+
 ## Auth strategy
 
 ### Режимы

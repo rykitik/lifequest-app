@@ -18,10 +18,16 @@ services:
         condition: service_healthy
     environment:
       PORT: "4000"
-      NODE_ENV: production
+      NODE_ENV: development
       MONGO_URI: mongodb://mongo:27017/lifequest
       CLIENT_ORIGIN: http://localhost:3000
       COOKIE_DOMAIN: ""
+      JWT_ACCESS_SECRET: change-me-access
+      JWT_REFRESH_SECRET: change-me-refresh
+      ACCESS_TOKEN_TTL: 15m
+      REFRESH_TOKEN_TTL: 30d
+      COOKIE_SECURE: "false"
+      COOKIE_SAME_SITE: lax
     ports:
       - "4000:4000"
     restart: unless-stopped
