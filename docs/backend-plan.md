@@ -6,8 +6,9 @@
 
 Backend skeleton должен начинаться только после утверждения sync protocol из [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md).
 Клиентская sync state machine должна быть зафиксирована в [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md), а retry policy — в [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md).
-Дополнительно перед backend skeleton должны быть зафиксированы `useSyncStore` contract, `syncQueue` helpers и auth plan.
 Auth strategy, state machine и token policy описаны в [auth-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/auth-plan.md).
+HTTP client contract, refresh policy и error model должны быть утверждены в [http-client-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/http-client-plan.md).
+Дополнительно перед backend skeleton должны быть зафиксированы `useSyncStore` contract, `syncQueue` helpers и auth plan.
 
 ## Режимы
 
@@ -71,12 +72,10 @@ Auth strategy, state machine и token policy описаны в [auth-plan.md](/C
 1. Express app + healthcheck
 2. Mongo connection
 3. User model
-4. Auth register/login/refresh/logout/me
-5. JWT access token
-6. httpOnly refresh cookie
-7. Auth middleware
-8. migrate-local endpoint
-9. sync bootstrap/push/pull
+4. Auth routes
+5. HTTP client integration
+6. Sync bootstrap/push/pull
+7. Migration local → account
 
 ## Sync-модель
 

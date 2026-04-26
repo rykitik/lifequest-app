@@ -60,10 +60,19 @@ LifeQuest = local-first now, multi-user ready later.
 ### Auth readiness
 
 - access token нельзя хранить в `localStorage`;
+- access token должен жить только в memory store;
 - refresh token должен жить только в `httpOnly` cookie;
 - приложение должно оставаться usable без аккаунта;
 - auth не должен ломать local-first режим;
 - аккаунты нужны для друзей и multi-user режима later, а не как обязательный вход в MVP.
+
+### HTTP client readiness
+
+- `apiClient` не должен ломать local mode;
+- пока backend не реализован, HTTP client слой не должен делать реальные auth/sync runtime-запросы;
+- refresh endpoint не должен запускать бесконечный refresh loop;
+- sync и reward mutations должны использовать idempotency keys;
+- local-only функции (`Prompt Center`, backup/export-import, PWA runtime, deviceId) не должны зависеть от backend.
 
 ## Язык продукта
 
