@@ -270,14 +270,22 @@ interface SyncQueueItem {
 - если пользователь аутентифицирован, sync status переходит в `idle`, а при отсутствии сети — в `offline`;
 - `window.navigator.onLine` и события `online/offline` обновляют только readiness-состояние;
 - `Settings` показывают sync status, last sync, длину очереди и короткий `deviceId`.
+- `Settings` могут вручную запустить `bootstrapAccountSync()`.
 
 ### Что принципиально ещё не делает клиент
 
-- не вызывает `/api/sync/bootstrap`
+- не вызывает `/api/sync/bootstrap` автоматически на каждом входе или рендере
 - не вызывает `/api/sync/push`
 - не вызывает `/api/sync/pull`
 - не переносит local data в account автоматически
 - не запускает queue runner
+
+### Что уже делает ручной bootstrap
+
+- вызывает только `GET /api/sync/bootstrap`
+- обновляет `latestSyncCursor`, `lastSyncAt`, `conflicts` и sync status
+- не перезаписывает local-first collections данными сервера
+- нужен сейчас как безопасная проверка account sync readiness
 
 ### Logout-поведение
 

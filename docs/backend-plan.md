@@ -102,7 +102,7 @@ HTTP client contract, refresh policy и error model должны быть утв
 
 - account-aware HTTP client слой на frontend уже подключён;
 - auth session уже связана с `useSyncStore` на уровне readiness без реального sync runtime;
-- следующим backend-шагом должен стать только `sync bootstrap`;
+- `sync bootstrap` теперь реализован как первый безопасный sync endpoint;
 - только после этого переходить к `sync push/pull` и conflict handling UI.
 
 ## Обновление по текущему milestone
@@ -113,12 +113,13 @@ HTTP client contract, refresh policy и error model должны быть утв
 - access token не сохраняется в `localStorage`;
 - refresh выполняется через cookie-based flow и безопасный bootstrap;
 - local-first UX по-прежнему остаётся доступным без аккаунта;
+- `GET /api/sync/bootstrap` уже реализован, но пока не перезаписывает клиентские данные;
 - sync runtime и migration local → account всё ещё не реализованы.
 
 Следующий рекомендуемый шаг после этого этапа:
 
-1. Начать только `sync bootstrap`.
-2. Затем переходить к push/pull и конфликтам.
+1. Начать `sync push/pull`.
+2. Затем подключить conflict handling UI.
 3. И лишь потом делать migration local → account.
 
 ## Sync-модель

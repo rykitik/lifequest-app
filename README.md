@@ -229,7 +229,7 @@ http://localhost:5173
 
 ## Ближайший следующий слой
 
-- сохранить текущую account-aware sync readiness и начинать только `sync bootstrap`, не трогая ещё push/pull runtime;
+- сохранить текущий безопасный `sync bootstrap` и только потом переходить к push/pull runtime;
 - после этого готовить conflict handling и migration local → account;
 - local-first UX должен оставаться рабочим даже без входа в аккаунт.
 
@@ -254,6 +254,38 @@ http://localhost:5173
 - в account mode sync status переходит в `idle` или `offline` в зависимости от сети;
 - `Настройки` показывают sync readiness, очередь изменений, last sync и короткий `deviceId`;
 - offline/online события обновляют только readiness-состояние и не запускают `push/pull`.
+
+## Sync bootstrap: текущий этап
+
+Сейчас уже реализован первый safe sync endpoint:
+
+- `GET /api/sync/bootstrap`
+- endpoint защищён access token
+- frontend вызывает его только вручную из `Настроек`
+- bootstrap пока не синхронизирует данные и не перезаписывает local-first stores
+- на этом этапе проверяется только связь account mode с сервером
+
+### Как проверить sync bootstrap
+
+1. Подними full stack:
+
+```bash
+docker compose -f docker-compose.full.yml up --build
+```
+
+2. Зарегистрируйся или войди через `/auth`
+3. Открой `/settings`
+4. Нажми `Проверить синхронизацию`
+5. Убедись, что:
+   - появляется сообщение `Сервер доступен`
+   - обновляется `Последняя синхронизация`
+   - локальные данные на экране `Сегодня` не перезаписываются
+
+Важно:
+
+- `push/pull` ещё не реализованы;
+- migration `local → account` ещё не реализована;
+- пока проверяется только account sync readiness, а не реальный обмен данными.
 
 ### Frontend + backend локально
 

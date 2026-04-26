@@ -4,7 +4,7 @@
 
 Подготовить LifeQuest к будущей синхронизации между устройствами и аккаунтами, не ломая текущий local-first MVP.
 
-Сейчас backend не реализуется. Этот документ фиксирует будущий sync protocol, payload-форматы и conflict policy до начала server skeleton.
+Сейчас sync runtime всё ещё не реализован полностью. На текущем этапе уже существует только безопасный `GET /api/sync/bootstrap`, который проверяет account sync readiness и возвращает пустой серверный снапшот без изменения клиентских данных.
 
 Связанные документы:
 
@@ -56,6 +56,14 @@
 - `POST /api/sync/push`
 - `POST /api/sync/pull`
 - `POST /api/sync/import-local-backup`
+
+### Что уже реализовано сейчас
+
+- `GET /api/sync/bootstrap`
+- protected через auth access token
+- возвращает typed bootstrap response
+- пока не применяет серверные данные к local stores
+- пока не запускает push/pull и не активирует conflict resolution UI
 
 ## Что синхронизируется
 
@@ -129,13 +137,26 @@ interface SyncCollections {
   promptPreferences?: Array<SyncEnvelope<PromptPreferences>>
 }
 
+interface SyncBootstrapCollections {
+  quests: Array<SyncEnvelope<Quest>>
+  todayRoute: Array<SyncEnvelope<DailyRoute>>
+  progress: Array<SyncEnvelope<ProgressProfile>>
+  bodyLogs: Array<SyncEnvelope<BodyLog>>
+  moneyLogs: Array<SyncEnvelope<MoneyLog>>
+  rescueLogs: Array<SyncEnvelope<RescueLog>>
+  companionProfile: Array<SyncEnvelope<CompanionProfile>>
+  settingsProfile: Array<SyncEnvelope<SettingsProfile>>
+  promptPreferences: Array<SyncEnvelope<PromptPreferences>>
+}
+
 interface SyncBootstrapResponse {
   userId: string
   deviceId?: string
   serverTime: string
   latestSyncCursor?: string
   schemaVersion: number
-  collections: SyncCollections
+  collections: SyncBootstrapCollections
+  conflicts: SyncConflict[]
 }
 
 interface SyncPushRequest {
@@ -238,7 +259,8 @@ interface SyncConflict {
 
 - клиент логинится;
 - получает актуальный серверный снапшот;
-- локальный cache обновляется и остаётся доступным для offline UX.
+- на текущем этапе bootstrap только проверяет связь и не перезаписывает local-first данные;
+- локальный cache остаётся доступным для offline UX.
 
 ### Push
 
@@ -269,3 +291,10 @@ interface SyncConflict {
 - не внедрять auth-gating UI;
 - не ломать текущий solo/local-first опыт;
 - сначала утвердить этот protocol, потом начинать server modules.
+
+## Текущий runtime-этап
+
+- `Settings` в account mode умеют запускать ручную проверку синхронизации;
+- bootstrap обновляет только `latestSyncCursor`, `lastSyncAt`, `conflicts`, `lastError` и статус readiness;
+- quests, today route, progress, body, money и другие local stores пока не перезаписываются сервером;
+- push/pull и import-local-backup остаются следующими этапами.

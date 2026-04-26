@@ -54,13 +54,26 @@ export interface SyncCollections {
   promptPreferences?: Array<SyncEnvelope<PromptPreferencesSyncPayload>>
 }
 
+export interface SyncBootstrapCollections {
+  quests: Array<SyncEnvelope<Quest>>
+  todayRoute: Array<SyncEnvelope<DailyRoute>>
+  progress: Array<SyncEnvelope<ProgressProfile>>
+  bodyLogs: Array<SyncEnvelope<BodyLog>>
+  moneyLogs: Array<SyncEnvelope<MoneyLog>>
+  rescueLogs: Array<SyncEnvelope<RescueLog>>
+  companionProfile: Array<SyncEnvelope<CompanionProfile>>
+  settingsProfile: Array<SyncEnvelope<SettingsProfile>>
+  promptPreferences: Array<SyncEnvelope<PromptPreferencesSyncPayload>>
+}
+
 export interface SyncBootstrapResponse {
   userId: string
   deviceId?: string
   serverTime: string
   latestSyncCursor?: string
   schemaVersion: number
-  collections: SyncCollections
+  collections: SyncBootstrapCollections
+  conflicts: SyncConflict[]
 }
 
 export interface SyncPushRequest {

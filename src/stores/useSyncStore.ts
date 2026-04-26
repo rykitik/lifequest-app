@@ -1,9 +1,17 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getOrCreateDeviceId } from '@/services/deviceIdentity'
+import { normalizeApiError } from '@/services/httpClientContract'
+import * as syncApi from '@/services/syncApi'
 import { mergePersistedState } from '@/shared/lib/persist'
 import type { SyncConflict } from '@/shared/types/sync'
 import type { SyncQueueItem, SyncRetryPolicy, SyncStatus } from '@/shared/types/syncState'
+import { useAuthStore } from '@/stores/useAuthStore'
+
+interface SyncActionResult {
+  success: boolean
+  message: string
+}
 
 interface SyncState {
   status: SyncStatus
@@ -27,6 +35,7 @@ interface SyncState {
   setConflicts: (conflicts: SyncConflict[]) => void
   clearConflicts: () => void
   prepareAccountSyncReadiness: () => void
+  bootstrapAccountSync: () => Promise<SyncActionResult>
   resetSyncState: () => void
   initializeDeviceId: () => string
 }
@@ -331,6 +340,83 @@ export const useSyncStore = create<SyncState>()(
             conflicts: [],
           }
         })
+      },
+      bootstrapAccountSync: async () => {
+        const authState = useAuthStore.getState()
+
+        if (authState.mode !== 'account' || !authState.isAuthenticated) {
+          get().bootstrapLocalSync()
+
+          return {
+            success: false,
+            message: 'Синхронизация доступна только после входа в аккаунт.',
+          }
+        }
+
+        const runtimeNetworkOnline = getRuntimeNetworkOnline()
+
+        if (!runtimeNetworkOnline) {
+          get().setNetworkOnline(false)
+
+          return {
+            success: false,
+            message: 'Нет сети. Проверка синхронизации недоступна офлайн.',
+          }
+        }
+
+        const currentState = get()
+
+        if (currentState.status === 'bootstrapping' || currentState.status === 'syncing') {
+          return {
+            success: false,
+            message: 'Проверка синхронизации уже выполняется.',
+          }
+        }
+
+        const deviceId = get().initializeDeviceId()
+
+        set((state) => ({
+          ...state,
+          status: 'bootstrapping',
+          networkOnline: true,
+          deviceId,
+          lastError: null,
+        }))
+
+        try {
+          const response = await syncApi.bootstrapSync()
+
+          set((state) => ({
+            ...state,
+            status: response.conflicts.length ? 'conflict' : 'idle',
+            networkOnline: true,
+            latestSyncCursor: response.latestSyncCursor ?? state.latestSyncCursor,
+            lastSyncAt: response.serverTime,
+            lastError: null,
+            conflicts: response.conflicts,
+            deviceId,
+          }))
+
+          return {
+            success: true,
+            message: 'Сервер доступен. Проверка синхронизации завершена.',
+          }
+        } catch (error) {
+          const normalizedError = normalizeApiError(error)
+          const networkOnline = getRuntimeNetworkOnline()
+
+          set((state) => ({
+            ...state,
+            networkOnline,
+            status: networkOnline ? 'error' : 'offline',
+            lastError: normalizedError.message,
+          }))
+
+          return {
+            success: false,
+            message: normalizedError.message,
+          }
+        }
       },
       resetSyncState: () =>
         set((state) => ({

@@ -231,12 +231,17 @@ export function SettingsScreen() {
   const syncLastSyncAt = useSyncStore((state) => state.lastSyncAt)
   const syncQueueLength = useSyncStore((state) => state.queue.length)
   const syncLastError = useSyncStore((state) => state.lastError)
+  const bootstrapAccountSync = useSyncStore((state) => state.bootstrapAccountSync)
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [isApplyingUpdate, setIsApplyingUpdate] = useState(false)
   const [isExportingBackup, setIsExportingBackup] = useState(false)
   const [isImportingBackup, setIsImportingBackup] = useState(false)
+  const [syncFeedback, setSyncFeedback] = useState<{
+    tone: 'success' | 'error'
+    message: string
+  } | null>(null)
   const [backupStatus, setBackupStatus] = useState<{
     tone: 'success' | 'error'
     message: string
@@ -270,6 +275,7 @@ export function SettingsScreen() {
   const syncLastSyncLabel = useMemo(() => formatSyncDate(syncLastSyncAt), [syncLastSyncAt])
   const shortDeviceId = useMemo(() => shortenDeviceId(syncDeviceId), [syncDeviceId])
   const isLoggingOut = authStatus === 'logging_out'
+  const isCheckingSyncBootstrap = syncStatus === 'bootstrapping'
 
   useEffect(() => {
     void checkPwaStatus()
@@ -401,8 +407,22 @@ export function SettingsScreen() {
     }
   }
 
+  const handleCheckSyncBootstrap = async () => {
+    setSyncFeedback(null)
+
+    const result = await bootstrapAccountSync()
+
+    setSyncFeedback({
+      tone: result.success ? 'success' : 'error',
+      message: result.success
+        ? 'Сервер доступен. На этом этапе проверяется только связь с аккаунтом, без синхронизации данных.'
+        : result.message,
+    })
+  }
+
   const handleLogout = async () => {
     await logout()
+    setSyncFeedback(null)
     setBackupStatus({
       tone: 'success',
       message: 'Аккаунт отключён. Локальные данные на устройстве сохранены.',
@@ -469,6 +489,11 @@ export function SettingsScreen() {
               ? 'Сама синхронизация будет добавлена позже. Сейчас данные всё ещё хранятся локально, а этот блок показывает только готовность режима аккаунта.'
               : 'Синхронизация пока недоступна без аккаунта. До её появления надёжнее всего сохранять состояние через backup.'}
           </p>
+          {isAuthenticated ? (
+            <p className="mt-2 text-sm leading-6 text-slate-200">
+              На этом этапе проверяется только связь с сервером. Данные пока не синхронизируются.
+            </p>
+          ) : null}
 
           {isAuthenticated ? (
             <div className="mt-4 grid grid-cols-2 gap-3">
@@ -487,7 +512,35 @@ export function SettingsScreen() {
             </div>
           ) : null}
 
-          {isAuthenticated && syncStatus === 'error' && syncLastError ? (
+          {isAuthenticated ? (
+            <div className="mt-4">
+              <PrimaryButton
+                tone="secondary"
+                fullWidth
+                disabled={isCheckingSyncBootstrap}
+                icon={<RefreshCw className="h-4 w-4" />}
+                onClick={() => {
+                  void handleCheckSyncBootstrap()
+                }}
+              >
+                {isCheckingSyncBootstrap ? 'Проверяем синхронизацию…' : 'Проверить синхронизацию'}
+              </PrimaryButton>
+            </div>
+          ) : null}
+
+          {isAuthenticated && syncFeedback ? (
+            <div
+              className={`mt-4 rounded-3xl border p-4 text-sm leading-6 ${
+                syncFeedback.tone === 'success'
+                  ? 'border-success/20 bg-success/10 text-slate-100'
+                  : 'border-danger/20 bg-danger/10 text-slate-100'
+              }`}
+            >
+              {syncFeedback.message}
+            </div>
+          ) : null}
+
+          {isAuthenticated && syncStatus === 'error' && syncLastError && !syncFeedback ? (
             <div className="mt-4 rounded-3xl border border-danger/20 bg-danger/10 p-4 text-sm leading-6 text-slate-100">
               {syncLastError}
             </div>
