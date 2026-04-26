@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { Download, RefreshCw, ShieldCheck, Sparkles, Upload, UserRound } from 'lucide-react'
+import {
+  Download,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+  UserRound,
+} from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { exportLifeQuestBackup, importLifeQuestBackup } from '@/services/lifequestBackup'
 import { GlassCard } from '@/shared/components/GlassCard'
@@ -49,14 +57,6 @@ function getServiceWorkerStatusLabel(
   }
 
   return hasActiveServiceWorker ? 'Service Worker активен' : 'Service Worker недоступен'
-}
-
-function getAccountStatusLabel(mode: 'local' | 'account', isAuthenticated: boolean) {
-  if (mode === 'account' && isAuthenticated) {
-    return 'Режим аккаунта'
-  }
-
-  return 'Локальный режим'
 }
 
 function normalizeProfileValue(value: string) {
@@ -175,8 +175,10 @@ export function SettingsScreen() {
   const checkPwaStatus = useSettingsStore((state) => state.checkPwaStatus)
   const applyPwaUpdate = useSettingsStore((state) => state.applyPwaUpdate)
   const authMode = useAuthStore((state) => state.mode)
+  const authStatus = useAuthStore((state) => state.status)
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const authUser = useAuthStore((state) => state.user)
+  const logout = useAuthStore((state) => state.logout)
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
@@ -203,9 +205,10 @@ export function SettingsScreen() {
   )
   const lastBackupLabel = useMemo(() => formatBackupDate(lastBackupExportAt), [lastBackupExportAt])
   const accountStatusLabel = useMemo(
-    () => getAccountStatusLabel(authMode, isAuthenticated),
+    () => (authMode === 'account' && isAuthenticated ? 'Аккаунт подключён' : 'Локальный режим'),
     [authMode, isAuthenticated],
   )
+  const isLoggingOut = authStatus === 'logging_out'
 
   useEffect(() => {
     void checkPwaStatus()
@@ -337,6 +340,14 @@ export function SettingsScreen() {
     }
   }
 
+  const handleLogout = async () => {
+    await logout()
+    setBackupStatus({
+      tone: 'success',
+      message: 'Аккаунт отключён. Локальные данные на устройстве сохранены.',
+    })
+  }
+
   return (
     <section className="pb-6">
       <ScreenHeader
@@ -355,42 +366,73 @@ export function SettingsScreen() {
 
       <GlassCard className="mb-5 border border-cyan/20 bg-cyan/5">
         <p className="text-xs uppercase tracking-[0.24em] text-cyan/80">Аккаунт и синхронизация</p>
+
         <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
           <p className="text-xs uppercase tracking-[0.18em] text-muted">Статус</p>
           <p className="mt-2 text-sm font-medium text-white">{accountStatusLabel}</p>
           <p className="mt-2 text-sm leading-6 text-slate-200">
-            Аккаунты и синхронизация будут добавлены позже. Сейчас LifeQuest работает локально на
-            этом устройстве, а backup остаётся рекомендуемым способом сохранить данные.
+            {isAuthenticated
+              ? 'Сессия активна. Синхронизация данных будет добавлена позже, поэтому backup всё ещё остаётся надёжным способом сохранить состояние.'
+              : 'Сейчас LifeQuest по-прежнему полностью usable локально на этом устройстве. Backup остаётся рекомендуемым способом сохранить данные до появления sync.'}
           </p>
         </div>
 
-        <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted">Профиль режима</p>
-          <p className="mt-2 text-sm text-white">
-            {userName ? `Локальный профиль: ${userName}` : 'Локальный профиль готов'}
-          </p>
-        </div>
+        {isAuthenticated && authUser ? (
+          <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted">Подключённый аккаунт</p>
+            <p className="mt-2 text-sm font-medium text-white">
+              {authUser.name || userName || 'Пользователь'}
+            </p>
+            <p className="mt-2 text-sm text-slate-200">{authUser.email}</p>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Локальные данные пока не мигрируют в аккаунт автоматически. Migration и sync будут добавлены отдельным этапом.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted">Локальный профиль</p>
+            <p className="mt-2 text-sm text-white">
+              {userName ? `Локальный профиль: ${userName}` : 'Локальный профиль готов'}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Можно продолжать пользоваться приложением без аккаунта и при необходимости сохранить прогресс через backup.
+            </p>
+          </div>
+        )}
 
-        <PrimaryButton
-          tone="secondary"
-          fullWidth
-          className="mt-4"
-          icon={<UserRound className="h-4 w-4" />}
-          onClick={() => navigate('/auth')}
-        >
-          Открыть экран аккаунта
-        </PrimaryButton>
+        <div className="mt-4 grid gap-3">
+          {isAuthenticated ? (
+            <PrimaryButton
+              tone="ghost"
+              fullWidth
+              disabled={isLoggingOut}
+              icon={<LogOut className="h-4 w-4" />}
+              onClick={() => {
+                void handleLogout()
+              }}
+            >
+              {isLoggingOut ? 'Отключаем аккаунт…' : 'Выйти'}
+            </PrimaryButton>
+          ) : (
+            <PrimaryButton
+              tone="secondary"
+              fullWidth
+              icon={<UserRound className="h-4 w-4" />}
+              onClick={() => navigate('/auth')}
+            >
+              Войти / создать аккаунт
+            </PrimaryButton>
+          )}
+        </div>
       </GlassCard>
 
       <GlassCard className="mb-5 border border-warning/20 bg-warning/5">
         <p className="text-xs uppercase tracking-[0.24em] text-warning/80">Локальные данные</p>
         <p className="mt-3 text-sm leading-6 text-slate-200">
-          Всё хранится локально на этом устройстве. Можно вернуть demo-состояние, импортировать
-          backup или полностью очистить локальный контур и загрузить приложение заново.
+          Всё хранится локально на этом устройстве. Можно вернуть demo-состояние, импортировать backup или полностью очистить локальный контур и загрузить приложение заново.
         </p>
         <p className="mt-3 text-sm leading-6 text-slate-200">
-          Backup нужен, пока приложение работает local-first без аккаунта и backend. Сохрани файл,
-          чтобы не потерять прогресс.
+          Backup нужен, пока приложение работает local-first без аккаунта и backend. Сохрани файл, чтобы не потерять прогресс.
         </p>
 
         <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">

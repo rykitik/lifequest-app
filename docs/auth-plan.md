@@ -409,3 +409,21 @@ Errors:
 - не подключать реальные API;
 - не вводить обязательную авторизацию;
 - не ломать local-first режим ради будущего account mode.
+
+## Текущий runtime-статус
+
+На текущем этапе frontend уже минимально подключён к backend auth:
+
+- `/auth` поддерживает `Войти` и `Зарегистрироваться`;
+- `useAuthStore.bootstrap()` делает безопасную попытку `refresh` при старте приложения;
+- access token живёт только в memory state;
+- refresh token остаётся в `httpOnly` cookie;
+- `Settings` показывают локальный или account mode;
+- logout очищает account state frontend, но не удаляет local-first данные.
+
+Что сознательно ещё не реализовано:
+
+- sync runtime;
+- migration local → account;
+- conflict UI;
+- автоматический перенос local backup в аккаунт.

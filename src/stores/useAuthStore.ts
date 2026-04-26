@@ -1,55 +1,72 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { cloneData, mockUser } from '@/services/mockData'
+import * as authApi from '@/services/authApi'
+import { clearApiAccessToken, setApiAccessToken } from '@/services/apiClient'
+import { normalizeApiError } from '@/services/httpClientContract'
 import { mergePersistedState } from '@/shared/lib/persist'
-import type { AuthMode, UserProfile } from '@/shared/types'
-
-interface AuthDraftCredentials {
-  email?: string
-  password?: string
-  name?: string
-}
+import type {
+  AuthMode,
+  AuthResponse,
+  AuthStatus,
+  AuthUser,
+  LoginRequest,
+  RegisterRequest,
+} from '@/shared/types'
 
 interface AuthActionResult {
   success: boolean
-  mode: AuthMode
   message: string
 }
 
 interface AuthState {
   mode: AuthMode
-  user: UserProfile | null
+  status: AuthStatus
+  user: AuthUser | null
+  accessToken: string | null
+  lastError: string | null
   isAuthenticated: boolean
   isBootstrapping: boolean
   bootstrap: () => Promise<void>
   switchToLocalMode: () => void
-  login: (credentials?: AuthDraftCredentials) => Promise<AuthActionResult>
-  register: (credentials?: AuthDraftCredentials) => Promise<AuthActionResult>
+  clearAuthError: () => void
+  login: (credentials: LoginRequest) => Promise<AuthActionResult>
+  register: (credentials: RegisterRequest) => Promise<AuthActionResult>
   logout: () => Promise<AuthActionResult>
   resetDemoData: () => void
 }
 
-type AuthPersistedState = Pick<AuthState, 'mode' | 'user' | 'isAuthenticated'>
-
-function createLocalUser() {
-  return cloneData(mockUser)
-}
+type AuthPersistedState = Pick<AuthState, 'mode' | 'user'>
 
 function createAuthPersistedState(): AuthPersistedState {
   return {
     mode: 'local',
-    user: createLocalUser(),
-    isAuthenticated: false,
+    user: null,
   }
 }
 
-function createPlaceholderResult(mode: AuthMode): AuthActionResult {
+function createAuthRuntimeState() {
   return {
-    success: false,
-    mode,
-    message:
-      'Аккаунты появятся позже. Сейчас LifeQuest продолжает работать локально на этом устройстве.',
+    status: 'local' as AuthStatus,
+    accessToken: null as string | null,
+    lastError: null as string | null,
+    isAuthenticated: false,
+    isBootstrapping: false,
   }
+}
+
+function isAuthUser(value: unknown): value is AuthUser {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Partial<AuthUser>
+
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.userId === 'string' &&
+    typeof candidate.email === 'string' &&
+    typeof candidate.name === 'string'
+  )
 }
 
 function migrateAuthPersistedState(persistedState: unknown): AuthPersistedState {
@@ -61,13 +78,35 @@ function migrateAuthPersistedState(persistedState: unknown): AuthPersistedState 
 
   const merged = mergePersistedState(defaults, persistedState) as Partial<AuthPersistedState>
   const nextMode = merged.mode === 'account' ? 'account' : 'local'
-  const nextUser = merged.user ?? createLocalUser()
+  const nextUser = isAuthUser(merged.user) ? merged.user : null
 
   return {
     mode: nextMode,
-    user: nextUser,
-    isAuthenticated:
-      nextMode === 'account' ? Boolean(merged.isAuthenticated && nextUser?.userId) : false,
+    user: nextMode === 'account' ? nextUser : null,
+  }
+}
+
+function buildAuthenticatedState(authResponse: Pick<AuthResponse, 'user' | 'session' | 'tokens'>) {
+  return {
+    mode: 'account' as const,
+    status: authResponse.session.status,
+    user: authResponse.user,
+    accessToken: authResponse.tokens.accessToken,
+    lastError: null,
+    isAuthenticated: true,
+    isBootstrapping: false,
+  }
+}
+
+function buildLocalModeState() {
+  return {
+    mode: 'local' as const,
+    status: 'local' as const,
+    user: null,
+    accessToken: null,
+    lastError: null,
+    isAuthenticated: false,
+    isBootstrapping: false,
   }
 }
 
@@ -75,90 +114,234 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       ...createAuthPersistedState(),
-      isBootstrapping: false,
+      ...createAuthRuntimeState(),
       bootstrap: async () => {
         if (get().isBootstrapping) {
           return
         }
 
-        set((state) => (state.isBootstrapping ? state : { isBootstrapping: true }))
-
         set((state) => {
-          const nextMode = state.mode === 'account' ? 'account' : 'local'
-          const nextUser = state.user ?? createLocalUser()
-          const nextIsAuthenticated =
-            nextMode === 'account' ? Boolean(state.isAuthenticated && nextUser.userId) : false
-
-          if (
-            state.mode === nextMode &&
-            state.user === nextUser &&
-            state.isAuthenticated === nextIsAuthenticated &&
-            !state.isBootstrapping
-          ) {
+          if (state.isBootstrapping) {
             return state
           }
 
           return {
-            mode: nextMode,
-            user: nextUser,
-            isAuthenticated: nextIsAuthenticated,
-            isBootstrapping: false,
+            ...state,
+            isBootstrapping: true,
+            status: 'refreshing',
+            lastError: null,
           }
         })
+
+        try {
+          const refreshResponse = await authApi.refresh()
+          setApiAccessToken(refreshResponse.tokens.accessToken)
+
+          const meResponse = await authApi.me(refreshResponse.tokens.accessToken)
+
+          set(() => ({
+            ...buildAuthenticatedState({
+              user: meResponse.user,
+              session: refreshResponse.session,
+              tokens: refreshResponse.tokens,
+            }),
+          }))
+        } catch {
+          clearApiAccessToken()
+          set((state) => {
+            const nextState = buildLocalModeState()
+
+            if (
+              state.mode === nextState.mode &&
+              state.status === nextState.status &&
+              state.user === nextState.user &&
+              state.accessToken === nextState.accessToken &&
+              state.lastError === nextState.lastError &&
+              state.isAuthenticated === nextState.isAuthenticated &&
+              state.isBootstrapping === nextState.isBootstrapping
+            ) {
+              return state
+            }
+
+            return nextState
+          })
+        }
       },
-      switchToLocalMode: () =>
+      switchToLocalMode: () => {
+        clearApiAccessToken()
+
         set((state) => {
+          const nextState = buildLocalModeState()
+
           if (
-            state.mode === 'local' &&
-            !state.isAuthenticated &&
-            state.user !== null &&
-            !state.user.userId &&
-            !state.isBootstrapping
+            state.mode === nextState.mode &&
+            state.status === nextState.status &&
+            state.user === nextState.user &&
+            state.accessToken === nextState.accessToken &&
+            state.lastError === nextState.lastError &&
+            state.isAuthenticated === nextState.isAuthenticated &&
+            state.isBootstrapping === nextState.isBootstrapping
           ) {
             return state
           }
 
-          const nextUser =
-            state.user === null
-              ? createLocalUser()
-              : {
-                  ...state.user,
-                  userId: undefined,
-                }
+          return nextState
+        })
+      },
+      clearAuthError: () =>
+        set((state) => {
+          if (!state.lastError && state.status !== 'error') {
+            return state
+          }
 
           return {
-            mode: 'local',
-            user: nextUser,
-            isAuthenticated: false,
-            isBootstrapping: false,
+            ...state,
+            lastError: null,
+            status: state.isAuthenticated ? 'authenticated' : state.mode === 'account' ? 'unauthenticated' : 'local',
           }
         }),
-      login: async () => createPlaceholderResult(get().mode),
-      register: async () => createPlaceholderResult(get().mode),
+      login: async (credentials) => {
+        const previousState = get()
+
+        set((state) => ({
+          ...state,
+          status: 'authenticating',
+          lastError: null,
+        }))
+
+        try {
+          const response = await authApi.login(credentials)
+          setApiAccessToken(response.tokens.accessToken)
+
+          set(() => ({
+            ...buildAuthenticatedState(response),
+          }))
+
+          return {
+            success: true,
+            message: 'Вход выполнен. Аккаунт подключён к этому устройству.',
+          }
+        } catch (error) {
+          const normalizedError = normalizeApiError(error)
+
+          set((state) => {
+            if (previousState.isAuthenticated && previousState.user && previousState.accessToken) {
+              return {
+                ...state,
+                mode: previousState.mode,
+                status: 'authenticated',
+                user: previousState.user,
+                accessToken: previousState.accessToken,
+                isAuthenticated: true,
+                lastError: normalizedError.message,
+              }
+            }
+
+            clearApiAccessToken()
+
+            return {
+              ...buildLocalModeState(),
+              status: 'error',
+              lastError: normalizedError.message,
+            }
+          })
+
+          return {
+            success: false,
+            message: normalizedError.message,
+          }
+        }
+      },
+      register: async (credentials) => {
+        const previousState = get()
+
+        set((state) => ({
+          ...state,
+          status: 'authenticating',
+          lastError: null,
+        }))
+
+        try {
+          const response = await authApi.register(credentials)
+          setApiAccessToken(response.tokens.accessToken)
+
+          set(() => ({
+            ...buildAuthenticatedState(response),
+          }))
+
+          return {
+            success: true,
+            message: 'Аккаунт создан. Можно продолжать день без сброса локальных данных.',
+          }
+        } catch (error) {
+          const normalizedError = normalizeApiError(error)
+
+          set((state) => {
+            if (previousState.isAuthenticated && previousState.user && previousState.accessToken) {
+              return {
+                ...state,
+                mode: previousState.mode,
+                status: 'authenticated',
+                user: previousState.user,
+                accessToken: previousState.accessToken,
+                isAuthenticated: true,
+                lastError: normalizedError.message,
+              }
+            }
+
+            clearApiAccessToken()
+
+            return {
+              ...buildLocalModeState(),
+              status: 'error',
+              lastError: normalizedError.message,
+            }
+          })
+
+          return {
+            success: false,
+            message: normalizedError.message,
+          }
+        }
+      },
       logout: async () => {
-        get().switchToLocalMode()
+        set((state) => ({
+          ...state,
+          status: 'logging_out',
+          lastError: null,
+        }))
+
+        try {
+          await authApi.logout()
+        } catch {
+          // Даже если backend logout не ответил, локальный UX должен безопасно вернуться в local mode.
+        }
+
+        clearApiAccessToken()
+        set(() => ({
+          ...buildLocalModeState(),
+        }))
 
         return {
           success: true,
-          mode: 'local',
-          message:
-            'LifeQuest вернулся в локальный режим. До появления аккаунтов данные хранятся только на этом устройстве.',
+          message: 'Аккаунт отключён. Локальные данные на устройстве сохранены.',
         }
       },
-      resetDemoData: () =>
+      resetDemoData: () => {
+        clearApiAccessToken()
         set(() => ({
           ...createAuthPersistedState(),
-          isBootstrapping: false,
-        })),
+          ...createAuthRuntimeState(),
+        }))
+      },
     }),
     {
       name: 'lifequest-auth',
-      version: 3,
+      version: 4,
       migrate: migrateAuthPersistedState,
       partialize: (state) => ({
         mode: state.mode,
         user: state.user,
-        isAuthenticated: state.isAuthenticated,
       }),
     },
   ),

@@ -104,6 +104,22 @@ HTTP client contract, refresh policy и error model должны быть утв
 - затем реализовать `sync bootstrap`;
 - только после этого переходить к `sync push/pull` и conflict handling UI.
 
+## Обновление по текущему milestone
+
+Минимальная frontend integration для auth уже добавлена:
+
+- frontend умеет `register/login/logout/me/refresh` через backend auth endpoints;
+- access token не сохраняется в `localStorage`;
+- refresh выполняется через cookie-based flow и безопасный bootstrap;
+- local-first UX по-прежнему остаётся доступным без аккаунта;
+- sync runtime и migration local → account всё ещё не реализованы.
+
+Следующий рекомендуемый шаг после этого этапа:
+
+1. Подключить `GET /api/auth/me` и account mode к будущему client sync store без реального sync runtime.
+2. Затем начать только `sync bootstrap`.
+3. И лишь потом переходить к push/pull, conflicts и migration local → account.
+
 ## Sync-модель
 
 1. Клиент запускается в local mode.

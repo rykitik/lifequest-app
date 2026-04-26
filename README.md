@@ -232,3 +232,59 @@ http://localhost:5173
 - подключить минимальный account-aware HTTP client слой между frontend и backend auth;
 - после этого начинать только `sync bootstrap`, не трогая ещё push/pull runtime;
 - local-first UX должен оставаться рабочим даже без входа в аккаунт.
+
+## Frontend auth: текущий этап
+
+Сейчас frontend уже минимально подключён к backend auth endpoints:
+
+- экран `/auth` умеет `Войти` и `Зарегистрироваться`;
+- `useAuthStore.bootstrap()` при старте приложения пробует `POST /api/auth/refresh`;
+- access token хранится только в memory state frontend и не попадает в `localStorage`;
+- refresh token остаётся только в `httpOnly` cookie backend;
+- `Настройки` показывают `Локальный режим` или `Аккаунт подключён`;
+- logout возвращает приложение в local mode и не удаляет local-first данные;
+- sync и migration local → account пока не реализованы.
+
+### Frontend + backend локально
+
+1. Подними backend и Mongo:
+
+```bash
+docker compose -f docker-compose.full.yml up --build
+```
+
+2. Для frontend dev создай `.env` по примеру `.env.example` или оставь дефолтный локальный backend:
+
+```bash
+VITE_API_URL=http://localhost:4000/api
+```
+
+3. Запусти frontend:
+
+```bash
+npm.cmd install
+npm.cmd run dev
+```
+
+Открыть:
+
+```text
+Frontend dev: http://localhost:5173
+Frontend Docker: http://localhost:3000
+Backend health: http://localhost:4000/api/health
+```
+
+### Как проверить auth из UI
+
+1. Открой `/auth`
+2. Создай аккаунт через вкладку `Зарегистрироваться`
+3. После успеха приложение переведёт на `/today`
+4. Открой `/settings` и проверь блок `Аккаунт и синхронизация`
+5. Нажми `Выйти` и убедись, что приложение вернулось в local mode
+6. Повтори вход через вкладку `Войти`
+
+Важно:
+
+- local-first данные не должны удаляться при login/logout;
+- backup/export-import остаются рекомендуемым способом сохранения прогресса;
+- для VPS позже нужно будет задать `VITE_API_URL=https://ry-kit.ru/api` или поднять reverse proxy, но этот этап ещё не включён в runtime sync.

@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bot, Copy, ExternalLink, Sparkles, X } from 'lucide-react'
+import { mockUser } from '@/services/mockData'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
-import { useAuthStore } from '@/stores/useAuthStore'
 import { useProgressStore } from '@/stores/useProgressStore'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import { useQuestStore } from '@/stores/useQuestStore'
@@ -38,7 +38,6 @@ export function PromptCenterSheet() {
   const copyPrompt = usePromptCenterStore((state) => state.copyPrompt)
   const openChatGPT = usePromptCenterStore((state) => state.openChatGPT)
   const closePromptCenter = usePromptCenterStore((state) => state.closePromptCenter)
-  const user = useAuthStore((state) => state.user)
   const currentMode = useTodayStore((state) => state.currentMode)
   const modes = useTodayStore((state) => state.modes)
   const route = useTodayStore((state) => state.route)
@@ -50,7 +49,7 @@ export function PromptCenterSheet() {
 
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? cards[0] ?? null
   const currentModeLabel = modes.find((mode) => mode.key === currentMode)?.label ?? currentMode
-  const relevantGoals = useMemo(() => user?.relevantGoals ?? [], [user?.relevantGoals])
+  const relevantGoals = useMemo(() => mockUser.relevantGoals, [])
   const activeQuests = useMemo(
     () =>
       active
