@@ -19,7 +19,7 @@
 
 Важно:
 
-- frontend пока не подключён к этим endpoint;
+- frontend уже минимально подключён к этим endpoint;
 - local-first UX не меняется;
 - `migrate-local` и sync runtime ещё не реализованы.
 
@@ -419,6 +419,8 @@ Errors:
 - access token живёт только в memory state;
 - refresh token остаётся в `httpOnly` cookie;
 - `Settings` показывают локальный или account mode;
+- после успешного входа auth session подготавливает `useSyncStore`, но не запускает реальный sync runtime;
+- `Settings` показывают sync readiness, очередь изменений, last sync и короткий `deviceId`;
 - logout очищает account state frontend, но не удаляет local-first данные.
 
 Что сознательно ещё не реализовано:

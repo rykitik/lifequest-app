@@ -15,7 +15,9 @@ import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
+import { useSyncStore } from '@/stores/useSyncStore'
 import type { PreferredTone, SettingsProfile } from '@/shared/types'
+import type { SyncStatus } from '@/shared/types'
 
 const toneOptions: Array<{
   key: PreferredTone
@@ -78,6 +80,51 @@ function formatBackupDate(value: string | null) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date)
+}
+
+function formatSyncDate(value: string | null) {
+  if (!value) {
+    return 'Синхронизация ещё не выполнялась'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Дата синхронизации неизвестна'
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+function getSyncStatusLabel(status: SyncStatus) {
+  switch (status) {
+    case 'offline':
+      return 'Офлайн'
+    case 'error':
+      return 'Ошибка синхронизации'
+    case 'conflict':
+      return 'Требуется разбор конфликтов'
+    case 'bootstrapping':
+      return 'Готовим синхронизацию'
+    case 'syncing':
+      return 'Очередь ждёт запуска'
+    case 'idle':
+      return 'Готов к синхронизации'
+    case 'local_only':
+    default:
+      return 'Синхронизация недоступна без аккаунта'
+  }
+}
+
+function shortenDeviceId(deviceId: string | null) {
+  if (!deviceId) {
+    return '—'
+  }
+
+  return deviceId.slice(-8)
 }
 
 function ProfileSettingsForm({ initialProfile, onSave }: ProfileSettingsFormProps) {
@@ -179,6 +226,11 @@ export function SettingsScreen() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const authUser = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
+  const syncStatus = useSyncStore((state) => state.status)
+  const syncDeviceId = useSyncStore((state) => state.deviceId)
+  const syncLastSyncAt = useSyncStore((state) => state.lastSyncAt)
+  const syncQueueLength = useSyncStore((state) => state.queue.length)
+  const syncLastError = useSyncStore((state) => state.lastError)
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
@@ -208,6 +260,15 @@ export function SettingsScreen() {
     () => (authMode === 'account' && isAuthenticated ? 'Аккаунт подключён' : 'Локальный режим'),
     [authMode, isAuthenticated],
   )
+  const syncStatusLabel = useMemo(
+    () =>
+      authMode === 'account' && isAuthenticated
+        ? getSyncStatusLabel(syncStatus)
+        : 'Синхронизация недоступна без аккаунта',
+    [authMode, isAuthenticated, syncStatus],
+  )
+  const syncLastSyncLabel = useMemo(() => formatSyncDate(syncLastSyncAt), [syncLastSyncAt])
+  const shortDeviceId = useMemo(() => shortenDeviceId(syncDeviceId), [syncDeviceId])
   const isLoggingOut = authStatus === 'logging_out'
 
   useEffect(() => {
@@ -240,7 +301,7 @@ export function SettingsScreen() {
 
   const handleClearAllLocalData = async () => {
     const shouldClear = window.confirm(
-      'Очистить все локальные данные на этом устройстве? Это удалит маршруты, прогресс, настройки и локальный cache приложения.',
+      'Очистить все локальные данные на этом устройстве? Это удалит маршруты, прогресс, настройки и локальный кэш приложения.',
     )
 
     if (!shouldClear) {
@@ -372,8 +433,8 @@ export function SettingsScreen() {
           <p className="mt-2 text-sm font-medium text-white">{accountStatusLabel}</p>
           <p className="mt-2 text-sm leading-6 text-slate-200">
             {isAuthenticated
-              ? 'Сессия активна. Синхронизация данных будет добавлена позже, поэтому backup всё ещё остаётся надёжным способом сохранить состояние.'
-              : 'Сейчас LifeQuest по-прежнему полностью usable локально на этом устройстве. Backup остаётся рекомендуемым способом сохранить данные до появления sync.'}
+              ? 'Сессия активна. Сама синхронизация будет добавлена позже, поэтому данные всё ещё хранятся локально на этом устройстве.'
+              : 'Сейчас LifeQuest по-прежнему полностью доступен локально на этом устройстве. Backup остаётся рекомендуемым способом сохранить данные до появления синхронизации.'}
           </p>
         </div>
 
@@ -385,7 +446,7 @@ export function SettingsScreen() {
             </p>
             <p className="mt-2 text-sm text-slate-200">{authUser.email}</p>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Локальные данные пока не мигрируют в аккаунт автоматически. Migration и sync будут добавлены отдельным этапом.
+              Локальные данные пока не мигрируют в аккаунт автоматически. Миграция и полноценная синхронизация будут добавлены отдельным этапом.
             </p>
           </div>
         ) : (
@@ -399,6 +460,39 @@ export function SettingsScreen() {
             </p>
           </div>
         )}
+
+        <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Готовность синхронизации</p>
+          <p className="mt-2 text-sm font-medium text-white">{syncStatusLabel}</p>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            {isAuthenticated
+              ? 'Сама синхронизация будет добавлена позже. Сейчас данные всё ещё хранятся локально, а этот блок показывает только готовность режима аккаунта.'
+              : 'Синхронизация пока недоступна без аккаунта. До её появления надёжнее всего сохранять состояние через backup.'}
+          </p>
+
+          {isAuthenticated ? (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted">ID устройства</p>
+                <p className="mt-2 text-sm font-medium text-white">{shortDeviceId}</p>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted">Очередь изменений</p>
+                <p className="mt-2 text-sm font-medium text-white">{syncQueueLength}</p>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-4 col-span-2">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted">Последняя синхронизация</p>
+                <p className="mt-2 text-sm font-medium text-white">{syncLastSyncLabel}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {isAuthenticated && syncStatus === 'error' && syncLastError ? (
+            <div className="mt-4 rounded-3xl border border-danger/20 bg-danger/10 p-4 text-sm leading-6 text-slate-100">
+              {syncLastError}
+            </div>
+          ) : null}
+        </div>
 
         <div className="mt-4 grid gap-3">
           {isAuthenticated ? (

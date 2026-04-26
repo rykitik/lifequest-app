@@ -148,7 +148,7 @@ export function AuthScreen() {
               </h2>
               <p className="mt-2 text-sm leading-6 text-slate-200">{user.email}</p>
               <p className="mt-3 text-sm leading-6 text-muted">
-                Локальные данные пока не синхронизируются с аккаунтом. Migration local → account будет добавлена отдельным этапом.
+                Локальные данные пока не синхронизируются с аккаунтом. Миграция локальных данных в аккаунт будет добавлена отдельным этапом.
               </p>
             </div>
           </div>
@@ -181,7 +181,7 @@ export function AuthScreen() {
     <section className="pb-6">
       <ScreenHeader
         title="Аккаунт LifeQuest"
-        subtitle="Можно войти или создать аккаунт, но приложение по-прежнему остаётся usable локально на этом устройстве."
+        subtitle="Можно войти или создать аккаунт, но приложение по-прежнему остаётся полностью доступным локально на этом устройстве."
       />
 
       <GlassCard tone="strong" className="mb-5">
@@ -190,10 +190,10 @@ export function AuthScreen() {
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Local-first + account-ready</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Локально сейчас, аккаунт позже</p>
             <h2 className="mt-2 font-display text-xl font-semibold text-white">{helperTitle}</h2>
             <p className="mt-3 text-sm leading-6 text-muted">
-              Локальные данные пока не синхронизируются с аккаунтом. Миграция local → account появится позже, поэтому backup в Настройках всё ещё остаётся рекомендуемым способом сохранить прогресс.
+              Локальные данные пока не синхронизируются с аккаунтом. Миграция локальных данных в аккаунт появится позже, поэтому backup в Настройках всё ещё остаётся рекомендуемым способом сохранить прогресс.
             </p>
           </div>
         </div>
@@ -288,7 +288,7 @@ export function AuthScreen() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
             <p className="font-medium text-white">Синхронизации пока нет</p>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Пока аккаунт нужен только для базовой auth-сессии. Sync и migration local → account будут добавлены позже отдельным этапом.
+              Пока аккаунт нужен только для базовой сессии аккаунта. Синхронизация и перенос локальных данных в аккаунт будут добавлены позже отдельным этапом.
             </p>
           </div>
         </div>
@@ -299,7 +299,7 @@ export function AuthScreen() {
           Продолжить локально
         </PrimaryButton>
         <PrimaryButton tone="secondary" fullWidth icon={<UserRound className="h-4 w-4" />} onClick={() => navigate('/settings')}>
-          Открыть Настройки и backup
+          Открыть Настройки и резервную копию
         </PrimaryButton>
       </div>
     </section>

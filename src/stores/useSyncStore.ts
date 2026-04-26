@@ -26,6 +26,7 @@ interface SyncState {
   setLastError: (error: string | null) => void
   setConflicts: (conflicts: SyncConflict[]) => void
   clearConflicts: () => void
+  prepareAccountSyncReadiness: () => void
   resetSyncState: () => void
   initializeDeviceId: () => string
 }
@@ -72,6 +73,10 @@ function createRuntimeSyncState() {
   }
 }
 
+function getRuntimeNetworkOnline() {
+  return typeof navigator === 'undefined' ? true : navigator.onLine
+}
+
 function normalizePersistedStatus(status: SyncStatus) {
   if (status === 'bootstrapping' || status === 'syncing') {
     return 'idle' as const
@@ -81,20 +86,16 @@ function normalizePersistedStatus(status: SyncStatus) {
 }
 
 function getNextOnlineStatus(state: Pick<SyncState, 'status' | 'queue' | 'conflicts' | 'lastError'>) {
+  if (state.status === 'local_only') {
+    return 'local_only' as const
+  }
+
   if (state.conflicts.length) {
     return 'conflict' as const
   }
 
   if (state.lastError) {
     return 'error' as const
-  }
-
-  if (state.queue.some((item) => item.status === 'pending' || item.status === 'failed')) {
-    return 'syncing' as const
-  }
-
-  if (state.status === 'local_only') {
-    return 'local_only' as const
   }
 
   return 'idle' as const
@@ -107,17 +108,11 @@ export const useSyncStore = create<SyncState>()(
       ...createRuntimeSyncState(),
       bootstrapLocalSync: () => {
         const deviceId = get().initializeDeviceId()
+        const nextNetworkOnline = getRuntimeNetworkOnline()
 
         set((state) => {
-          const nextStatus = state.conflicts.length
-            ? 'conflict'
-            : state.lastError
-              ? 'error'
-              : 'local_only'
-          const nextNetworkOnline = typeof navigator === 'undefined' ? true : navigator.onLine
-
           if (
-            state.status === nextStatus &&
+            state.status === 'local_only' &&
             state.networkOnline === nextNetworkOnline &&
             state.deviceId === deviceId
           ) {
@@ -125,7 +120,7 @@ export const useSyncStore = create<SyncState>()(
           }
 
           return {
-            status: nextStatus,
+            status: 'local_only',
             networkOnline: nextNetworkOnline,
             deviceId,
           }
@@ -165,7 +160,7 @@ export const useSyncStore = create<SyncState>()(
               state.status === 'local_only'
                 ? 'local_only'
                 : state.networkOnline
-                  ? 'syncing'
+                  ? 'idle'
                   : 'offline',
           }
         }),
@@ -312,6 +307,31 @@ export const useSyncStore = create<SyncState>()(
             }),
           }
         }),
+      prepareAccountSyncReadiness: () => {
+        const deviceId = get().initializeDeviceId()
+        const networkOnline = getRuntimeNetworkOnline()
+        const nextStatus = networkOnline ? 'idle' : 'offline'
+
+        set((state) => {
+          if (
+            state.status === nextStatus &&
+            state.networkOnline === networkOnline &&
+            state.deviceId === deviceId &&
+            state.lastError === null &&
+            state.conflicts.length === 0
+          ) {
+            return state
+          }
+
+          return {
+            status: nextStatus,
+            networkOnline,
+            deviceId,
+            lastError: null,
+            conflicts: [],
+          }
+        })
+      },
       resetSyncState: () =>
         set((state) => ({
           ...createPersistedSyncState(),

@@ -215,7 +215,7 @@ interface SyncQueueItem {
 
 ## useSyncStore contract
 
-Будущий `useSyncStore` хранит только клиентское sync-состояние и queue contract. Он не должен заменять domain stores и не должен брать на себя бизнес-логику самих сущностей.
+`useSyncStore` хранит только клиентское sync-состояние и queue contract. Он не должен заменять domain stores и не должен брать на себя бизнес-логику самих сущностей.
 
 ### Поля
 
@@ -258,3 +258,30 @@ interface SyncQueueItem {
 - auth пока placeholder
 - local-first UX не должен зависеть от несуществующей сети
 - store фиксирует контракт и persist-модель заранее, чтобы backend later подключался к уже согласованному клиентскому интерфейсу, а не наоборот
+
+## Текущий runtime-слой readiness
+
+На текущем этапе `useSyncStore` уже связан с auth session, но всё ещё не выполняет `bootstrap / push / pull`.
+
+### Что уже делает клиент
+
+- после `useAuthStore.bootstrap()` приложение инициализирует `deviceId`;
+- если пользователь остаётся в local mode, sync status фиксируется как `local_only`;
+- если пользователь аутентифицирован, sync status переходит в `idle`, а при отсутствии сети — в `offline`;
+- `window.navigator.onLine` и события `online/offline` обновляют только readiness-состояние;
+- `Settings` показывают sync status, last sync, длину очереди и короткий `deviceId`.
+
+### Что принципиально ещё не делает клиент
+
+- не вызывает `/api/sync/bootstrap`
+- не вызывает `/api/sync/push`
+- не вызывает `/api/sync/pull`
+- не переносит local data в account автоматически
+- не запускает queue runner
+
+### Logout-поведение
+
+- logout возвращает sync store в `local_only`
+- queue, conflicts и ошибки сбрасываются через `resetSyncState()`
+- `deviceId` сохраняется, потому что устройство остаётся тем же
+- local-first данные пользователя не удаляются

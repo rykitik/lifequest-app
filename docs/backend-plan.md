@@ -23,7 +23,7 @@
 - `POST /api/auth/logout`;
 - `GET /api/auth/me`.
 
-Это всё ещё не sync backend и ещё не frontend auth integration. Текущий шаг нужен как надёжная основа под account mode later.
+Это всё ещё не sync backend, но frontend auth integration и account-aware sync readiness уже подключены. Текущий шаг нужен как надёжная основа под account mode later.
 
 Backend skeleton должен начинаться только после утверждения sync protocol из [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md).
 Клиентская sync state machine должна быть зафиксирована в [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md), а retry policy — в [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md).
@@ -100,8 +100,9 @@ HTTP client contract, refresh policy и error model должны быть утв
 
 ## Следующий backend-этап
 
-- подключить account-aware HTTP client слой на frontend без поломки local-first UX;
-- затем реализовать `sync bootstrap`;
+- account-aware HTTP client слой на frontend уже подключён;
+- auth session уже связана с `useSyncStore` на уровне readiness без реального sync runtime;
+- следующим backend-шагом должен стать только `sync bootstrap`;
 - только после этого переходить к `sync push/pull` и conflict handling UI.
 
 ## Обновление по текущему milestone
@@ -116,9 +117,9 @@ HTTP client contract, refresh policy и error model должны быть утв
 
 Следующий рекомендуемый шаг после этого этапа:
 
-1. Подключить `GET /api/auth/me` и account mode к будущему client sync store без реального sync runtime.
-2. Затем начать только `sync bootstrap`.
-3. И лишь потом переходить к push/pull, conflicts и migration local → account.
+1. Начать только `sync bootstrap`.
+2. Затем переходить к push/pull и конфликтам.
+3. И лишь потом делать migration local → account.
 
 ## Sync-модель
 

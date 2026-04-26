@@ -46,9 +46,9 @@ LifeQuest = local-first now, multi-user ready later.
 - `Спасательный режим`;
 - `Центр промптов` с генерацией контекста для внешнего ChatGPT;
 - local-first reset, backup/export-import и PWA runtime;
-- placeholder-экран `/auth` для будущих аккаунтов.
+- экран `/auth` с login/register и безопасным возвратом в local mode;
 - backend skeleton в `server/` с health endpoints и Mongo lifecycle.
-- backend auth-слой с `User model` и минимальными auth routes, но frontend к нему пока не подключён.
+- backend auth-слой с `User model` и минимальными auth routes, уже подключёнными к frontend без поломки local-first UX.
 
 ## Prompt Center
 
@@ -115,7 +115,7 @@ Ready probe: http://localhost:4000/api/health/ready
 
 - access token возвращается только в JSON-ответе;
 - refresh token хранится только в `httpOnly` cookie;
-- frontend пока не использует эти endpoints и local-first UX не меняется.
+- frontend уже использует эти endpoints для account mode, но local-first UX по-прежнему не ломается и остаётся доступным без аккаунта.
 
 ## Обычный запуск через npm
 
@@ -229,8 +229,8 @@ http://localhost:5173
 
 ## Ближайший следующий слой
 
-- подключить минимальный account-aware HTTP client слой между frontend и backend auth;
-- после этого начинать только `sync bootstrap`, не трогая ещё push/pull runtime;
+- сохранить текущую account-aware sync readiness и начинать только `sync bootstrap`, не трогая ещё push/pull runtime;
+- после этого готовить conflict handling и migration local → account;
 - local-first UX должен оставаться рабочим даже без входа в аккаунт.
 
 ## Frontend auth: текущий этап
@@ -244,6 +244,16 @@ http://localhost:5173
 - `Настройки` показывают `Локальный режим` или `Аккаунт подключён`;
 - logout возвращает приложение в local mode и не удаляет local-first данные;
 - sync и migration local → account пока не реализованы.
+
+## Sync readiness: текущий этап
+
+Сейчас frontend уже связан с `useSyncStore`, но без реального sync runtime:
+
+- после auth bootstrap приложение инициализирует `deviceId`;
+- в local mode sync status остаётся `local_only`;
+- в account mode sync status переходит в `idle` или `offline` в зависимости от сети;
+- `Настройки` показывают sync readiness, очередь изменений, last sync и короткий `deviceId`;
+- offline/online события обновляют только readiness-состояние и не запускают `push/pull`.
 
 ### Frontend + backend локально
 

@@ -6,10 +6,12 @@ import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import { useQuestStore } from '@/stores/useQuestStore'
 import { useRescueStore } from '@/stores/useRescueStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useSyncStore } from '@/stores/useSyncStore'
 import { useTodayStore } from '@/stores/useTodayStore'
 
 export function resetLifeQuestDemoData(resetSettings: () => void) {
   useAuthStore.getState().resetDemoData()
+  useSyncStore.getState().resetSyncState()
   useQuestStore.getState().resetDemoData()
   useTodayStore.getState().resetDemoData()
   useProgressStore.getState().resetDemoData()
