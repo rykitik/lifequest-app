@@ -4,6 +4,18 @@
 
 Подготовить LifeQuest к режиму аккаунтов и синхронизации, не ломая current local-first MVP.
 
+## Текущий этап
+
+Сейчас в проекте уже можно начинать backend skeleton:
+
+- `server/` с Express + TypeScript;
+- Mongo connection lifecycle;
+- `/api/health` и `/api/health/ready`;
+- Docker-образ для backend;
+- отдельный `docker-compose.full.yml` для frontend + backend + mongo.
+
+Это всё ещё не auth и не sync backend. Текущий шаг нужен только как надёжная основа под следующие модули.
+
 Backend skeleton должен начинаться только после утверждения sync protocol из [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md).
 Клиентская sync state machine должна быть зафиксирована в [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md), а retry policy — в [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md).
 Auth strategy, state machine и token policy описаны в [auth-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/auth-plan.md).
@@ -76,6 +88,12 @@ HTTP client contract, refresh policy и error model должны быть утв
 5. HTTP client integration
 6. Sync bootstrap/push/pull
 7. Migration local → account
+
+## Следующий backend-этап
+
+- добавить `User model`;
+- затем поднять минимальные `auth routes`;
+- только после этого переходить к account session и sync bootstrap.
 
 ## Sync-модель
 

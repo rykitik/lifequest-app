@@ -1,0 +1,45 @@
+services:
+  lifequest-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lifequest-frontend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+  lifequest-backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: lifequest-backend
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      PORT: "4000"
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017/lifequest
+      CLIENT_ORIGIN: http://localhost:3000
+      COOKIE_DOMAIN: ""
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    container_name: lifequest-mongo
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "27017:27017"
+    restart: unless-stopped
+    volumes:
+      - lifequest-mongo-data:/data/db
+
+volumes:
+  lifequest-mongo-data:
