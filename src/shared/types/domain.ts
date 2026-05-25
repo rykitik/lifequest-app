@@ -39,6 +39,12 @@ export interface SettingsProfile extends UserScopedEntity {
   preferredTone: PreferredTone
 }
 
+export interface AccountSettingsProfile extends SettingsProfile {
+  userId: string
+  syncVersion: number
+  updatedAt: string
+}
+
 export interface TodayModeOption {
   key: ModeKey
   label: string
