@@ -1,10 +1,10 @@
 import mongoose, { type Model } from 'mongoose'
 
-import type { SettingsProfileRecord } from './settings.types.js'
+import type { SettingsProfile } from './settings.types.js'
 
 const { model, models, Schema } = mongoose
 
-const settingsProfileSchema = new Schema<SettingsProfileRecord>(
+const settingsProfileSchema = new Schema<SettingsProfile>(
   {
     userId: {
       type: Schema.Types.ObjectId,
@@ -16,7 +16,7 @@ const settingsProfileSchema = new Schema<SettingsProfileRecord>(
     userName: {
       type: String,
       trim: true,
-      maxlength: 120,
+      maxlength: 80,
     },
     userRole: {
       type: String,
@@ -31,14 +31,14 @@ const settingsProfileSchema = new Schema<SettingsProfileRecord>(
     },
     syncVersion: {
       type: Number,
-      default: 1,
       required: true,
+      default: 1,
       min: 1,
     },
     deviceId: {
       type: String,
       trim: true,
-      maxlength: 160,
+      maxlength: 120,
     },
   },
   {
@@ -47,22 +47,6 @@ const settingsProfileSchema = new Schema<SettingsProfileRecord>(
   },
 )
 
-settingsProfileSchema.pre('save', function normalizeSettingsProfile(next) {
-  if (typeof this.userName === 'string') {
-    this.userName = this.userName.trim() || undefined
-  }
-
-  if (typeof this.userRole === 'string') {
-    this.userRole = this.userRole.trim() || undefined
-  }
-
-  if (typeof this.deviceId === 'string') {
-    this.deviceId = this.deviceId.trim() || undefined
-  }
-
-  next()
-})
-
 export const SettingsProfileModel =
-  (models.SettingsProfile as Model<SettingsProfileRecord> | undefined) ??
-  model<SettingsProfileRecord>('SettingsProfile', settingsProfileSchema)
+  (models.SettingsProfile as Model<SettingsProfile> | undefined) ??
+  model<SettingsProfile>('SettingsProfile', settingsProfileSchema)

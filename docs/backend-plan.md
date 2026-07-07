@@ -85,8 +85,8 @@ HTTP client contract, refresh policy и error model должны быть утв
 - `POST /api/rescue`
 - `GET /api/companion`
 - `PATCH /api/companion`
-- `GET /api/settings`
-- `PATCH /api/settings`
+- `GET /api/settings/profile`
+- `PUT /api/settings/profile`
 
 ## Порядок реализации backend
 
@@ -103,6 +103,7 @@ HTTP client contract, refresh policy и error model должны быть утв
 - account-aware HTTP client слой на frontend уже подключён;
 - auth session уже связана с `useSyncStore` на уровне readiness без реального sync runtime;
 - `sync bootstrap` теперь реализован как первый безопасный sync endpoint;
+- `settingsProfile` теперь реализован как первый реальный sync-домен с ручными `GET/PUT` endpoint;
 - только после этого переходить к `sync push/pull` и conflict handling UI.
 
 ## Обновление по текущему milestone
@@ -114,13 +115,15 @@ HTTP client contract, refresh policy и error model должны быть утв
 - refresh выполняется через cookie-based flow и безопасный bootstrap;
 - local-first UX по-прежнему остаётся доступным без аккаунта;
 - `GET /api/sync/bootstrap` уже реализован, но пока не перезаписывает клиентские данные;
+- `GET /api/settings/profile` и `PUT /api/settings/profile` уже реализованы как первый реальный sync-домен;
+- sync настроек запускается только вручную из `Настроек`;
 - sync runtime и migration local → account всё ещё не реализованы.
 
 Следующий рекомендуемый шаг после этого этапа:
 
-1. Начать `sync push/pull`.
+1. Начать узкий `push/pull` для `settingsProfile`.
 2. Затем подключить conflict handling UI.
-3. И лишь потом делать migration local → account.
+3. И лишь потом расширять sync на другие домены и делать migration local → account.
 
 ## Sync-модель
 

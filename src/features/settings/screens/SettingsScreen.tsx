@@ -99,6 +99,23 @@ function formatSyncDate(value: string | null) {
   }).format(date)
 }
 
+function formatAccountSettingsSyncDate(value: string | null) {
+  if (!value) {
+    return 'Настройки ещё не синхронизировались с аккаунтом'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Дата синхронизации настроек неизвестна'
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
 function getSyncStatusLabel(status: SyncStatus) {
   switch (status) {
     case 'offline':
@@ -125,6 +142,23 @@ function shortenDeviceId(deviceId: string | null) {
   }
 
   return deviceId.slice(-8)
+}
+
+function getAccountSettingsStatusLabel(
+  status: 'idle' | 'loading' | 'saving' | 'error',
+  hasSyncedProfile: boolean,
+) {
+  switch (status) {
+    case 'loading':
+      return 'Загружаем настройки с сервера'
+    case 'saving':
+      return 'Сохраняем настройки в аккаунт'
+    case 'error':
+      return 'Ошибка синхронизации настроек'
+    case 'idle':
+    default:
+      return hasSyncedProfile ? 'Сохранено в аккаунт' : 'Настройки не синхронизированы'
+  }
 }
 
 function ProfileSettingsForm({ initialProfile, onSave }: ProfileSettingsFormProps) {
@@ -210,12 +244,19 @@ export function SettingsScreen() {
   const userRole = useSettingsStore((state) => state.userRole)
   const preferredTone = useSettingsStore((state) => state.preferredTone)
   const lastBackupExportAt = useSettingsStore((state) => state.lastBackupExportAt)
+  const accountSyncStatus = useSettingsStore((state) => state.accountSyncStatus)
+  const accountSyncError = useSettingsStore((state) => state.accountSyncError)
+  const accountSyncedAt = useSettingsStore((state) => state.accountSyncedAt)
+  const accountSyncVersion = useSettingsStore((state) => state.accountSyncVersion)
+  const accountSyncUserId = useSettingsStore((state) => state.accountSyncUserId)
   const appVersion = useSettingsStore((state) => state.appVersion)
   const isInstalledAsApp = useSettingsStore((state) => state.isInstalledAsApp)
   const hasServiceWorkerSupport = useSettingsStore((state) => state.hasServiceWorkerSupport)
   const hasActiveServiceWorker = useSettingsStore((state) => state.hasActiveServiceWorker)
   const hasWaitingServiceWorker = useSettingsStore((state) => state.hasWaitingServiceWorker)
   const updateProfile = useSettingsStore((state) => state.updateProfile)
+  const fetchAccountSettingsProfile = useSettingsStore((state) => state.fetchAccountSettingsProfile)
+  const pushAccountSettingsProfile = useSettingsStore((state) => state.pushAccountSettingsProfile)
   const recordBackupExport = useSettingsStore((state) => state.recordBackupExport)
   const resetDemoData = useSettingsStore((state) => state.resetDemoData)
   const clearAllLocalData = useSettingsStore((state) => state.clearAllLocalData)
@@ -239,6 +280,10 @@ export function SettingsScreen() {
   const [isExportingBackup, setIsExportingBackup] = useState(false)
   const [isImportingBackup, setIsImportingBackup] = useState(false)
   const [syncFeedback, setSyncFeedback] = useState<{
+    tone: 'success' | 'error'
+    message: string
+  } | null>(null)
+  const [accountSettingsFeedback, setAccountSettingsFeedback] = useState<{
     tone: 'success' | 'error'
     message: string
   } | null>(null)
@@ -273,9 +318,34 @@ export function SettingsScreen() {
     [authMode, isAuthenticated, syncStatus],
   )
   const syncLastSyncLabel = useMemo(() => formatSyncDate(syncLastSyncAt), [syncLastSyncAt])
+  const accountSyncMetaMatchesUser = useMemo(
+    () => Boolean(authUser?.userId) && authUser?.userId === accountSyncUserId,
+    [accountSyncUserId, authUser?.userId],
+  )
+  const accountSettingsSyncedAtLabel = useMemo(
+    () => formatAccountSettingsSyncDate(accountSyncMetaMatchesUser ? accountSyncedAt : null),
+    [accountSyncMetaMatchesUser, accountSyncedAt],
+  )
+  const accountSettingsSyncVersionLabel = useMemo(
+    () =>
+      accountSyncMetaMatchesUser && accountSyncVersion != null
+        ? String(accountSyncVersion)
+        : '—',
+    [accountSyncMetaMatchesUser, accountSyncVersion],
+  )
+  const hasSyncedAccountProfile = useMemo(
+    () => accountSyncMetaMatchesUser && Boolean(accountSyncedAt) && accountSyncVersion != null,
+    [accountSyncMetaMatchesUser, accountSyncedAt, accountSyncVersion],
+  )
+  const accountSettingsStatusLabel = useMemo(
+    () => getAccountSettingsStatusLabel(accountSyncStatus, hasSyncedAccountProfile),
+    [accountSyncStatus, hasSyncedAccountProfile],
+  )
   const shortDeviceId = useMemo(() => shortenDeviceId(syncDeviceId), [syncDeviceId])
   const isLoggingOut = authStatus === 'logging_out'
   const isCheckingSyncBootstrap = syncStatus === 'bootstrapping'
+  const isFetchingAccountSettings = accountSyncStatus === 'loading'
+  const isSavingAccountSettings = accountSyncStatus === 'saving'
 
   useEffect(() => {
     void checkPwaStatus()
@@ -420,9 +490,32 @@ export function SettingsScreen() {
     })
   }
 
+  const handleFetchAccountSettings = async () => {
+    setAccountSettingsFeedback(null)
+
+    const result = await fetchAccountSettingsProfile()
+
+    setAccountSettingsFeedback({
+      tone: result.success ? 'success' : 'error',
+      message: result.message,
+    })
+  }
+
+  const handlePushAccountSettings = async () => {
+    setAccountSettingsFeedback(null)
+
+    const result = await pushAccountSettingsProfile()
+
+    setAccountSettingsFeedback({
+      tone: result.success ? 'success' : 'error',
+      message: result.message,
+    })
+  }
+
   const handleLogout = async () => {
     await logout()
     setSyncFeedback(null)
+    setAccountSettingsFeedback(null)
     setBackupStatus({
       tone: 'success',
       message: 'Аккаунт отключён. Локальные данные на устройстве сохранены.',
@@ -443,6 +536,71 @@ export function SettingsScreen() {
           initialProfile={profileDefaults}
           onSave={updateProfile}
         />
+
+        <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Профиль в аккаунте</p>
+          <p className="mt-2 text-sm font-medium text-white">{accountSettingsStatusLabel}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-200">
+            {isAuthenticated
+              ? 'Этот блок синхронизирует только userName, userRole и preferredTone. Остальные данные LifeQuest пока остаются только локальными.'
+              : 'Сейчас профиль сохраняется только локально. Чтобы синхронизировать имя, роль и тон с аккаунтом, сначала войди в аккаунт.'}
+          </p>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted">Последняя sync</p>
+              <p className="mt-2 text-sm font-medium text-white">{accountSettingsSyncedAtLabel}</p>
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted">Sync version</p>
+              <p className="mt-2 text-sm font-medium text-white">{accountSettingsSyncVersionLabel}</p>
+            </div>
+          </div>
+
+          {accountSettingsFeedback ? (
+            <div
+              className={`mt-4 rounded-3xl border p-4 text-sm leading-6 ${
+                accountSettingsFeedback.tone === 'success'
+                  ? 'border-success/20 bg-success/10 text-slate-100'
+                  : 'border-danger/20 bg-danger/10 text-slate-100'
+              }`}
+            >
+              {accountSettingsFeedback.message}
+            </div>
+          ) : null}
+
+          {accountSyncStatus === 'error' && accountSyncError && !accountSettingsFeedback ? (
+            <div className="mt-4 rounded-3xl border border-danger/20 bg-danger/10 p-4 text-sm leading-6 text-slate-100">
+              {accountSyncError}
+            </div>
+          ) : null}
+
+          {isAuthenticated ? (
+            <div className="mt-4 grid gap-3">
+              <PrimaryButton
+                tone="secondary"
+                fullWidth
+                disabled={isFetchingAccountSettings || isSavingAccountSettings}
+                icon={<Download className="h-4 w-4" />}
+                onClick={() => {
+                  void handleFetchAccountSettings()
+                }}
+              >
+                {isFetchingAccountSettings ? 'Загружаем настройки…' : 'Загрузить настройки с сервера'}
+              </PrimaryButton>
+              <PrimaryButton
+                fullWidth
+                disabled={isFetchingAccountSettings || isSavingAccountSettings}
+                icon={<Upload className="h-4 w-4" />}
+                onClick={() => {
+                  void handlePushAccountSettings()
+                }}
+              >
+                {isSavingAccountSettings ? 'Сохраняем настройки…' : 'Сохранить настройки в аккаунт'}
+              </PrimaryButton>
+            </div>
+          ) : null}
+        </div>
       </GlassCard>
 
       <GlassCard className="mb-5 border border-cyan/20 bg-cyan/5">

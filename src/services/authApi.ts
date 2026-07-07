@@ -12,6 +12,35 @@ interface AuthMeResponse {
   session: AuthResponse['session']
 }
 
+function normalizeAuthUser(user: AuthResponse['user']): AuthResponse['user'] {
+  return {
+    ...user,
+    userId: user.userId ?? user.id,
+  }
+}
+
+function normalizeAuthResponse(response: AuthResponse): AuthResponse {
+  return {
+    ...response,
+    user: normalizeAuthUser(response.user),
+    session: {
+      ...response.session,
+      user: response.session.user ? normalizeAuthUser(response.session.user) : response.session.user,
+    },
+  }
+}
+
+function normalizeAuthMeResponse(response: AuthMeResponse): AuthMeResponse {
+  return {
+    ...response,
+    user: normalizeAuthUser(response.user),
+    session: {
+      ...response.session,
+      user: response.session.user ? normalizeAuthUser(response.session.user) : response.session.user,
+    },
+  }
+}
+
 export function register(input: RegisterRequest) {
   return requestPublic<AuthResponse>(
     {
@@ -23,7 +52,7 @@ export function register(input: RegisterRequest) {
       endpoint: '/auth/register',
       method: 'POST',
     },
-  )
+  ).then(normalizeAuthResponse)
 }
 
 export function login(input: LoginRequest) {
@@ -37,7 +66,7 @@ export function login(input: LoginRequest) {
       endpoint: '/auth/login',
       method: 'POST',
     },
-  )
+  ).then(normalizeAuthResponse)
 }
 
 export function refresh() {
@@ -81,5 +110,5 @@ export function me(accessToken?: string | null) {
         method: 'GET',
       },
     },
-  )
+  ).then(normalizeAuthMeResponse)
 }

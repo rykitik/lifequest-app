@@ -1,7 +1,10 @@
 import { Router } from 'express'
 
 import { requireAuth } from '../auth/auth.middleware.js'
-import { getSettingsProfileController, updateSettingsProfileController } from './settings.controller.js'
+import {
+  getSettingsProfileController,
+  updateSettingsProfileController,
+} from './settings.controller.js'
 
 const router = Router()
 

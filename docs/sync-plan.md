@@ -4,7 +4,7 @@
 
 Подготовить LifeQuest к будущей синхронизации между устройствами и аккаунтами, не ломая текущий local-first MVP.
 
-Сейчас sync runtime всё ещё не реализован полностью. На текущем этапе уже существует только безопасный `GET /api/sync/bootstrap`, который проверяет account sync readiness и возвращает пустой серверный снапшот без изменения клиентских данных.
+Сейчас sync runtime всё ещё не реализован полностью. На текущем этапе уже существует безопасный `GET /api/sync/bootstrap`, а также первый реальный sync-домен `settingsProfile`, который синхронизируется только вручную и не влияет на остальные local-first stores.
 
 Связанные документы:
 
@@ -64,6 +64,9 @@
 - возвращает typed bootstrap response
 - пока не применяет серверные данные к local stores
 - пока не запускает push/pull и не активирует conflict resolution UI
+- `GET /api/settings/profile` создаёт default profile для account mode, если его ещё нет
+- `PUT /api/settings/profile` вручную сохраняет только `userName`, `userRole`, `preferredTone`
+- frontend умеет вручную загружать и сохранять `settingsProfile` из `Настроек`
 
 ## Что синхронизируется
 
@@ -296,5 +299,6 @@ interface SyncConflict {
 
 - `Settings` в account mode умеют запускать ручную проверку синхронизации;
 - bootstrap обновляет только `latestSyncCursor`, `lastSyncAt`, `conflicts`, `lastError` и статус readiness;
+- `settingsProfile` можно отдельно загрузить с сервера и отдельно сохранить в аккаунт;
 - quests, today route, progress, body, money и другие local stores пока не перезаписываются сервером;
 - push/pull и import-local-backup остаются следующими этапами.

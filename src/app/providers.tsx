@@ -1,5 +1,6 @@
 import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useSyncStore } from '@/stores/useSyncStore'
 import type { AuthMode } from '@/shared/types'
 
@@ -25,6 +26,7 @@ export function AppProviders({ children }: PropsWithChildren) {
       }
 
       const syncStore = useSyncStore.getState()
+      const settingsStore = useSettingsStore.getState()
       const currentAuthState = useAuthStore.getState()
 
       syncStore.initializeDeviceId()
@@ -33,6 +35,7 @@ export function AppProviders({ children }: PropsWithChildren) {
         syncStore.prepareAccountSyncReadiness()
       } else {
         syncStore.bootstrapLocalSync()
+        settingsStore.resetAccountSyncState()
       }
 
       previousAuthStateRef.current = {
@@ -53,6 +56,7 @@ export function AppProviders({ children }: PropsWithChildren) {
     }
 
     const syncStore = useSyncStore.getState()
+    const settingsStore = useSettingsStore.getState()
     const previousAuthState = previousAuthStateRef.current
 
     syncStore.initializeDeviceId()
@@ -61,8 +65,10 @@ export function AppProviders({ children }: PropsWithChildren) {
       syncStore.prepareAccountSyncReadiness()
     } else if (previousAuthState?.mode === 'account' || previousAuthState?.isAuthenticated) {
       syncStore.resetSyncState()
+      settingsStore.resetAccountSyncState()
     } else {
       syncStore.bootstrapLocalSync()
+      settingsStore.resetAccountSyncState()
     }
 
     previousAuthStateRef.current = {

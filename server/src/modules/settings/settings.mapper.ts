@@ -1,12 +1,12 @@
 import type { SettingsProfileDocument, PublicSettingsProfile } from './settings.types.js'
 
-export function toPublicSettingsProfile(profile: SettingsProfileDocument): PublicSettingsProfile {
+export function toPublicSettingsProfile(document: SettingsProfileDocument): PublicSettingsProfile {
   return {
-    userId: profile.userId.toString(),
-    userName: profile.userName ?? '',
-    userRole: profile.userRole ?? '',
-    preferredTone: profile.preferredTone,
-    syncVersion: profile.syncVersion,
-    updatedAt: profile.updatedAt.toISOString(),
+    userId: document.userId.toString(),
+    userName: document.userName ?? '',
+    userRole: document.userRole ?? '',
+    preferredTone: document.preferredTone,
+    syncVersion: document.syncVersion,
+    updatedAt: document.updatedAt.toISOString(),
   }
 }

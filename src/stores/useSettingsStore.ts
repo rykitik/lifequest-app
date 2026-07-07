@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import * as settingsApi from '@/services/settingsApi'
 import { resetLifeQuestDemoData } from '@/services/lifequestReset'
-import { normalizeApiError } from '@/services/httpClientContract'
 import {
   applyWaitingServiceWorker,
   checkForPwaUpdate,
@@ -9,39 +9,40 @@ import {
   getPwaStatusSnapshot,
 } from '@/services/lifequestRuntime'
 import { mockUser } from '@/services/mockData'
-import * as settingsApi from '@/services/settingsApi'
+import { normalizeApiError } from '@/services/httpClientContract'
 import { mergePersistedState } from '@/shared/lib/persist'
-import type { SettingsProfile } from '@/shared/types'
+import type { AccountSettingsProfile, SettingsProfile } from '@/shared/types'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useSyncStore } from '@/stores/useSyncStore'
 
-type AccountSettingsSyncStatus = 'idle' | 'loading' | 'saving' | 'error'
+type SettingsAccountSyncStatus = 'idle' | 'loading' | 'saving' | 'error'
 
-interface SettingsAccountActionResult {
+interface SettingsSyncActionResult {
   success: boolean
   message: string
 }
 
 interface SettingsState extends SettingsProfile {
   lastBackupExportAt: string | null
-  accountSyncStatus: AccountSettingsSyncStatus
-  accountSyncError: string | null
-  accountSyncedAt: string | null
-  accountSyncVersion: number | null
-  accountSyncUserId: string | null
   appVersion: string
   isInstalledAsApp: boolean
   hasServiceWorkerSupport: boolean
   hasActiveServiceWorker: boolean
   hasWaitingServiceWorker: boolean
+  accountSyncStatus: SettingsAccountSyncStatus
+  accountSyncError: string | null
+  accountSyncedAt: string | null
+  accountSyncVersion: number | null
+  accountSyncUserId: string | null
   updateProfile: (profile: Partial<SettingsProfile>) => void
-  fetchAccountSettingsProfile: () => Promise<SettingsAccountActionResult>
-  pushAccountSettingsProfile: () => Promise<SettingsAccountActionResult>
   resetDemoData: () => void
   clearAllLocalData: () => Promise<void>
   checkPwaStatus: (options?: { checkForUpdates?: boolean }) => Promise<void>
   applyPwaUpdate: () => Promise<void>
   recordBackupExport: (exportedAt: string) => void
+  fetchAccountSettingsProfile: () => Promise<SettingsSyncActionResult>
+  pushAccountSettingsProfile: () => Promise<SettingsSyncActionResult>
+  resetAccountSyncState: () => void
 }
 
 type SettingsPersistedState = Pick<
@@ -71,19 +72,74 @@ function createSettingsPersistedState(): SettingsPersistedState {
 
 function createSettingsRuntimeState() {
   return {
-    accountSyncStatus: 'idle' as AccountSettingsSyncStatus,
-    accountSyncError: null as string | null,
     appVersion: __APP_VERSION__,
     isInstalledAsApp: false,
     hasServiceWorkerSupport: false,
     hasActiveServiceWorker: false,
     hasWaitingServiceWorker: false,
+    accountSyncStatus: 'idle' as SettingsAccountSyncStatus,
+    accountSyncError: null as string | null,
   }
 }
 
-function isAuthenticatedAccountMode() {
-  const authState = useAuthStore.getState()
-  return authState.mode === 'account' && authState.isAuthenticated && Boolean(authState.user)
+function normalizeTextInput(value: string | undefined) {
+  return value?.trim() ?? ''
+}
+
+function buildLocalProfileUpdate(
+  state: SettingsState,
+  profile: Partial<SettingsProfile>,
+): Pick<
+  SettingsState,
+  | 'userId'
+  | 'userName'
+  | 'userRole'
+  | 'preferredTone'
+  | 'accountSyncedAt'
+  | 'accountSyncVersion'
+  | 'accountSyncUserId'
+  | 'accountSyncStatus'
+  | 'accountSyncError'
+> | null {
+  const nextUserId = profile.userId === undefined ? state.userId : profile.userId
+  const nextUserName = profile.userName === undefined ? state.userName : normalizeTextInput(profile.userName)
+  const nextUserRole = profile.userRole === undefined ? state.userRole : normalizeTextInput(profile.userRole)
+  const nextPreferredTone = profile.preferredTone ?? state.preferredTone
+
+  if (
+    state.userId === nextUserId &&
+    state.userName === nextUserName &&
+    state.userRole === nextUserRole &&
+    state.preferredTone === nextPreferredTone
+  ) {
+    return null
+  }
+
+  return {
+    userId: nextUserId,
+    userName: nextUserName,
+    userRole: nextUserRole,
+    preferredTone: nextPreferredTone,
+    accountSyncedAt: null,
+    accountSyncVersion: null,
+    accountSyncUserId: null,
+    accountSyncStatus: 'idle',
+    accountSyncError: null,
+  }
+}
+
+function applyAccountProfileToState(profile: AccountSettingsProfile) {
+  return {
+    userId: profile.userId,
+    userName: profile.userName,
+    userRole: profile.userRole,
+    preferredTone: profile.preferredTone,
+    accountSyncStatus: 'idle' as SettingsAccountSyncStatus,
+    accountSyncError: null,
+    accountSyncedAt: profile.updatedAt,
+    accountSyncVersion: profile.syncVersion,
+    accountSyncUserId: profile.userId,
+  }
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -91,146 +147,11 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       ...createSettingsPersistedState(),
       ...createSettingsRuntimeState(),
-      updateProfile: ({ userId, userName, userRole, preferredTone }) =>
+      updateProfile: (profile) =>
         set((state) => {
-          const nextUserId = userId ?? state.userId
-          const nextUserName = userName !== undefined ? userName.trim() : state.userName
-          const nextUserRole = userRole !== undefined ? userRole.trim() : state.userRole
-          const nextPreferredTone = preferredTone ?? state.preferredTone
-
-          if (
-            state.userId === nextUserId &&
-            state.userName === nextUserName &&
-            state.userRole === nextUserRole &&
-            state.preferredTone === nextPreferredTone
-          ) {
-            return state
-          }
-
-          const profileChanged =
-            state.userName !== nextUserName ||
-            state.userRole !== nextUserRole ||
-            state.preferredTone !== nextPreferredTone
-
-          return {
-            userId: nextUserId,
-            userName: nextUserName,
-            userRole: nextUserRole,
-            preferredTone: nextPreferredTone,
-            accountSyncStatus: state.accountSyncStatus === 'error' ? 'idle' : state.accountSyncStatus,
-            accountSyncError: null,
-            accountSyncedAt: profileChanged ? null : state.accountSyncedAt,
-            accountSyncVersion: profileChanged ? null : state.accountSyncVersion,
-            accountSyncUserId: profileChanged ? null : state.accountSyncUserId,
-          }
+          const nextState = buildLocalProfileUpdate(state, profile)
+          return nextState ? { ...state, ...nextState } : state
         }),
-      fetchAccountSettingsProfile: async () => {
-        if (!isAuthenticatedAccountMode()) {
-          return {
-            success: false,
-            message: 'Загрузка настроек с сервера доступна только после входа в аккаунт.',
-          }
-        }
-
-        set((state) => ({
-          ...state,
-          accountSyncStatus: 'loading',
-          accountSyncError: null,
-        }))
-
-        try {
-          const response = await settingsApi.getSettingsProfile()
-
-          set((state) => ({
-            ...state,
-            userId: response.profile.userId,
-            userName: response.profile.userName,
-            userRole: response.profile.userRole,
-            preferredTone: response.profile.preferredTone,
-            accountSyncStatus: 'idle',
-            accountSyncError: null,
-            accountSyncedAt: response.profile.updatedAt,
-            accountSyncVersion: response.profile.syncVersion,
-            accountSyncUserId: response.profile.userId,
-          }))
-
-          return {
-            success: true,
-            message: 'Настройки профиля загружены с сервера.',
-          }
-        } catch (error) {
-          const normalizedError = normalizeApiError(error)
-
-          set((state) => ({
-            ...state,
-            accountSyncStatus: 'error',
-            accountSyncError: normalizedError.message,
-          }))
-
-          return {
-            success: false,
-            message: normalizedError.message,
-          }
-        }
-      },
-      pushAccountSettingsProfile: async () => {
-        if (!isAuthenticatedAccountMode()) {
-          return {
-            success: false,
-            message: 'Сохранение настроек в аккаунт доступно только после входа в аккаунт.',
-          }
-        }
-
-        const deviceId =
-          useSyncStore.getState().deviceId ?? useSyncStore.getState().initializeDeviceId()
-        const currentState = get()
-
-        set((state) => ({
-          ...state,
-          accountSyncStatus: 'saving',
-          accountSyncError: null,
-        }))
-
-        try {
-          const response = await settingsApi.updateSettingsProfile({
-            userName: currentState.userName,
-            userRole: currentState.userRole,
-            preferredTone: currentState.preferredTone,
-            deviceId,
-          })
-
-          set((state) => ({
-            ...state,
-            userId: response.profile.userId,
-            userName: response.profile.userName,
-            userRole: response.profile.userRole,
-            preferredTone: response.profile.preferredTone,
-            accountSyncStatus: 'idle',
-            accountSyncError: null,
-            accountSyncedAt: response.profile.updatedAt,
-            accountSyncVersion: response.profile.syncVersion,
-            accountSyncUserId: response.profile.userId,
-          }))
-
-          return {
-            success: true,
-            message: 'Настройки профиля сохранены в аккаунт.',
-          }
-        } catch (error) {
-          const normalizedError = normalizeApiError(error)
-
-          set((state) => ({
-            ...state,
-            accountSyncStatus: 'error',
-            accountSyncError: normalizedError.message,
-          }))
-
-          return {
-            success: false,
-            message: normalizedError.message,
-          }
-        }
-      },
       recordBackupExport: (exportedAt) =>
         set((state) => {
           if (state.lastBackupExportAt === exportedAt) {
@@ -238,6 +159,7 @@ export const useSettingsStore = create<SettingsState>()(
           }
 
           return {
+            ...state,
             lastBackupExportAt: exportedAt,
           }
         }),
@@ -276,6 +198,7 @@ export const useSettingsStore = create<SettingsState>()(
           }
 
           return {
+            ...state,
             isInstalledAsApp: snapshot.isInstalled,
             hasServiceWorkerSupport: snapshot.hasServiceWorkerSupport,
             hasActiveServiceWorker: snapshot.hasActiveServiceWorker,
@@ -292,6 +215,122 @@ export const useSettingsStore = create<SettingsState>()(
 
         await get().checkPwaStatus({ checkForUpdates: true })
       },
+      fetchAccountSettingsProfile: async () => {
+        const authState = useAuthStore.getState()
+
+        if (authState.mode !== 'account' || !authState.isAuthenticated) {
+          return {
+            success: false,
+            message: 'Загрузка настроек с сервера доступна только после входа в аккаунт.',
+          }
+        }
+
+        set((state) => ({
+          ...state,
+          accountSyncStatus: 'loading',
+          accountSyncError: null,
+        }))
+
+        try {
+          const response = await settingsApi.getSettingsProfile()
+
+          set((state) => ({
+            ...state,
+            ...applyAccountProfileToState(response.profile),
+          }))
+
+          return {
+            success: true,
+            message: 'Настройки загружены с сервера и применены локально.',
+          }
+        } catch (error) {
+          const normalizedError = normalizeApiError(error)
+
+          set((state) => ({
+            ...state,
+            accountSyncStatus: 'error',
+            accountSyncError: normalizedError.message,
+          }))
+
+          return {
+            success: false,
+            message: normalizedError.message,
+          }
+        }
+      },
+      pushAccountSettingsProfile: async () => {
+        const authState = useAuthStore.getState()
+
+        if (authState.mode !== 'account' || !authState.isAuthenticated) {
+          return {
+            success: false,
+            message: 'Сохранение настроек в аккаунт доступно только после входа в аккаунт.',
+          }
+        }
+
+        const syncStore = useSyncStore.getState()
+        const deviceId = syncStore.deviceId ?? syncStore.initializeDeviceId()
+        const { userName, userRole, preferredTone } = get()
+
+        set((state) => ({
+          ...state,
+          accountSyncStatus: 'saving',
+          accountSyncError: null,
+        }))
+
+        try {
+          const response = await settingsApi.updateSettingsProfile({
+            userName,
+            userRole,
+            preferredTone,
+            deviceId,
+          })
+
+          set((state) => ({
+            ...state,
+            ...applyAccountProfileToState(response.profile),
+          }))
+
+          return {
+            success: true,
+            message: 'Настройки сохранены в аккаунт.',
+          }
+        } catch (error) {
+          const normalizedError = normalizeApiError(error)
+
+          set((state) => ({
+            ...state,
+            accountSyncStatus: 'error',
+            accountSyncError: normalizedError.message,
+          }))
+
+          return {
+            success: false,
+            message: normalizedError.message,
+          }
+        }
+      },
+      resetAccountSyncState: () =>
+        set((state) => {
+          if (
+            state.accountSyncStatus === 'idle' &&
+            state.accountSyncError === null &&
+            state.accountSyncedAt === null &&
+            state.accountSyncVersion === null &&
+            state.accountSyncUserId === null
+          ) {
+            return state
+          }
+
+          return {
+            ...state,
+            accountSyncStatus: 'idle',
+            accountSyncError: null,
+            accountSyncedAt: null,
+            accountSyncVersion: null,
+            accountSyncUserId: null,
+          }
+        }),
     }),
     {
       name: 'lifequest-settings',

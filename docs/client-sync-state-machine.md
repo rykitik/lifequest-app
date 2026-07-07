@@ -271,6 +271,7 @@ interface SyncQueueItem {
 - `window.navigator.onLine` и события `online/offline` обновляют только readiness-состояние;
 - `Settings` показывают sync status, last sync, длину очереди и короткий `deviceId`.
 - `Settings` могут вручную запустить `bootstrapAccountSync()`.
+- `Settings` также могут вручную загрузить `settingsProfile` с сервера или сохранить локальные настройки в аккаунт.
 
 ### Что принципиально ещё не делает клиент
 
@@ -279,6 +280,7 @@ interface SyncQueueItem {
 - не вызывает `/api/sync/pull`
 - не переносит local data в account автоматически
 - не запускает queue runner
+- не синхронизирует автоматически `settingsProfile` в фоне, даже если account mode уже активен
 
 ### Что уже делает ручной bootstrap
 
@@ -286,6 +288,13 @@ interface SyncQueueItem {
 - обновляет `latestSyncCursor`, `lastSyncAt`, `conflicts` и sync status
 - не перезаписывает local-first collections данными сервера
 - нужен сейчас как безопасная проверка account sync readiness
+
+### Что уже делает ручной sync настроек
+
+- вызывает `GET /api/settings/profile` только по кнопке `Загрузить настройки с сервера`
+- вызывает `PUT /api/settings/profile` только по кнопке `Сохранить настройки в аккаунт`
+- синхронизирует только `userName`, `userRole`, `preferredTone`
+- не трогает `quests`, `today`, `progress`, `body`, `money` и другие домены
 
 ### Logout-поведение
 
