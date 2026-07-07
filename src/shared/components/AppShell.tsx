@@ -36,10 +36,12 @@ export function AppShell() {
   const hasRewardToast = useFeedbackStore((state) => Boolean(state.rewardToast))
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#030817]">
       <div className="pointer-events-none absolute inset-0 bg-shell-grid opacity-90" />
-      <div className="pointer-events-none absolute left-1/2 top-10 h-48 w-48 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 left-10 h-56 w-56 rounded-full bg-cyan/10 blur-3xl" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.035)_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:linear-gradient(180deg,rgba(0,0,0,0.72),transparent_78%)]" />
+      <div className="pointer-events-none absolute left-1/2 top-4 h-64 w-64 -translate-x-1/2 rounded-full bg-primary/16 blur-3xl" />
+      <div className="pointer-events-none absolute right-[-5rem] top-28 h-52 w-52 rounded-full bg-cyan/10 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 left-[-4rem] h-64 w-64 rounded-full bg-violet-500/10 blur-3xl" />
 
       <div className="relative mx-auto flex min-h-screen max-w-[30rem] flex-col px-4 safe-top">
         <main className="relative z-10 flex-1 pb-32">

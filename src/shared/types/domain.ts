@@ -124,7 +124,25 @@ export interface ProgressReward {
   sourceId?: string
 }
 
+export type BodyNutritionStatus =
+  | 'Не выбрано'
+  | 'Нормально'
+  | 'Переел'
+  | 'Сорвался'
+  | 'Мало белка'
+  | 'Поздний ужин'
+  | 'Сладкое'
+
+export type BodyMovementType =
+  | 'Не выбрано'
+  | 'Без тренировки'
+  | 'Прогулка'
+  | 'Домашняя'
+  | 'Зал'
+  | 'Растяжка'
+
 export interface BodySnapshot extends UserScopedEntity {
+  date: string
   weightKg: number
   weightTrendKg: number
   waterLiters: number
@@ -132,11 +150,26 @@ export interface BodySnapshot extends UserScopedEntity {
   workout: string
   workoutDone: boolean
   foodDiscipline: number
+  nutritionStatus: BodyNutritionStatus
+  movementType: BodyMovementType
   quickAction: string
 }
 
-export interface BodyLog extends BodySnapshot {
-  date?: string
+export interface BodyDailyLog extends UserScopedEntity {
+  date: string
+  weightKg?: number
+  waterLiters: number
+  steps: number
+  workoutDone: boolean
+  workout?: string
+  nutritionStatus?: BodyNutritionStatus
+  movementType?: BodyMovementType
+}
+
+export interface BodyLog extends BodyDailyLog {
+  weightTrendKg?: number
+  foodDiscipline?: number
+  quickAction?: string
 }
 
 export interface MoneySnapshot extends UserScopedEntity {

@@ -151,10 +151,10 @@ export function TodayScreen() {
   }
 
   return (
-    <section className="pb-6">
+    <section className="pb-6 pt-1">
       <ScreenHeader
         title={`Привет, ${userName || user?.name || 'Капитан'}`}
-        subtitle="Выбери самый лёгкий полезный маршрут. Прогресс важнее идеала."
+        subtitle="Система готова. Выбери один ясный шаг."
       />
 
       <CompanionCoreWidget
@@ -164,49 +164,66 @@ export function TodayScreen() {
         stabilityScore={stabilityScore}
         currentXp={currentLevelXp}
         nextLevelXp={nextLevelXp}
+        variant="hero"
       />
 
-      <div className="mt-6">
-        <p className="mb-3 text-xs uppercase tracking-[0.24em] text-muted">Состояние системы</p>
+      <div className="mt-5">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted">
+            Состояние системы
+          </p>
+          <span className="rounded-full border border-cyan/20 bg-cyan/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-cyan">
+            Режим
+          </span>
+        </div>
         <ModeSelector options={modes} activeMode={currentMode} onSelect={setMode} />
       </div>
 
-      <GlassCard className="mt-6">
+      <GlassCard className="mt-5 overflow-hidden border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent">
+        <div className="pointer-events-none -mx-4 -mt-4 mb-4 h-px bg-gradient-to-r from-transparent via-cyan/45 to-transparent" />
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-muted">Сводка дня</p>
-            <h3 className="mt-2 font-display text-lg font-semibold text-white">Сегодня без перегруза</h3>
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
+              Сводка дня
+            </p>
+            <h3 className="mt-2 font-display text-lg font-semibold leading-tight text-white">
+              Сегодня без перегруза
+            </h3>
             <p className="mt-2 text-sm leading-6 text-muted">
               Следим только за движением дня, а не за идеальной картиной.
             </p>
           </div>
           {routeIsIncomplete ? (
-            <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs text-primary">
+            <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-primary">
               Маршрут не собран
             </span>
           ) : null}
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-            <p className="text-muted">XP сегодня</p>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted">XP сегодня</p>
             <p className="mt-2 font-display text-xl font-bold text-white">+{dailySummary.xpToday}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-            <p className="text-muted">Выполнено</p>
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted">Готово</p>
             <p className="mt-2 font-display text-xl font-bold text-white">{dailySummary.completedTasks}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-            <p className="text-muted">Сильнее растёт</p>
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted">Рост</p>
             <p className="mt-2 text-sm font-medium leading-5 text-white">{strongestSector}</p>
           </div>
         </div>
       </GlassCard>
 
       {routeIsIncomplete ? (
-        <GlassCard className="mt-4 border border-primary/20 bg-gradient-to-br from-primary/14 via-indigo-500/8 to-transparent">
-          <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Мягкий старт маршрута</p>
-          <h3 className="mt-2 font-display text-lg font-semibold text-white">День ещё не собран полностью</h3>
+        <GlassCard className="mt-4 border border-primary/20 bg-gradient-to-br from-primary/16 via-cyan/8 to-transparent">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-primary/80">
+            Мягкий старт маршрута
+          </p>
+          <h3 className="mt-2 font-display text-lg font-semibold leading-tight text-white">
+            День ещё не собран полностью
+          </h3>
           <p className="mt-2 text-sm leading-6 text-muted">
             Система может автоматически подобрать главный квест, быструю победу и запасной план из уже существующих задач.
           </p>

@@ -18,7 +18,7 @@ const icons: Record<ModeKey, LucideIcon> = {
 
 export function ModeSelector({ options, activeMode, onSelect }: ModeSelectorProps) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-4 gap-2">
       {options.map((option) => {
         const Icon = icons[option.key]
         const isActive = option.key === activeMode
@@ -29,32 +29,47 @@ export function ModeSelector({ options, activeMode, onSelect }: ModeSelectorProp
             type="button"
             onClick={() => onSelect(option.key)}
             className={cn(
-              'glass-card flex min-h-[7.5rem] flex-col rounded-3xl border p-4 text-left transition',
-              isActive && 'shadow-glow',
+              'group relative min-h-[6.35rem] overflow-hidden rounded-2xl border bg-white/[0.035] p-2.5 text-left transition',
+              'shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-2xl',
+              isActive ? 'text-white shadow-glow' : 'text-muted hover:border-white/20 hover:bg-white/[0.06]',
             )}
             style={{
               borderColor: isActive ? `${option.accent}66` : undefined,
               background: isActive
-                ? `linear-gradient(180deg, ${option.accent}22 0%, rgba(17,24,39,0.84) 100%)`
+                ? `linear-gradient(180deg, ${option.accent}24 0%, rgba(17,24,39,0.72) 100%)`
+                : undefined,
+              boxShadow: isActive
+                ? `0 0 26px ${option.accent}24, inset 0 1px 0 rgba(255,255,255,0.06)`
                 : undefined,
             }}
           >
-            <div className="mb-3 flex items-center justify-between">
+            <div
+              className="pointer-events-none absolute inset-x-2 top-0 h-px opacity-0 transition group-hover:opacity-70"
+              style={{ background: `linear-gradient(90deg, transparent, ${option.accent}, transparent)` }}
+            />
+            <div className="mb-2 flex items-center justify-between gap-1">
               <div
-                className="rounded-2xl border border-white/10 p-2"
-                style={{ color: option.accent }}
+                className="rounded-xl border border-white/10 p-1.5"
+                style={{
+                  color: option.accent,
+                  background: isActive ? `${option.accent}18` : 'rgba(255,255,255,0.04)',
+                }}
               >
                 <Icon className="h-4 w-4" strokeWidth={1.9} />
               </div>
               {isActive ? (
-                <span className="rounded-full border border-white/10 bg-white/8 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white">
+                <span
+                  className="rounded-full border px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.12em]"
+                  style={{ borderColor: `${option.accent}55`, color: option.accent }}
+                >
                   Активно
                 </span>
               ) : null}
             </div>
-            <p className="font-display text-base font-semibold text-white">{option.label}</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-muted">{option.energyHint}</p>
-            <p className="mt-3 text-sm leading-6 text-muted">{option.description}</p>
+            <p className="font-display text-[13px] font-semibold leading-4 text-white">{option.label}</p>
+            <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-muted">
+              {option.energyHint}
+            </p>
           </button>
         )
       })}

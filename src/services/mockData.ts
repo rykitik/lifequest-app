@@ -1,4 +1,5 @@
 import type {
+  BodyDailyLog,
   BodySnapshot,
   CompanionState,
   DailyProgressSummary,
@@ -187,6 +188,7 @@ export const mockProgressProfile: ProgressProfile = {
 }
 
 export const mockBodySnapshot: BodySnapshot = {
+  date: getLocalDateKey(),
   weightKg: 82.3,
   weightTrendKg: -0.4,
   waterLiters: 1.7,
@@ -194,10 +196,14 @@ export const mockBodySnapshot: BodySnapshot = {
   workout: 'Мобильность и разгрузка',
   workoutDone: false,
   foodDiscipline: 82,
+  nutritionStatus: 'Нормально',
+  movementType: 'Без тренировки',
   quickAction: 'Добавь воды перед следующим переключением задачи.',
 }
 
 export const mockBodyHistory = [83.0, 82.9, 82.8, 82.7, 82.9, 82.6, 82.5, 82.3]
+
+export const mockBodyDailyLogs: BodyDailyLog[] = []
 
 export const mockMoneySnapshot: MoneySnapshot = {
   balance: 3240,
@@ -372,6 +378,10 @@ export function getMockBodySnapshot() {
 
 export function getMockBodyHistory() {
   return cloneData(mockBodyHistory)
+}
+
+export function getMockBodyDailyLogs() {
+  return cloneData(mockBodyDailyLogs)
 }
 
 export function getMockMoneySnapshot() {
