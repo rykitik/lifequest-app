@@ -151,7 +151,7 @@ export function TodayScreen() {
   }
 
   return (
-    <section className="pb-6 pt-1">
+    <section className="pb-4 pt-0">
       <ScreenHeader
         title={`Привет, ${userName || user?.name || 'Капитан'}`}
         subtitle="Система готова. Выбери один ясный шаг."
@@ -167,82 +167,83 @@ export function TodayScreen() {
         variant="hero"
       />
 
-      <div className="mt-5">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted">
+      <div className="mt-4">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
             Состояние системы
           </p>
-          <span className="rounded-full border border-cyan/20 bg-cyan/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-cyan">
+          <span className="rounded-full border border-cyan/20 bg-cyan/10 px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.1em] text-cyan">
             Режим
           </span>
         </div>
         <ModeSelector options={modes} activeMode={currentMode} onSelect={setMode} />
       </div>
 
-      <GlassCard className="mt-5 overflow-hidden border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent">
-        <div className="pointer-events-none -mx-4 -mt-4 mb-4 h-px bg-gradient-to-r from-transparent via-cyan/45 to-transparent" />
-        <div className="flex items-start justify-between gap-4">
+      <GlassCard className="mt-4 overflow-hidden border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent !p-3.5">
+        <div className="pointer-events-none -mx-3.5 -mt-3.5 mb-3 h-px bg-gradient-to-r from-transparent via-cyan/45 to-transparent" />
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
+            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
               Сводка дня
             </p>
-            <h3 className="mt-2 font-display text-lg font-semibold leading-tight text-white">
+            <h3 className="mt-1.5 font-display text-base font-semibold leading-tight text-white">
               Сегодня без перегруза
             </h3>
-            <p className="mt-2 text-sm leading-6 text-muted">
+            <p className="mt-1.5 text-[13px] leading-5 text-muted">
               Следим только за движением дня, а не за идеальной картиной.
             </p>
           </div>
           {routeIsIncomplete ? (
-            <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-primary">
+            <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 font-mono text-[8px] uppercase tracking-[0.08em] text-primary">
               Маршрут не собран
             </span>
           ) : null}
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted">XP сегодня</p>
-            <p className="mt-2 font-display text-xl font-bold text-white">+{dailySummary.xpToday}</p>
+        <div className="mt-3 grid grid-cols-3 gap-1.5 text-sm">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <p className="font-mono text-[8px] uppercase tracking-[0.08em] text-muted">XP сегодня</p>
+            <p className="mt-1.5 font-display text-lg font-bold text-white">+{dailySummary.xpToday}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted">Готово</p>
-            <p className="mt-2 font-display text-xl font-bold text-white">{dailySummary.completedTasks}</p>
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <p className="font-mono text-[8px] uppercase tracking-[0.08em] text-muted">Готово</p>
+            <p className="mt-1.5 font-display text-lg font-bold text-white">{dailySummary.completedTasks}</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted">Рост</p>
-            <p className="mt-2 text-sm font-medium leading-5 text-white">{strongestSector}</p>
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <p className="font-mono text-[8px] uppercase tracking-[0.08em] text-muted">Рост</p>
+            <p className="mt-1.5 text-[13px] font-medium leading-4 text-white">{strongestSector}</p>
           </div>
         </div>
       </GlassCard>
 
       {routeIsIncomplete ? (
-        <GlassCard className="mt-4 border border-primary/20 bg-gradient-to-br from-primary/16 via-cyan/8 to-transparent">
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-primary/80">
+        <GlassCard className="mt-3 border border-primary/20 bg-gradient-to-br from-primary/16 via-cyan/8 to-transparent !p-3.5">
+          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-primary/80">
             Мягкий старт маршрута
           </p>
-          <h3 className="mt-2 font-display text-lg font-semibold leading-tight text-white">
+          <h3 className="mt-1.5 font-display text-base font-semibold leading-tight text-white">
             День ещё не собран полностью
           </h3>
-          <p className="mt-2 text-sm leading-6 text-muted">
+          <p className="mt-1.5 overflow-hidden text-[13px] leading-5 text-muted [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
             Система может автоматически подобрать главный квест, быструю победу и запасной план из уже существующих задач.
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <PrimaryButton
               fullWidth
+              className="!min-h-11 !py-2"
               icon={<Sparkles className="h-4 w-4" />}
               onClick={handleBuildRoute}
             >
               Собрать маршрут
             </PrimaryButton>
-            <PrimaryButton tone="secondary" fullWidth onClick={() => navigate('/plan')}>
+            <PrimaryButton tone="secondary" fullWidth className="!min-h-11 !py-2" onClick={() => navigate('/plan')}>
               Открыть План
             </PrimaryButton>
           </div>
         </GlassCard>
       ) : null}
 
-      <div className="mt-6 space-y-4">
+      <div className="mt-4 space-y-3">
         <QuestFocusCard
           label="Главный квест"
           quest={route.mainQuest}
@@ -286,10 +287,11 @@ export function TodayScreen() {
         />
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-2">
         <PrimaryButton
           tone="secondary"
           fullWidth
+          className="!min-h-11 !py-2.5"
           icon={<Play className="h-4 w-4" />}
           onClick={handleFocusBoost}
         >
@@ -298,6 +300,7 @@ export function TodayScreen() {
         <PrimaryButton
           tone="warning"
           fullWidth
+          className="!min-h-11 !py-2.5"
           icon={<LifeBuoy className="h-4 w-4" />}
           onClick={openRescue}
         >
@@ -306,6 +309,7 @@ export function TodayScreen() {
         <PrimaryButton
           tone="secondary"
           fullWidth
+          className="!min-h-11 !py-2.5"
           icon={<HeartPulse className="h-4 w-4" />}
           onClick={() => navigate('/body')}
         >
@@ -314,6 +318,7 @@ export function TodayScreen() {
         <PrimaryButton
           tone="secondary"
           fullWidth
+          className="!min-h-11 !py-2.5"
           icon={<MessageSquareText className="h-4 w-4" />}
           onClick={openPromptCenter}
         >
@@ -321,23 +326,23 @@ export function TodayScreen() {
         </PrimaryButton>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-4">
         <SectorStrip sectors={sectors} />
       </div>
 
-      <GlassCard className="mt-6 border border-primary/20 bg-gradient-to-br from-primary/14 via-indigo-500/8 to-transparent">
-        <div className="flex items-start justify-between gap-4">
+      <GlassCard className="mt-4 border border-primary/20 bg-gradient-to-br from-primary/14 via-indigo-500/8 to-transparent !p-3.5">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Центр промптов</p>
-            <h3 className="mt-2 font-display text-lg font-semibold text-white">
+            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-primary/80">Центр промптов</p>
+            <h3 className="mt-1.5 font-display text-base font-semibold leading-tight text-white">
               Открыть ChatGPT с готовым контекстом
             </h3>
-            <p className="mt-2 text-sm leading-6 text-muted">
+            <p className="mt-1.5 overflow-hidden text-[13px] leading-5 text-muted [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
               Система соберёт промпт из текущего режима, маршрута дня, задач и прогресса, чтобы не начинать с пустого листа.
             </p>
           </div>
         </div>
-        <PrimaryButton fullWidth className="mt-4" onClick={openPromptCenter}>
+        <PrimaryButton fullWidth className="mt-3 !min-h-11 !py-2.5" onClick={openPromptCenter}>
           Собрать промпт
         </PrimaryButton>
       </GlassCard>

@@ -43,15 +43,15 @@ export function AppShell() {
       <div className="pointer-events-none absolute right-[-5rem] top-28 h-52 w-52 rounded-full bg-cyan/10 blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 left-[-4rem] h-64 w-64 rounded-full bg-violet-500/10 blur-3xl" />
 
-      <div className="relative mx-auto flex min-h-screen max-w-[30rem] flex-col px-4 safe-top">
-        <main className="relative z-10 flex-1 pb-32">
+      <div className="relative mx-auto flex min-h-screen max-w-[30rem] flex-col px-3.5 safe-top sm:px-4">
+        <main className="relative z-10 flex-1 pb-mobile-dock">
           <Suspense fallback={<ScreenLoadingFallback />}>
             <Outlet />
           </Suspense>
         </main>
       </div>
 
-      <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 w-full max-w-[30rem] -translate-x-1/2 px-4 safe-bottom">
+      <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 w-full max-w-[30rem] -translate-x-1/2 px-3.5 safe-bottom sm:px-4">
         <div className="pointer-events-auto">
           <BottomNav />
         </div>

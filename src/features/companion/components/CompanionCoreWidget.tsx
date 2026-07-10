@@ -39,7 +39,7 @@ const moodMeta: Record<
   idle: {
     label: 'Спокоен',
     headline: 'Спокойный оператор на связи',
-    caption: 'Система в равновесии',
+    caption: 'Равновесие',
     guidance: 'Выбери один чистый шаг.',
     glow: '#22D3EE',
     secondaryGlow: '#6366F1',
@@ -130,13 +130,13 @@ const moodMeta: Record<
 
 const variantSizes: Record<CompanionCoreVariant, number> = {
   compact: 88,
-  hero: 158,
+  hero: 132,
   coreScreen: 216,
 }
 
 const variantCardClasses: Record<CompanionCoreVariant, string> = {
-  compact: 'p-4',
-  hero: 'p-4 sm:p-5',
+  compact: 'p-3.5',
+  hero: 'p-3.5 sm:p-4',
   coreScreen: 'p-5',
 }
 
@@ -365,18 +365,18 @@ export function CompanionCoreWidget({
         style={{ background: `linear-gradient(90deg, transparent, ${meta.glow}80, transparent)` }}
       />
 
-      <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-primary/80">
+          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-primary/80">
             Ядро-компаньон
           </p>
-          <h2 className="mt-2 font-display text-xl font-bold leading-tight text-white text-glow">
+          <h2 className="mt-1.5 font-display text-lg font-bold leading-tight text-white text-glow">
             {meta.headline}
           </h2>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-muted">{message || meta.guidance}</p>
+          <p className="mt-1.5 max-w-sm text-[13px] leading-5 text-muted">{message || meta.guidance}</p>
         </div>
         <div
-          className="shrink-0 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em]"
+          className="shrink-0 rounded-full border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.12em]"
           style={{
             borderColor: `${meta.glow}55`,
             background: `${meta.glow}14`,
@@ -388,40 +388,40 @@ export function CompanionCoreWidget({
         </div>
       </div>
 
-      <div className={cn('grid items-center gap-4', isCompact ? 'grid-cols-[auto_1fr]' : 'grid-cols-1')}>
+      <div className={cn('grid items-center gap-3', isCompact ? 'grid-cols-[auto_1fr]' : 'grid-cols-1')}>
         <div className="mx-auto">
           <CompanionCoreVisual mood={mood} variant={variant} />
         </div>
 
-        <div className="min-w-0 space-y-3">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-              <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
-                <Sparkles className="h-3.5 w-3.5" />
+        <div className="min-w-0 space-y-2.5">
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-[0.1em] text-muted">
+                <Sparkles className="h-3 w-3" />
                 Уровень
               </div>
-              <p className="mt-2 font-display text-lg font-bold text-white">{level}</p>
+              <p className="mt-1.5 font-display text-base font-bold text-white">{level}</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-              <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
-                <ShieldCheck className="h-3.5 w-3.5" />
+            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-[0.1em] text-muted">
+                <ShieldCheck className="h-3 w-3" />
                 Стабильность
               </div>
-              <p className="mt-2 font-display text-lg font-bold text-white">
+              <p className="mt-1.5 font-display text-base font-bold text-white">
                 {formatPercent(stabilityScore)}
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-              <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
-                <Zap className="h-3.5 w-3.5" />
+            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-[0.1em] text-muted">
+                <Zap className="h-3 w-3" />
                 Режим
               </div>
-              <p className={`mt-2 text-sm font-semibold ${meta.textClassName}`}>{meta.caption}</p>
+              <p className={`mt-1.5 text-[13px] font-semibold leading-4 ${meta.textClassName}`}>{meta.caption}</p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/25 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div className="mb-2 flex items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+          <div className="rounded-2xl border border-white/10 bg-black/25 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="mb-2 flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.1em] text-muted">
               <span>Прогресс эволюции</span>
               <span>
                 {currentXp} / {nextLevelXp} XP
@@ -432,7 +432,7 @@ export function CompanionCoreWidget({
               className="h-1.5 bg-white/8"
               barClassName="bg-gradient-to-r from-primary via-cyan to-violet-300"
             />
-            <p className="mt-3 text-sm leading-5 text-muted">{meta.guidance}</p>
+            <p className="mt-2 text-[12px] leading-4 text-muted">{meta.guidance}</p>
           </div>
         </div>
       </div>

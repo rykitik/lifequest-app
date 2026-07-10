@@ -33,7 +33,7 @@ export const mockModes: TodayModeOption[] = [
     key: 'low',
     label: 'Мало энергии',
     description: 'Сохрани базу и выбери самый маленький полезный шаг.',
-    energyHint: 'Сначала восстановление',
+    energyHint: 'Начать восстановление',
     companionState: 'low_energy',
     accent: '#F59E0B',
   },
