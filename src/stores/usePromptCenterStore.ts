@@ -2,8 +2,11 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getMockPromptCards } from '@/services/mockData'
 import { buildPrompt } from '@/services/promptBuilder'
+import { parsePromptResponse } from '@/services/promptResponseParser'
 import { mergePersistedState } from '@/shared/lib/persist'
-import type { PromptCard, PromptContext } from '@/shared/types'
+import type { LifeQuestPromptResponse, PromptCard } from '@/shared/types'
+import { useCompanionStore } from '@/stores/useCompanionStore'
+import { useQuestStore } from '@/stores/useQuestStore'
 
 interface PromptCenterState {
   isOpen: boolean
@@ -14,12 +17,21 @@ interface PromptCenterState {
   preferredResponseFormat: string
   hasCopied: boolean
   showCopyFallback: boolean
+  importedResponseText: string
+  parsedResponse: LifeQuestPromptResponse | null
+  parseError: string | null
+  applyMessage: string | null
+  lastAppliedResponseAt: string | null
   setSelectedCard: (cardId: string) => void
   setUserRequest: (value: string) => void
   setResponseFormat: (value: string) => void
-  generatePrompt: (context: PromptContext) => void
+  generatePrompt: () => void
   copyPrompt: () => Promise<boolean>
   openChatGPT: () => void
+  setImportedResponseText: (text: string) => void
+  parseImportedResponse: () => void
+  clearImportedResponse: () => void
+  applyParsedResponse: () => void
   openPromptCenter: () => void
   closePromptCenter: () => void
   resetDemoData: () => void
@@ -56,6 +68,11 @@ export const usePromptCenterStore = create<PromptCenterState>()(
       generatedPrompt: '',
       hasCopied: false,
       showCopyFallback: false,
+      importedResponseText: '',
+      parsedResponse: null,
+      parseError: null,
+      applyMessage: null,
+      lastAppliedResponseAt: null,
       setSelectedCard: (cardId) => {
         const nextCard = get().cards.find((card) => card.id === cardId)
 
@@ -70,6 +87,9 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           generatedPrompt: '',
           hasCopied: false,
           showCopyFallback: false,
+          parsedResponse: null,
+          parseError: null,
+          applyMessage: null,
         })
       },
       setUserRequest: (value) =>
@@ -108,7 +128,7 @@ export const usePromptCenterStore = create<PromptCenterState>()(
             showCopyFallback: false,
           }
         }),
-      generatePrompt: (context) => {
+      generatePrompt: () => {
         const selectedCard =
           get().cards.find((card) => card.id === get().selectedCardId) ?? get().cards[0]
 
@@ -118,7 +138,6 @@ export const usePromptCenterStore = create<PromptCenterState>()(
 
         set({
           generatedPrompt: buildPrompt(selectedCard, {
-            ...context,
             userRequest: get().userRequest,
             preferredResponseFormat: get().preferredResponseFormat,
           }),
@@ -163,6 +182,70 @@ export const usePromptCenterStore = create<PromptCenterState>()(
       openChatGPT: () => {
         window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer')
       },
+      setImportedResponseText: (text) =>
+        set({
+          importedResponseText: text,
+          parsedResponse: null,
+          parseError: null,
+          applyMessage: null,
+        }),
+      parseImportedResponse: () => {
+        const result = parsePromptResponse(get().importedResponseText)
+
+        if (!result.ok) {
+          set({
+            parsedResponse: null,
+            parseError: result.reason,
+            applyMessage: null,
+          })
+
+          return
+        }
+
+        set({
+          parsedResponse: result.data,
+          parseError: null,
+          applyMessage: 'Рекомендации готовы',
+        })
+      },
+      clearImportedResponse: () =>
+        set({
+          importedResponseText: '',
+          parsedResponse: null,
+          parseError: null,
+          applyMessage: null,
+        }),
+      applyParsedResponse: () => {
+        const parsedResponse = get().parsedResponse
+
+        if (!parsedResponse) {
+          set({
+            applyMessage: 'Сначала разбери ответ ChatGPT.',
+          })
+
+          return
+        }
+
+        let appliedCount = 0
+
+        parsedResponse.suggestedActions.forEach((action) => {
+          useQuestStore.getState().addQuest(action.title)
+          appliedCount += 1
+        })
+
+        if (parsedResponse.coreMessage) {
+          useCompanionStore.getState().setActiveMessage(parsedResponse.coreMessage)
+          appliedCount += 1
+        }
+
+        set({
+          lastAppliedResponseAt: new Date().toISOString(),
+          applyMessage:
+            appliedCount > 0
+              ? 'Рекомендации применены частично. Некоторые пункты оставлены как рекомендации.'
+              : 'Некоторые пункты оставлены как рекомендации.',
+        })
+      },
       openPromptCenter: () =>
         set((state) => (state.isOpen ? state : { isOpen: true })),
       closePromptCenter: () =>
@@ -183,6 +266,11 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           generatedPrompt: '',
           hasCopied: false,
           showCopyFallback: false,
+          importedResponseText: '',
+          parsedResponse: null,
+          parseError: null,
+          applyMessage: null,
+          lastAppliedResponseAt: null,
         }),
     }),
     {

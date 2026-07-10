@@ -1,18 +1,42 @@
-import type { PromptCard, PromptContext } from '@/shared/types'
+import { buildFullLifeQuestContext } from '@/services/contextBuilder'
+import type { PreferredTone, PromptCard } from '@/shared/types'
 
-function getToneLabel(preferredTone: PromptContext['preferredTone']) {
-  switch (preferredTone) {
-    case 'direct':
-      return 'Прямой'
-    case 'supportive':
-      return 'Поддерживающий'
-    case 'calm':
+export type PromptType =
+  | 'daily_plan'
+  | 'rescue'
+  | 'body_weight_loss'
+  | 'procrastination'
+  | 'weekly_review'
+  | 'money_review'
+  | 'life_unpack'
+
+interface PromptBuildOptions {
+  userRequest: string
+  preferredResponseFormat: string
+}
+
+function mapPromptType(card: PromptCard): PromptType {
+  switch (card.id) {
+    case 'plan-day':
+      return 'daily_plan'
+    case 'return-system':
+      return 'procrastination'
+    case 'anxious':
+      return 'rescue'
+    case 'money':
+      return 'money_review'
+    case 'relationships':
+      return 'life_unpack'
+    case 'unpack-life':
+      return 'weekly_review'
+    case 'body-weight-loss':
+      return 'body_weight_loss'
     default:
-      return 'Спокойный'
+      return 'life_unpack'
   }
 }
 
-function getToneInstruction(preferredTone: PromptContext['preferredTone']) {
+function getToneInstruction(preferredTone: PreferredTone) {
   switch (preferredTone) {
     case 'direct':
       return 'Говори коротко, конкретно и по делу. Меньше успокоительных оборотов, больше ясных решений.'
@@ -24,34 +48,126 @@ function getToneInstruction(preferredTone: PromptContext['preferredTone']) {
   }
 }
 
-export function buildPrompt(card: PromptCard, context: PromptContext) {
+function getTaskInstruction(promptType: PromptType) {
+  switch (promptType) {
+    case 'daily_plan':
+      return [
+        'Собери лёгкий маршрут на сегодня.',
+        'Найди 1 главный квест, 1 быструю победу и 1 запасной план.',
+        'Если текущий маршрут уже нормальный, не перестраивай всё, а уточни первый шаг.',
+      ]
+    case 'rescue':
+      return [
+        'Снизь шум и помоги вернуть управляемость.',
+        'Дай короткую стабилизирующую рамку и одно действие на 2-5 минут.',
+        'Не превращай ответ в терапевтический трактат.',
+      ]
+    case 'body_weight_loss':
+      return [
+        'Помоги выбрать спокойный фокус по телу для похудения и контроля базовых рычагов.',
+        'Не считай калории и не делай фитнес-трекер.',
+        'Опирайся на вес, воду, шаги, питание и движение.',
+      ]
+    case 'procrastination':
+      return [
+        'Помоги выйти из прокрастинации без стыда.',
+        'Сузь задачу до минимального старта и дай понятный следующий шаг.',
+        'Если энергии мало, предложи маршрут возврата вместо давления.',
+      ]
+    case 'weekly_review':
+      return [
+        'Сделай короткий обзор недели по LifeQuest.',
+        'Покажи, где система держится, где есть риск, и какой следующий шаг самый полезный.',
+        'Не делай длинную аналитику.',
+      ]
+    case 'money_review':
+      return [
+        'Разложи финансовое состояние спокойно и без катастрофизации.',
+        'Выбери один денежный фокус и одно маленькое действие.',
+        'Не придумывай цифры, которых нет в контексте.',
+      ]
+    case 'life_unpack':
+    default:
+      return [
+        'Помоги распаковать текущий хаос жизни в понятную структуру.',
+        'Найди главный риск, главный шаг и мягкий запасной маршрут.',
+        'Не пытайся решить всю жизнь одним ответом.',
+      ]
+  }
+}
+
+function getJsonContract() {
+  return `{
+  "lifequest": {
+    "summary": "Краткий вывод",
+    "todayMainQuest": "Главный квест",
+    "quickWin": "Быстрая победа",
+    "recoveryAction": "Запасной план",
+    "bodyFocus": "Фокус по телу",
+    "moneyFocus": "Фокус по деньгам",
+    "risk": "Главный риск",
+    "coreMessage": "Сообщение от Ядра",
+    "suggestedActions": [
+      {
+        "title": "Название действия",
+        "domain": "today",
+        "difficulty": "easy",
+        "xp": 10
+      }
+    ]
+  }
+}`
+}
+
+function serializeContext(context: ReturnType<typeof buildFullLifeQuestContext>) {
+  return JSON.stringify(context, null, 2)
+}
+
+export function buildPrompt(card: PromptCard, options: PromptBuildOptions) {
+  const promptType = mapPromptType(card)
+  const context = buildFullLifeQuestContext()
+
   return [
-    'Ты — мой спокойный оператор LifeQuest в стиле JARVIS.',
-    'Твоя задача — снизить когнитивную нагрузку, подсветить лучший следующий шаг и поддержать восстановление важнее перфекционизма.',
-    '',
-    `Карточка промпта: ${card.title}`,
+    'Роль:',
+    'Ты — спокойный LifeQuest Core Operator в стиле JARVIS.',
+    'Твоя задача — снизить когнитивную нагрузку, помочь выбрать следующий шаг и поддержать возврат в систему без давления.',
     '',
     'Контекст:',
-    `- Текущий режим: ${context.currentMode}`,
-    `- Главный квест: ${context.mainQuest}`,
-    `- Быстрая победа: ${context.quickWin}`,
-    `- Запасной план: ${context.recoveryOption}`,
-    `- Предпочтительный тон: ${getToneLabel(context.preferredTone)}`,
-    `- Актуальные цели: ${context.relevantGoals.join(', ')}`,
-    `- Активные задачи: ${context.activeQuests.length ? context.activeQuests.join(', ') : 'нет активных задач'}`,
-    `- Отложено: ${context.parkedQuests.length ? context.parkedQuests.join(', ') : 'ничего не отложено'}`,
-    `- Прогресс системы: ${context.progressSummary.join('; ')}`,
-    `- Мой запрос: ${context.userRequest}`,
-    `- Желаемый формат ответа: ${context.preferredResponseFormat}`,
+    serializeContext(context),
     '',
-    'Правила ответа:',
-    '- Говори спокойно, структурно и без токсичной мотивации.',
-    `- Настрой тон именно так: ${getToneInstruction(context.preferredTone)}`,
-    '- Сначала дай самый чистый следующий шаг.',
-    '- Держи план достаточно лёгким, чтобы он побеждал прокрастинацию.',
-    '- Если энергии мало, предложи мягкий маршрут восстановления.',
-    '- Не стыди и не дави.',
+    'Карточка:',
+    `- Тип: ${promptType}`,
+    `- Название: ${card.title}`,
+    `- Запрос пользователя: ${options.userRequest || 'Пользователь не добавил дополнительный запрос.'}`,
+    `- Желаемый формат ответа: ${options.preferredResponseFormat}`,
     '',
-    'Ответь сейчас в желаемом формате.',
+    'Задача:',
+    ...getTaskInstruction(promptType).map((line) => `- ${line}`),
+    '',
+    'Ограничения:',
+    `- Тон: ${getToneInstruction(context.settings.preferredTone)}`,
+    '- Без стыда.',
+    '- Без токсичной мотивации.',
+    '- Не давать огромный план.',
+    '- Дать 1 главный шаг.',
+    '- Дать быструю победу.',
+    '- Дать запасной план.',
+    '- Если данных мало, не выдумывать факты.',
+    '- Лучше указать мягкую рекомендацию, чем уверенно додумывать.',
+    '',
+    'Формат ответа:',
+    '- Сначала дай понятный короткий текст для пользователя.',
+    '- В конце ответа добавь JSON-блок для импорта обратно в LifeQuest.',
+    '- JSON должен быть строго валидным.',
+    '- Не добавляй комментарии внутрь JSON.',
+    '- Не используй markdown внутри JSON-значений.',
+    '- Допустимые domain: today, plan, body, money, rescue, core.',
+    '- Допустимые difficulty: easy, medium, hard.',
+    '- Если какой-то фокус неприменим, оставь мягкую короткую рекомендацию.',
+    '',
+    'JSON-блок в конце ответа должен быть строго такого вида:',
+    '```json',
+    getJsonContract(),
+    '```',
   ].join('\n')
 }

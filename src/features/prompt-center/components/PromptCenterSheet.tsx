@@ -1,25 +1,109 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bot, Copy, ExternalLink, Sparkles, X } from 'lucide-react'
-import { mockUser } from '@/services/mockData'
+import {
+  AlertCircle,
+  Bot,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  FileJson,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react'
+import { buildFullLifeQuestContext } from '@/services/contextBuilder'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
-import { useProgressStore } from '@/stores/useProgressStore'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
-import { useQuestStore } from '@/stores/useQuestStore'
-import { useSettingsStore } from '@/stores/useSettingsStore'
-import { useTodayStore } from '@/stores/useTodayStore'
+import type { LifeQuestPromptResponse } from '@/shared/types'
 
-function getToneLabel(preferredTone: 'calm' | 'direct' | 'supportive') {
-  switch (preferredTone) {
-    case 'direct':
-      return 'Прямой'
-    case 'supportive':
-      return 'Поддерживающий'
-    case 'calm':
-    default:
-      return 'Спокойный'
-  }
+function PreviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+      <p className="text-[10px] uppercase tracking-[0.16em] text-muted">{label}</p>
+      <p className="mt-1 text-sm leading-5 text-white">{value || 'Нет данных'}</p>
+    </div>
+  )
+}
+
+function ParsedResponsePreview({ response }: { response: LifeQuestPromptResponse }) {
+  const rows = [
+    { label: 'Краткий вывод', value: response.summary },
+    { label: 'Главный квест', value: response.todayMainQuest },
+    { label: 'Быстрая победа', value: response.quickWin },
+    { label: 'Запасной план', value: response.recoveryAction },
+    { label: 'Фокус по телу', value: response.bodyFocus },
+    { label: 'Фокус по деньгам', value: response.moneyFocus },
+    { label: 'Риск', value: response.risk },
+    { label: 'Сообщение от Ядра', value: response.coreMessage },
+  ]
+
+  return (
+    <div className="mt-4 rounded-[1.5rem] border border-success/20 bg-success/10 p-3.5">
+      <div className="mb-3 flex items-center gap-2 text-success">
+        <CheckCircle2 className="h-4 w-4" />
+        <p className="text-xs font-semibold uppercase tracking-[0.18em]">Рекомендации готовы</p>
+      </div>
+      <div className="grid gap-2">
+        {rows.map((row) => (
+          <PreviewRow key={row.label} label={row.label} value={row.value} />
+        ))}
+      </div>
+
+      <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+        <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Suggested actions</p>
+        {response.suggestedActions.length ? (
+          <div className="mt-2 space-y-2">
+            {response.suggestedActions.map((action) => (
+              <div
+                key={`${action.domain}-${action.title}`}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+              >
+                <p className="text-sm font-medium text-white">{action.title}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {action.domain} / {action.difficulty} / +{action.xp} XP
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted">Нет дополнительных действий.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function getContextPreviewRows() {
+  const context = buildFullLifeQuestContext()
+
+  return [
+    { label: 'Режим', value: context.today.mode.label },
+    {
+      label: 'Главный квест',
+      value: context.today.route.mainQuest?.title ?? 'Не выбран',
+    },
+    {
+      label: 'Быстрая победа',
+      value: context.today.route.quickWin?.title ?? 'Не выбрана',
+    },
+    {
+      label: 'Запасной план',
+      value: context.today.route.recoveryQuest?.title ?? 'Не подготовлен',
+    },
+    {
+      label: 'Прогресс',
+      value: `Уровень ${context.progress.level}, ${context.progress.totalXp} XP`,
+    },
+    {
+      label: 'Тело',
+      value: `${context.body.today.weightKg} кг, ${context.body.today.steps} шагов, вода ${context.body.today.waterLiters} л`,
+    },
+    {
+      label: 'Деньги',
+      value: `Баланс ${context.money.snapshot.balance}, долг ${context.money.snapshot.debt}`,
+    },
+  ]
 }
 
 export function PromptCenterSheet() {
@@ -31,144 +115,46 @@ export function PromptCenterSheet() {
   const preferredResponseFormat = usePromptCenterStore((state) => state.preferredResponseFormat)
   const hasCopied = usePromptCenterStore((state) => state.hasCopied)
   const showCopyFallback = usePromptCenterStore((state) => state.showCopyFallback)
+  const importedResponseText = usePromptCenterStore((state) => state.importedResponseText)
+  const parsedResponse = usePromptCenterStore((state) => state.parsedResponse)
+  const parseError = usePromptCenterStore((state) => state.parseError)
+  const applyMessage = usePromptCenterStore((state) => state.applyMessage)
   const setSelectedCard = usePromptCenterStore((state) => state.setSelectedCard)
   const setUserRequest = usePromptCenterStore((state) => state.setUserRequest)
   const setResponseFormat = usePromptCenterStore((state) => state.setResponseFormat)
   const generatePrompt = usePromptCenterStore((state) => state.generatePrompt)
   const copyPrompt = usePromptCenterStore((state) => state.copyPrompt)
   const openChatGPT = usePromptCenterStore((state) => state.openChatGPT)
+  const setImportedResponseText = usePromptCenterStore((state) => state.setImportedResponseText)
+  const parseImportedResponse = usePromptCenterStore((state) => state.parseImportedResponse)
+  const clearImportedResponse = usePromptCenterStore((state) => state.clearImportedResponse)
+  const applyParsedResponse = usePromptCenterStore((state) => state.applyParsedResponse)
   const closePromptCenter = usePromptCenterStore((state) => state.closePromptCenter)
-  const currentMode = useTodayStore((state) => state.currentMode)
-  const modes = useTodayStore((state) => state.modes)
-  const route = useTodayStore((state) => state.route)
-  const active = useQuestStore((state) => state.active)
-  const parked = useQuestStore((state) => state.parked)
-  const level = useProgressStore((state) => state.level)
-  const sectors = useProgressStore((state) => state.sectors)
-  const preferredTone = useSettingsStore((state) => state.preferredTone)
 
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? cards[0] ?? null
-  const currentModeLabel = modes.find((mode) => mode.key === currentMode)?.label ?? currentMode
-  const relevantGoals = useMemo(() => mockUser.relevantGoals, [])
-  const activeQuests = useMemo(
-    () =>
-      active
-        .filter((quest) => quest.status !== 'complete')
-        .slice(0, 4)
-        .map((quest) => quest.title),
-    [active],
-  )
-  const parkedQuests = useMemo(
-    () =>
-      parked
-        .filter((quest) => quest.status !== 'complete')
-        .slice(0, 3)
-        .map((quest) => quest.title),
-    [parked],
-  )
-  const progressSummary = useMemo(
-    () => [`Уровень ${level}`, ...sectors.map((sector) => `${sector.label}: ${sector.percent}%`).slice(0, 4)],
-    [level, sectors],
-  )
-  const relevantGoalsKey = relevantGoals.join('|')
-  const activeQuestsKey = activeQuests.join('|')
-  const parkedQuestsKey = parkedQuests.join('|')
-  const progressSummaryKey = progressSummary.join('|')
-
-  const context = useMemo(
-    () => ({
-      currentMode: currentModeLabel,
-      mainQuest: route.mainQuest?.title ?? 'Не выбран',
-      quickWin: route.quickWin?.title ?? 'Не выбрана',
-      recoveryOption: route.recoveryQuest?.title ?? 'Не подготовлен',
-      preferredTone,
-      relevantGoals,
-      activeQuests,
-      parkedQuests,
-      progressSummary,
-      userRequest,
-      preferredResponseFormat,
-    }),
-    [
-      activeQuests,
-      currentModeLabel,
-      parkedQuests,
-      preferredTone,
-      preferredResponseFormat,
-      progressSummary,
-      relevantGoals,
-      route.mainQuest?.title,
-      route.quickWin?.title,
-      route.recoveryQuest?.title,
-      userRequest,
-    ],
-  )
-
-  const contextPreviewRows = useMemo(
-    () => [
-      { label: 'Текущий режим', value: context.currentMode },
-      { label: 'Главный квест', value: context.mainQuest },
-      { label: 'Быстрая победа', value: context.quickWin },
-      { label: 'Запасной план', value: context.recoveryOption },
-      { label: 'Тон ответа', value: getToneLabel(context.preferredTone) },
-      {
-        label: 'Активные задачи',
-        value: context.activeQuests.length ? context.activeQuests.join(', ') : 'Нет активных задач',
-      },
-      {
-        label: 'Прогресс',
-        value: context.progressSummary.join(' • '),
-      },
-    ],
-    [context],
-  )
+  const contextPreviewRows = isOpen ? getContextPreviewRows() : []
 
   useEffect(() => {
     if (!isOpen || generatedPrompt || !selectedCard) {
       return
     }
 
-    generatePrompt({
-      currentMode: currentModeLabel,
-      mainQuest: route.mainQuest?.title ?? 'Не выбран',
-      quickWin: route.quickWin?.title ?? 'Не выбрана',
-      recoveryOption: route.recoveryQuest?.title ?? 'Не подготовлен',
-      preferredTone,
-      relevantGoals: relevantGoalsKey ? relevantGoalsKey.split('|') : [],
-      activeQuests: activeQuestsKey ? activeQuestsKey.split('|') : [],
-      parkedQuests: parkedQuestsKey ? parkedQuestsKey.split('|') : [],
-      progressSummary: progressSummaryKey ? progressSummaryKey.split('|') : [],
-      userRequest,
-      preferredResponseFormat,
-    })
-  }, [
-    activeQuestsKey,
-    currentModeLabel,
-    generatePrompt,
-    generatedPrompt,
-    isOpen,
-    parkedQuestsKey,
-    preferredTone,
-    preferredResponseFormat,
-    progressSummaryKey,
-    relevantGoalsKey,
-    route.mainQuest?.title,
-    route.quickWin?.title,
-    route.recoveryQuest?.title,
-    selectedCard,
-    userRequest,
-  ])
+    generatePrompt()
+  }, [generatePrompt, generatedPrompt, isOpen, selectedCard])
 
   const handleCopy = async () => {
     if (!generatedPrompt) {
-      generatePrompt(context)
+      generatePrompt()
     }
 
     await copyPrompt()
   }
 
   const handleOpenChatGPT = async () => {
-    generatePrompt(context)
+    if (!generatedPrompt) {
+      generatePrompt()
+    }
+
     await copyPrompt()
     openChatGPT()
   }
@@ -191,15 +177,18 @@ export function PromptCenterSheet() {
             transition={{ duration: 0.22 }}
             onClick={(event) => event.stopPropagation()}
           >
-            <GlassCard tone="strong" className="max-h-[90vh] overflow-auto rounded-[2rem] p-5">
-              <div className="mb-5 flex items-start justify-between gap-4">
+            <GlassCard tone="strong" className="max-h-[90vh] overflow-auto rounded-[2rem] p-4">
+              <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Центр промптов</p>
-                  <h2 className="mt-2 font-display text-xl font-bold text-white">
-                    Внешний AI с текущим состоянием системы
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-primary/80">
+                    Центр промптов
+                  </p>
+                  <h2 className="mt-2 font-display text-lg font-bold leading-6 text-white">
+                    Внешний ChatGPT без API
                   </h2>
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    Сюда попадут режим, маршрут дня, активные задачи и прогресс. Потом промпт можно скопировать или открыть в ChatGPT.
+                  <p className="mt-2 text-sm leading-5 text-muted">
+                    LifeQuest собирает контекст, ты копируешь prompt, а ответ можно вернуть обратно
+                    через JSON-блок.
                   </p>
                 </div>
                 <button
@@ -221,7 +210,7 @@ export function PromptCenterSheet() {
                       key={card.id}
                       type="button"
                       onClick={() => setSelectedCard(card.id)}
-                      className="glass-card min-w-[14rem] rounded-3xl border p-4 text-left transition"
+                      className="glass-card min-w-[13rem] rounded-3xl border p-3.5 text-left transition"
                       style={{
                         borderColor: activeCard ? 'rgba(99, 102, 241, 0.5)' : undefined,
                         background: activeCard
@@ -232,40 +221,43 @@ export function PromptCenterSheet() {
                       <div className="mb-3 inline-flex rounded-2xl border border-white/10 bg-white/5 p-2 text-primary">
                         <Bot className="h-4 w-4" />
                       </div>
-                      <p className="font-display text-base font-semibold text-white">{card.title}</p>
-                      <p className="mt-2 text-sm leading-6 text-muted">{card.description}</p>
+                      <p className="font-display text-sm font-semibold leading-5 text-white">
+                        {card.title}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-muted">{card.description}</p>
                     </button>
                   )
                 })}
               </div>
 
-              <GlassCard className="mb-4 border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.22em] text-muted">
+              <GlassCard className="mb-4 border border-white/10 bg-black/20 p-3.5">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
                   Контекст, который уйдёт в промпт
                 </p>
-                <div className="mt-3 space-y-3">
+                <div className="mt-3 grid gap-2">
                   {contextPreviewRows.map((row) => (
-                    <div key={row.label} className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted">{row.label}</p>
-                      <p className="mt-2 text-sm leading-6 text-white">{row.value}</p>
-                    </div>
+                    <PreviewRow key={row.label} label={row.label} value={row.value} />
                   ))}
                 </div>
               </GlassCard>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-white">Что сейчас происходит?</span>
+                  <span className="mb-2 block text-sm font-medium text-white">
+                    Что сейчас происходит?
+                  </span>
                   <textarea
                     value={userRequest}
                     onChange={(event) => setUserRequest(event.target.value)}
-                    className="min-h-28 w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-muted focus:border-primary/50 focus:bg-white/10"
+                    className="min-h-24 w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-muted focus:border-primary/50 focus:bg-white/10"
                     placeholder="Опиши ситуацию своими словами: где застрял, что давит, что важно удержать."
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-white">Желаемый формат ответа</span>
+                  <span className="mb-2 block text-sm font-medium text-white">
+                    Желаемый формат ответа
+                  </span>
                   <input
                     value={preferredResponseFormat}
                     onChange={(event) => setResponseFormat(event.target.value)}
@@ -279,23 +271,25 @@ export function PromptCenterSheet() {
                 fullWidth
                 className="mt-4"
                 icon={<Sparkles className="h-4 w-4" />}
-                onClick={() => generatePrompt(context)}
+                onClick={generatePrompt}
               >
                 Создать промпт
               </PrimaryButton>
 
-              <div className="mt-4 rounded-[1.75rem] border border-white/10 bg-black/20 p-4">
+              <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-black/20 p-3.5">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-xs uppercase tracking-[0.24em] text-muted">Предпросмотр промпта</p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                    Предпросмотр промпта
+                  </p>
                   {hasCopied ? <span className="text-xs text-success">Скопировано</span> : null}
                 </div>
-                <pre className="thin-scrollbar max-h-64 overflow-auto whitespace-pre-wrap font-sans text-sm leading-6 text-slate-100">
+                <pre className="thin-scrollbar max-h-60 overflow-auto whitespace-pre-wrap font-sans text-sm leading-6 text-slate-100">
                   {generatedPrompt || 'Создай промпт, чтобы увидеть его здесь.'}
                 </pre>
               </div>
 
               {showCopyFallback ? (
-                <div className="mt-4 rounded-[1.75rem] border border-warning/20 bg-warning/10 p-4">
+                <div className="mt-4 rounded-[1.5rem] border border-warning/20 bg-warning/10 p-3.5">
                   <p className="text-sm font-medium text-white">
                     Буфер обмена недоступен. Скопируй текст вручную из поля ниже.
                   </p>
@@ -328,6 +322,54 @@ export function PromptCenterSheet() {
                 >
                   Открыть ChatGPT
                 </PrimaryButton>
+              </div>
+
+              <div className="mt-5 rounded-[1.5rem] border border-cyan/20 bg-cyan/10 p-3.5">
+                <div className="mb-3 flex items-center gap-2 text-cyan">
+                  <FileJson className="h-4 w-4" />
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em]">Ответ ChatGPT</p>
+                </div>
+                <textarea
+                  value={importedResponseText}
+                  onChange={(event) => setImportedResponseText(event.target.value)}
+                  className="min-h-32 w-full rounded-3xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none transition placeholder:text-muted focus:border-cyan/50 focus:bg-black/30"
+                  placeholder="Вставь сюда ответ ChatGPT, если хочешь применить рекомендации в LifeQuest."
+                />
+
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <PrimaryButton tone="secondary" icon={<FileJson className="h-4 w-4" />} onClick={parseImportedResponse}>
+                    Разобрать ответ
+                  </PrimaryButton>
+                  <PrimaryButton tone="secondary" icon={<Trash2 className="h-4 w-4" />} onClick={clearImportedResponse}>
+                    Очистить
+                  </PrimaryButton>
+                  <PrimaryButton
+                    tone="primary"
+                    icon={<CheckCircle2 className="h-4 w-4" />}
+                    onClick={applyParsedResponse}
+                    disabled={!parsedResponse}
+                  >
+                    Применить рекомендации
+                  </PrimaryButton>
+                </div>
+
+                {parseError ? (
+                  <div className="mt-3 flex gap-2 rounded-2xl border border-warning/20 bg-warning/10 p-3 text-sm leading-5 text-white">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <p>
+                      Не удалось найти структурированный JSON-блок. Можно использовать текст как
+                      обычную рекомендацию.
+                    </p>
+                  </div>
+                ) : null}
+
+                {parsedResponse ? <ParsedResponsePreview response={parsedResponse} /> : null}
+
+                {applyMessage ? (
+                  <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-5 text-white">
+                    {applyMessage}
+                  </p>
+                ) : null}
               </div>
             </GlassCard>
           </motion.div>

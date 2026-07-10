@@ -246,6 +246,28 @@ export interface PromptContext {
   preferredResponseFormat: string
 }
 
+export type PromptImportDomain = 'today' | 'plan' | 'body' | 'money' | 'rescue' | 'core'
+export type PromptImportDifficulty = 'easy' | 'medium' | 'hard'
+
+export interface LifeQuestSuggestedAction {
+  title: string
+  domain: PromptImportDomain
+  difficulty: PromptImportDifficulty
+  xp: number
+}
+
+export interface LifeQuestPromptResponse {
+  summary: string
+  todayMainQuest: string
+  quickWin: string
+  recoveryAction: string
+  bodyFocus: string
+  moneyFocus: string
+  risk: string
+  coreMessage: string
+  suggestedActions: LifeQuestSuggestedAction[]
+}
+
 export interface CompanionProfile extends UserScopedEntity {
   mood: CompanionState
   evolutionLevel: number
