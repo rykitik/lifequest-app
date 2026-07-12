@@ -290,9 +290,54 @@ function parseOperationLine(
   }
 }
 
+function hasOperationAmount(line: string) {
+  const dateMatch = line.match(operationDatePattern)
+  const rest = dateMatch?.[2] ?? ''
+
+  return extractAmountTokens(rest).length > 0
+}
+
+function collectOperationLines(text: string) {
+  const collected: string[] = []
+  let currentLine = ''
+
+  text.split('\n').forEach((line) => {
+    if (operationDatePattern.test(line)) {
+      if (currentLine) {
+        collected.push(currentLine)
+      }
+
+      currentLine = line
+
+      if (hasOperationAmount(currentLine)) {
+        collected.push(currentLine)
+        currentLine = ''
+      }
+
+      return
+    }
+
+    if (!currentLine) {
+      return
+    }
+
+    currentLine = `${currentLine} ${line}`
+
+    if (hasOperationAmount(currentLine)) {
+      collected.push(currentLine)
+      currentLine = ''
+    }
+  })
+
+  if (currentLine) {
+    collected.push(currentLine)
+  }
+
+  return collected
+}
+
 function parseOperations(text: string, meta: ParsedStatementMeta, source: MoneyTransactionSource) {
-  return text
-    .split('\n')
+  return collectOperationLines(text)
     .map((line) => parseOperationLine(line, meta, source))
     .filter((transaction): transaction is MoneyTransaction => Boolean(transaction))
 }

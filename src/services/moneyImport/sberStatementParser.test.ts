@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { parseSberPdfStatement, parseSberStatementText } from '@/services/moneyImport/sberStatementParser'
+import debitBasicFixture from '@/services/moneyImport/__fixtures__/sber-debit-basic.txt?raw'
+import creditBasicFixture from '@/services/moneyImport/__fixtures__/sber-credit-basic.txt?raw'
+import transfersHeavyFixture from '@/services/moneyImport/__fixtures__/sber-transfers-heavy.txt?raw'
+import multilineOperationFixture from '@/services/moneyImport/__fixtures__/sber-multiline-operation.txt?raw'
 
 const sampleSberText = `
 СберБанк
@@ -75,5 +79,67 @@ describe('parseSberStatementText', () => {
 
     expect(preview.transactions).toHaveLength(0)
     expect(preview.warnings).toContain('Не удалось прочитать PDF. Попробуй вставить текст выписки вручную.')
+  })
+
+  it('разбирает debit fixture с картами, QR/СБП, переводами и покупкой', () => {
+    const preview = parseSberStatementText(debitBasicFixture)
+
+    expect(preview.source).toBe('sber_text')
+    expect(preview.periodStart).toBe('2026-07-01')
+    expect(preview.periodEnd).toBe('2026-07-12')
+    expect(preview.accounts.length).toBeGreaterThanOrEqual(1)
+    expect(preview.accounts[0]).toMatchObject({
+      last4: '1111',
+      openingBalance: 10_000,
+      source: 'sber',
+    })
+    expect(preview.totals.income).toBeGreaterThan(0)
+    expect(preview.totals.expense).toBeGreaterThan(0)
+    expect(preview.transactions).toHaveLength(4)
+    expect(preview.transactions.some((transaction) => transaction.type === 'income')).toBe(true)
+    expect(preview.transactions.some((transaction) => transaction.type === 'expense')).toBe(true)
+    expect(preview.transactions.every((transaction) => transaction.importHash)).toBe(true)
+  })
+
+  it('разбирает credit fixture с лимитом, задолженностью и расходами', () => {
+    const preview = parseSberStatementText(creditBasicFixture)
+    const account = preview.accounts[0]
+
+    expect(account).toMatchObject({
+      last4: '3333',
+      creditLimit: 120_000,
+      debt: 8450,
+    })
+    expect(preview.transactions).toHaveLength(4)
+    expect(preview.transactions.filter((transaction) => transaction.type === 'expense')).toHaveLength(3)
+    expect(preview.transactions.some((transaction) => transaction.type === 'income' && transaction.amount === 3000)).toBe(true)
+    expect(preview.warnings).not.toContain('Операции не распознаны. Попробуй вставить текст таблицы из PDF.')
+    expect(preview.warnings).not.toContain('Источник похож не на выписку Сбера. Проверь предпросмотр перед импортом.')
+  })
+
+  it('разбирает transfers-heavy fixture и стабилизирует importHash', () => {
+    const text = transfersHeavyFixture
+    const firstPreview = parseSberStatementText(text)
+    const secondPreview = parseSberStatementText(text)
+    const firstHashes = firstPreview.transactions.map((transaction) => transaction.importHash)
+    const secondHashes = secondPreview.transactions.map((transaction) => transaction.importHash)
+
+    expect(firstPreview.totals.transfer).toBe(3700)
+    expect(firstPreview.transactions.find((transaction) => transaction.amount === 1000)?.type).toBe('income')
+    expect(firstPreview.transactions.find((transaction) => transaction.amount === 300)?.type).toBe('expense')
+    expect(firstHashes).toEqual(secondHashes)
+  })
+
+  it('разбирает multiline operation без остатка в описании', () => {
+    const preview = parseSberStatementText(multilineOperationFixture)
+    const transaction = preview.transactions[0]
+
+    expect(preview.transactions).toHaveLength(1)
+    expect(transaction).toMatchObject({
+      amount: 1234.56,
+      rawDescription: 'Покупка MAGNIT TEST',
+      type: 'expense',
+    })
+    expect(transaction?.rawDescription).not.toContain('18 765')
   })
 })

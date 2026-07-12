@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MoneyAccount, MoneyTransaction, PlannedPayment } from '@/shared/types'
+import debitBasicFixture from '@/services/moneyImport/__fixtures__/sber-debit-basic.txt?raw'
 
 vi.setConfig({ testTimeout: 15_000 })
 
@@ -480,6 +481,27 @@ describe('useMoneyStore', () => {
       duplicates: 2,
     })
     expect(useMoneyStore.getState().transactions).toHaveLength(2)
+  })
+
+  it('не удваивает операции при повторном импорте fixture-выписки', async () => {
+    const { useMoneyStore } = await importMoneyStore()
+    const { parseSberStatementText } = await import('@/services/moneyImport/sberStatementParser')
+    const preview = parseSberStatementText(debitBasicFixture)
+
+    expect(useMoneyStore.getState().setImportPreview(preview).ok).toBe(true)
+    expect(useMoneyStore.getState().importPreviewTransactions()).toMatchObject({
+      ok: true,
+      imported: 4,
+      duplicates: 0,
+    })
+
+    expect(useMoneyStore.getState().setImportPreview(preview).ok).toBe(true)
+    expect(useMoneyStore.getState().importPreviewTransactions()).toMatchObject({
+      ok: true,
+      imported: 0,
+      duplicates: 4,
+    })
+    expect(useMoneyStore.getState().transactions).toHaveLength(4)
   })
 
   it('повреждённый importPreview не ломает store', async () => {
