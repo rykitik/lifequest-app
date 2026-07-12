@@ -17,6 +17,21 @@ import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import type { LifeQuestPromptResponse } from '@/shared/types'
 
+const actionDomainLabels: Record<string, string> = {
+  today: 'Сегодня',
+  plan: 'План',
+  body: 'Тело',
+  money: 'Деньги',
+  rescue: 'Возврат',
+  core: 'Ядро',
+}
+
+const actionDifficultyLabels: Record<string, string> = {
+  easy: 'Лёгко',
+  medium: 'Средне',
+  hard: 'Сложно',
+}
+
 function PreviewRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
@@ -26,7 +41,25 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ParsedResponsePreview({ response }: { response: LifeQuestPromptResponse }) {
+interface ParsedResponsePreviewProps {
+  response: LifeQuestPromptResponse
+  selectedSuggestedActionIndexes: number[]
+  shouldApplyCoreMessage: boolean
+  toggleSuggestedAction: (index: number) => void
+  toggleApplyCoreMessage: () => void
+  selectAllSuggestedActions: () => void
+  clearSuggestedActionSelection: () => void
+}
+
+function ParsedResponsePreview({
+  response,
+  selectedSuggestedActionIndexes,
+  shouldApplyCoreMessage,
+  toggleSuggestedAction,
+  toggleApplyCoreMessage,
+  selectAllSuggestedActions,
+  clearSuggestedActionSelection,
+}: ParsedResponsePreviewProps) {
   const rows = [
     { label: 'Краткий вывод', value: response.summary },
     { label: 'Главный квест', value: response.todayMainQuest },
@@ -50,20 +83,66 @@ function ParsedResponsePreview({ response }: { response: LifeQuestPromptResponse
         ))}
       </div>
 
+      {response.coreMessage ? (
+        <label className="mt-3 flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+          <input
+            type="checkbox"
+            checked={shouldApplyCoreMessage}
+            onChange={toggleApplyCoreMessage}
+            className="mt-1 h-4 w-4 shrink-0 accent-cyan"
+          />
+          <span>
+            <span className="block text-sm font-medium text-white">Обновить сообщение Ядра</span>
+            <span className="mt-1 block text-xs leading-5 text-muted">{response.coreMessage}</span>
+          </span>
+        </label>
+      ) : null}
+
       <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3">
-        <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Suggested actions</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+            Действия для применения
+          </p>
+          {response.suggestedActions.length ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAllSuggestedActions}
+                className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-white transition hover:bg-white/10"
+              >
+                Выбрать все
+              </button>
+              <button
+                type="button"
+                onClick={clearSuggestedActionSelection}
+                className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-muted transition hover:bg-white/10 hover:text-white"
+              >
+                Снять все
+              </button>
+            </div>
+          ) : null}
+        </div>
         {response.suggestedActions.length ? (
           <div className="mt-2 space-y-2">
-            {response.suggestedActions.map((action) => (
-              <div
+            {response.suggestedActions.map((action, index) => (
+              <label
                 key={`${action.domain}-${action.title}`}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+                className="flex cursor-pointer gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:bg-white/[0.07]"
               >
-                <p className="text-sm font-medium text-white">{action.title}</p>
-                <p className="mt-1 text-xs text-muted">
-                  {action.domain} / {action.difficulty} / +{action.xp} XP
-                </p>
-              </div>
+                <input
+                  type="checkbox"
+                  checked={selectedSuggestedActionIndexes.includes(index)}
+                  onChange={() => toggleSuggestedAction(index)}
+                  className="mt-1 h-4 w-4 shrink-0 accent-cyan"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-white">{action.title}</span>
+                  <span className="mt-1 block text-xs text-muted">
+                    {actionDomainLabels[action.domain] ?? action.domain} ·{' '}
+                    {actionDifficultyLabels[action.difficulty] ?? action.difficulty} · +{action.xp} XP
+                  </span>
+                </span>
+              </label>
             ))}
           </div>
         ) : (
@@ -119,6 +198,10 @@ export function PromptCenterSheet() {
   const parsedResponse = usePromptCenterStore((state) => state.parsedResponse)
   const parseError = usePromptCenterStore((state) => state.parseError)
   const applyMessage = usePromptCenterStore((state) => state.applyMessage)
+  const selectedSuggestedActionIndexes = usePromptCenterStore(
+    (state) => state.selectedSuggestedActionIndexes,
+  )
+  const shouldApplyCoreMessage = usePromptCenterStore((state) => state.shouldApplyCoreMessage)
   const setSelectedCard = usePromptCenterStore((state) => state.setSelectedCard)
   const setUserRequest = usePromptCenterStore((state) => state.setUserRequest)
   const setResponseFormat = usePromptCenterStore((state) => state.setResponseFormat)
@@ -129,6 +212,12 @@ export function PromptCenterSheet() {
   const parseImportedResponse = usePromptCenterStore((state) => state.parseImportedResponse)
   const clearImportedResponse = usePromptCenterStore((state) => state.clearImportedResponse)
   const applyParsedResponse = usePromptCenterStore((state) => state.applyParsedResponse)
+  const toggleSuggestedAction = usePromptCenterStore((state) => state.toggleSuggestedAction)
+  const toggleApplyCoreMessage = usePromptCenterStore((state) => state.toggleApplyCoreMessage)
+  const selectAllSuggestedActions = usePromptCenterStore((state) => state.selectAllSuggestedActions)
+  const clearSuggestedActionSelection = usePromptCenterStore(
+    (state) => state.clearSuggestedActionSelection,
+  )
   const closePromptCenter = usePromptCenterStore((state) => state.closePromptCenter)
 
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? cards[0] ?? null
@@ -177,7 +266,10 @@ export function PromptCenterSheet() {
             transition={{ duration: 0.22 }}
             onClick={(event) => event.stopPropagation()}
           >
-            <GlassCard tone="strong" className="max-h-[90vh] overflow-auto rounded-[2rem] p-4">
+            <GlassCard
+              tone="strong"
+              className="max-h-[90vh] overflow-auto rounded-[2rem] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            >
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.24em] text-primary/80">
@@ -283,7 +375,7 @@ export function PromptCenterSheet() {
                   </p>
                   {hasCopied ? <span className="text-xs text-success">Скопировано</span> : null}
                 </div>
-                <pre className="thin-scrollbar max-h-60 overflow-auto whitespace-pre-wrap font-sans text-sm leading-6 text-slate-100">
+                <pre className="thin-scrollbar max-h-44 overflow-auto whitespace-pre-wrap font-sans text-sm leading-6 text-slate-100 sm:max-h-60">
                   {generatedPrompt || 'Создай промпт, чтобы увидеть его здесь.'}
                 </pre>
               </div>
@@ -305,6 +397,7 @@ export function PromptCenterSheet() {
                 <PrimaryButton
                   tone="secondary"
                   fullWidth
+                  className="whitespace-nowrap px-2 text-xs sm:px-4 sm:text-sm"
                   icon={<Copy className="h-4 w-4" />}
                   onClick={() => {
                     void handleCopy()
@@ -315,6 +408,7 @@ export function PromptCenterSheet() {
                 <PrimaryButton
                   tone="primary"
                   fullWidth
+                  className="whitespace-nowrap px-2 text-xs sm:px-4 sm:text-sm"
                   icon={<ExternalLink className="h-4 w-4" />}
                   onClick={() => {
                     void handleOpenChatGPT()
@@ -336,15 +430,29 @@ export function PromptCenterSheet() {
                   placeholder="Вставь сюда ответ ChatGPT, если хочешь применить рекомендации в LifeQuest."
                 />
 
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <PrimaryButton tone="secondary" icon={<FileJson className="h-4 w-4" />} onClick={parseImportedResponse}>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <PrimaryButton
+                    tone="secondary"
+                    fullWidth
+                    className="whitespace-nowrap px-2 text-xs sm:px-4 sm:text-sm"
+                    icon={<FileJson className="h-4 w-4" />}
+                    onClick={parseImportedResponse}
+                  >
                     Разобрать ответ
                   </PrimaryButton>
-                  <PrimaryButton tone="secondary" icon={<Trash2 className="h-4 w-4" />} onClick={clearImportedResponse}>
+                  <PrimaryButton
+                    tone="secondary"
+                    fullWidth
+                    className="whitespace-nowrap px-2 text-xs sm:px-4 sm:text-sm"
+                    icon={<Trash2 className="h-4 w-4" />}
+                    onClick={clearImportedResponse}
+                  >
                     Очистить
                   </PrimaryButton>
                   <PrimaryButton
                     tone="primary"
+                    fullWidth
+                    className="col-span-2 sm:col-span-1"
                     icon={<CheckCircle2 className="h-4 w-4" />}
                     onClick={applyParsedResponse}
                     disabled={!parsedResponse}
@@ -363,7 +471,17 @@ export function PromptCenterSheet() {
                   </div>
                 ) : null}
 
-                {parsedResponse ? <ParsedResponsePreview response={parsedResponse} /> : null}
+                {parsedResponse ? (
+                  <ParsedResponsePreview
+                    response={parsedResponse}
+                    selectedSuggestedActionIndexes={selectedSuggestedActionIndexes}
+                    shouldApplyCoreMessage={shouldApplyCoreMessage}
+                    toggleSuggestedAction={toggleSuggestedAction}
+                    toggleApplyCoreMessage={toggleApplyCoreMessage}
+                    selectAllSuggestedActions={selectAllSuggestedActions}
+                    clearSuggestedActionSelection={clearSuggestedActionSelection}
+                  />
+                ) : null}
 
                 {applyMessage ? (
                   <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-5 text-white">

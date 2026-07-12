@@ -22,6 +22,8 @@ interface PromptCenterState {
   parseError: string | null
   applyMessage: string | null
   lastAppliedResponseAt: string | null
+  selectedSuggestedActionIndexes: number[]
+  shouldApplyCoreMessage: boolean
   setSelectedCard: (cardId: string) => void
   setUserRequest: (value: string) => void
   setResponseFormat: (value: string) => void
@@ -32,6 +34,12 @@ interface PromptCenterState {
   parseImportedResponse: () => void
   clearImportedResponse: () => void
   applyParsedResponse: () => void
+  toggleSuggestedAction: (index: number) => void
+  setSuggestedActionSelected: (index: number, value: boolean) => void
+  toggleApplyCoreMessage: () => void
+  setApplyCoreMessage: (value: boolean) => void
+  selectAllSuggestedActions: () => void
+  clearSuggestedActionSelection: () => void
   openPromptCenter: () => void
   closePromptCenter: () => void
   resetDemoData: () => void
@@ -73,6 +81,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
       parseError: null,
       applyMessage: null,
       lastAppliedResponseAt: null,
+      selectedSuggestedActionIndexes: [],
+      shouldApplyCoreMessage: false,
       setSelectedCard: (cardId) => {
         const nextCard = get().cards.find((card) => card.id === cardId)
 
@@ -90,6 +100,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           parsedResponse: null,
           parseError: null,
           applyMessage: null,
+          selectedSuggestedActionIndexes: [],
+          shouldApplyCoreMessage: false,
         })
       },
       setUserRequest: (value) =>
@@ -188,6 +200,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           parsedResponse: null,
           parseError: null,
           applyMessage: null,
+          selectedSuggestedActionIndexes: [],
+          shouldApplyCoreMessage: false,
         }),
       parseImportedResponse: () => {
         const result = parsePromptResponse(get().importedResponseText)
@@ -197,6 +211,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
             parsedResponse: null,
             parseError: result.reason,
             applyMessage: null,
+            selectedSuggestedActionIndexes: [],
+            shouldApplyCoreMessage: false,
           })
 
           return
@@ -206,6 +222,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           parsedResponse: result.data,
           parseError: null,
           applyMessage: 'Рекомендации готовы',
+          selectedSuggestedActionIndexes: result.data.suggestedActions.map((_, index) => index),
+          shouldApplyCoreMessage: Boolean(result.data.coreMessage),
         })
       },
       clearImportedResponse: () =>
@@ -214,6 +232,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           parsedResponse: null,
           parseError: null,
           applyMessage: null,
+          selectedSuggestedActionIndexes: [],
+          shouldApplyCoreMessage: false,
         }),
       applyParsedResponse: () => {
         const parsedResponse = get().parsedResponse
@@ -227,25 +247,94 @@ export const usePromptCenterStore = create<PromptCenterState>()(
         }
 
         let appliedCount = 0
+        let addedTaskCount = 0
+        let coreMessageUpdated = false
+        const selectedIndexes = new Set(get().selectedSuggestedActionIndexes)
+        const selectedActions = parsedResponse.suggestedActions.filter((_, index) =>
+          selectedIndexes.has(index),
+        )
 
-        parsedResponse.suggestedActions.forEach((action) => {
+        selectedActions.forEach((action) => {
           useQuestStore.getState().addQuest(action.title)
           appliedCount += 1
+          addedTaskCount += 1
         })
 
-        if (parsedResponse.coreMessage) {
+        if (get().shouldApplyCoreMessage && parsedResponse.coreMessage) {
           useCompanionStore.getState().setActiveMessage(parsedResponse.coreMessage)
           appliedCount += 1
+          coreMessageUpdated = true
+        }
+
+        if (appliedCount === 0) {
+          set({
+            applyMessage: 'Ничего не применено. Нечего применять. Выбери хотя бы один пункт.',
+          })
+
+          return
         }
 
         set({
           lastAppliedResponseAt: new Date().toISOString(),
-          applyMessage:
-            appliedCount > 0
-              ? 'Рекомендации применены частично. Некоторые пункты оставлены как рекомендации.'
-              : 'Некоторые пункты оставлены как рекомендации.',
+          applyMessage: [
+            addedTaskCount === parsedResponse.suggestedActions.length &&
+            coreMessageUpdated === Boolean(parsedResponse.coreMessage)
+              ? 'Рекомендации применены'
+              : 'Рекомендации применены частично',
+            addedTaskCount ? `Добавлено задач: ${addedTaskCount}` : null,
+            coreMessageUpdated ? 'Сообщение Ядра обновлено' : null,
+          ]
+            .filter(Boolean)
+            .join('. '),
         })
       },
+      toggleSuggestedAction: (index) =>
+        set((state) => {
+          const selected = state.selectedSuggestedActionIndexes.includes(index)
+
+          return {
+            selectedSuggestedActionIndexes: selected
+              ? state.selectedSuggestedActionIndexes.filter((item) => item !== index)
+              : [...state.selectedSuggestedActionIndexes, index].sort((left, right) => left - right),
+            applyMessage: null,
+          }
+        }),
+      setSuggestedActionSelected: (index, value) =>
+        set((state) => {
+          const selected = state.selectedSuggestedActionIndexes.includes(index)
+
+          if (selected === value) {
+            return state
+          }
+
+          return {
+            selectedSuggestedActionIndexes: value
+              ? [...state.selectedSuggestedActionIndexes, index].sort((left, right) => left - right)
+              : state.selectedSuggestedActionIndexes.filter((item) => item !== index),
+            applyMessage: null,
+          }
+        }),
+      toggleApplyCoreMessage: () =>
+        set((state) => ({
+          shouldApplyCoreMessage: !state.shouldApplyCoreMessage,
+          applyMessage: null,
+        })),
+      setApplyCoreMessage: (value) =>
+        set({
+          shouldApplyCoreMessage: value,
+          applyMessage: null,
+        }),
+      selectAllSuggestedActions: () =>
+        set((state) => ({
+          selectedSuggestedActionIndexes:
+            state.parsedResponse?.suggestedActions.map((_, index) => index) ?? [],
+          applyMessage: null,
+        })),
+      clearSuggestedActionSelection: () =>
+        set({
+          selectedSuggestedActionIndexes: [],
+          applyMessage: null,
+        }),
       openPromptCenter: () =>
         set((state) => (state.isOpen ? state : { isOpen: true })),
       closePromptCenter: () =>
@@ -271,6 +360,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           parseError: null,
           applyMessage: null,
           lastAppliedResponseAt: null,
+          selectedSuggestedActionIndexes: [],
+          shouldApplyCoreMessage: false,
         }),
     }),
     {
