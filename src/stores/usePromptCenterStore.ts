@@ -1,12 +1,25 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getMockPromptCards } from '@/services/mockData'
+import { buildWeeklyReviewContext } from '@/services/contextBuilder'
 import { buildPrompt } from '@/services/promptBuilder'
 import { parsePromptResponse } from '@/services/promptResponseParser'
+import { getLocalDateKey } from '@/shared/lib/date'
 import { mergePersistedState } from '@/shared/lib/persist'
-import type { LifeQuestPromptResponse, PromptCard } from '@/shared/types'
+import type { LifeQuestPromptResponse, LifeQuestSuggestedAction, PromptCard } from '@/shared/types'
 import { useCompanionStore } from '@/stores/useCompanionStore'
 import { useQuestStore } from '@/stores/useQuestStore'
+import { useWeeklyReviewStore } from '@/stores/useWeeklyReviewStore'
+
+interface PendingWeeklyReviewSummary {
+  summary: string
+  periodStart: string
+  periodEnd: string
+  coreMessage: string
+  bodyFocus: string
+  risk: string
+  suggestedActions: LifeQuestSuggestedAction[]
+}
 
 interface PromptCenterState {
   isOpen: boolean
@@ -24,6 +37,8 @@ interface PromptCenterState {
   lastAppliedResponseAt: string | null
   selectedSuggestedActionIndexes: number[]
   shouldApplyCoreMessage: boolean
+  pendingWeeklyReviewSummary: PendingWeeklyReviewSummary | null
+  weeklyReviewSaveMessage: string | null
   setSelectedCard: (cardId: string) => void
   setUserRequest: (value: string) => void
   setResponseFormat: (value: string) => void
@@ -40,6 +55,8 @@ interface PromptCenterState {
   setApplyCoreMessage: (value: boolean) => void
   selectAllSuggestedActions: () => void
   clearSuggestedActionSelection: () => void
+  savePendingWeeklyReviewSummary: () => void
+  dismissPendingWeeklyReviewSummary: () => void
   openPromptCenter: () => void
   closePromptCenter: () => void
   resetDemoData: () => void
@@ -67,6 +84,24 @@ function createPromptCenterPersistedState(): PromptCenterPersistedState {
   }
 }
 
+function isWeeklyReviewCard(cardId: string | null) {
+  return cardId === 'weekly-review'
+}
+
+function getWeeklyReviewPeriod() {
+  const context = buildWeeklyReviewContext()
+  const dates = context.body.dailyLogs
+    .map((log) => log.date)
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right))
+  const fallbackDate = getLocalDateKey()
+
+  return {
+    periodStart: dates[0] ?? fallbackDate,
+    periodEnd: dates.at(-1) ?? fallbackDate,
+  }
+}
+
 export const usePromptCenterStore = create<PromptCenterState>()(
   persist(
     (set, get) => ({
@@ -83,6 +118,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
       lastAppliedResponseAt: null,
       selectedSuggestedActionIndexes: [],
       shouldApplyCoreMessage: false,
+      pendingWeeklyReviewSummary: null,
+      weeklyReviewSaveMessage: null,
       setSelectedCard: (cardId) => {
         const nextCard = get().cards.find((card) => card.id === cardId)
 
@@ -102,6 +139,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           applyMessage: null,
           selectedSuggestedActionIndexes: [],
           shouldApplyCoreMessage: false,
+          pendingWeeklyReviewSummary: null,
+          weeklyReviewSaveMessage: null,
         })
       },
       setUserRequest: (value) =>
@@ -120,6 +159,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
             generatedPrompt: '',
             hasCopied: false,
             showCopyFallback: false,
+            pendingWeeklyReviewSummary: null,
+            weeklyReviewSaveMessage: null,
           }
         }),
       setResponseFormat: (value) =>
@@ -138,6 +179,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
             generatedPrompt: '',
             hasCopied: false,
             showCopyFallback: false,
+            pendingWeeklyReviewSummary: null,
+            weeklyReviewSaveMessage: null,
           }
         }),
       generatePrompt: () => {
@@ -155,6 +198,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           }),
           hasCopied: false,
           showCopyFallback: false,
+          pendingWeeklyReviewSummary: null,
+          weeklyReviewSaveMessage: null,
         })
       },
       copyPrompt: async () => {
@@ -202,6 +247,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           applyMessage: null,
           selectedSuggestedActionIndexes: [],
           shouldApplyCoreMessage: false,
+          pendingWeeklyReviewSummary: null,
+          weeklyReviewSaveMessage: null,
         }),
       parseImportedResponse: () => {
         const result = parsePromptResponse(get().importedResponseText)
@@ -213,6 +260,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
             applyMessage: null,
             selectedSuggestedActionIndexes: [],
             shouldApplyCoreMessage: false,
+            pendingWeeklyReviewSummary: null,
+            weeklyReviewSaveMessage: null,
           })
 
           return
@@ -224,6 +273,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           applyMessage: 'Рекомендации готовы',
           selectedSuggestedActionIndexes: result.data.suggestedActions.map((_, index) => index),
           shouldApplyCoreMessage: Boolean(result.data.coreMessage),
+          pendingWeeklyReviewSummary: null,
+          weeklyReviewSaveMessage: null,
         })
       },
       clearImportedResponse: () =>
@@ -234,6 +285,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           applyMessage: null,
           selectedSuggestedActionIndexes: [],
           shouldApplyCoreMessage: false,
+          pendingWeeklyReviewSummary: null,
+          weeklyReviewSaveMessage: null,
         }),
       applyParsedResponse: () => {
         const parsedResponse = get().parsedResponse
@@ -274,18 +327,34 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           return
         }
 
+        const applyMessage = [
+          addedTaskCount === parsedResponse.suggestedActions.length &&
+          coreMessageUpdated === Boolean(parsedResponse.coreMessage)
+            ? 'Рекомендации применены'
+            : 'Рекомендации применены частично',
+          addedTaskCount ? `Добавлено задач: ${addedTaskCount}` : null,
+          coreMessageUpdated ? 'Сообщение Ядра обновлено' : null,
+        ]
+          .filter(Boolean)
+          .join('. ')
+        const shouldOfferWeeklyReviewSave = isWeeklyReviewCard(get().selectedCardId)
+        const weeklyReviewPeriod = shouldOfferWeeklyReviewSave ? getWeeklyReviewPeriod() : null
+
         set({
           lastAppliedResponseAt: new Date().toISOString(),
-          applyMessage: [
-            addedTaskCount === parsedResponse.suggestedActions.length &&
-            coreMessageUpdated === Boolean(parsedResponse.coreMessage)
-              ? 'Рекомендации применены'
-              : 'Рекомендации применены частично',
-            addedTaskCount ? `Добавлено задач: ${addedTaskCount}` : null,
-            coreMessageUpdated ? 'Сообщение Ядра обновлено' : null,
-          ]
-            .filter(Boolean)
-            .join('. '),
+          applyMessage,
+          pendingWeeklyReviewSummary: shouldOfferWeeklyReviewSave && weeklyReviewPeriod
+            ? {
+                summary: parsedResponse.summary,
+                periodStart: weeklyReviewPeriod.periodStart,
+                periodEnd: weeklyReviewPeriod.periodEnd,
+                coreMessage: parsedResponse.coreMessage,
+                bodyFocus: parsedResponse.bodyFocus,
+                risk: parsedResponse.risk,
+                suggestedActions: selectedActions,
+              }
+            : null,
+          weeklyReviewSaveMessage: null,
         })
       },
       toggleSuggestedAction: (index) =>
@@ -335,6 +404,38 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           selectedSuggestedActionIndexes: [],
           applyMessage: null,
         }),
+      savePendingWeeklyReviewSummary: () => {
+        const pending = get().pendingWeeklyReviewSummary
+
+        if (!pending) {
+          set({
+            weeklyReviewSaveMessage: 'Нет недельного итога для сохранения.',
+          })
+
+          return
+        }
+
+        const result = useWeeklyReviewStore.getState().saveWeeklyReviewSummary({
+          periodStart: pending.periodStart,
+          periodEnd: pending.periodEnd,
+          coreMessage: pending.coreMessage,
+          bodyFocus: pending.bodyFocus,
+          risk: pending.risk,
+          suggestedActions: pending.suggestedActions,
+        })
+
+        set({
+          pendingWeeklyReviewSummary: result.ok ? null : pending,
+          weeklyReviewSaveMessage: result.ok
+            ? 'Недельный итог сохранён.'
+            : 'Этот недельный итог уже сохранён.',
+        })
+      },
+      dismissPendingWeeklyReviewSummary: () =>
+        set({
+          pendingWeeklyReviewSummary: null,
+          weeklyReviewSaveMessage: 'Итог не сохранён.',
+        }),
       openPromptCenter: () =>
         set((state) => (state.isOpen ? state : { isOpen: true })),
       closePromptCenter: () =>
@@ -347,6 +448,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
             isOpen: false,
             hasCopied: false,
             showCopyFallback: false,
+            pendingWeeklyReviewSummary: null,
+            weeklyReviewSaveMessage: null,
           }
         }),
       resetDemoData: () =>
@@ -362,6 +465,8 @@ export const usePromptCenterStore = create<PromptCenterState>()(
           lastAppliedResponseAt: null,
           selectedSuggestedActionIndexes: [],
           shouldApplyCoreMessage: false,
+          pendingWeeklyReviewSummary: null,
+          weeklyReviewSaveMessage: null,
         }),
     }),
     {

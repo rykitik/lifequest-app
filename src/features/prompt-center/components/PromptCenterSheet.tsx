@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   AlertCircle,
@@ -15,7 +15,8 @@ import { buildFullLifeQuestContext } from '@/services/contextBuilder'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
-import type { LifeQuestPromptResponse } from '@/shared/types'
+import { useWeeklyReviewStore } from '@/stores/useWeeklyReviewStore'
+import type { LifeQuestPromptResponse, LifeQuestSuggestedAction, WeeklyReviewSummary } from '@/shared/types'
 
 const actionDomainLabels: Record<string, string> = {
   today: 'Сегодня',
@@ -34,9 +35,134 @@ const actionDifficultyLabels: Record<string, string> = {
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
       <p className="text-[10px] uppercase tracking-[0.16em] text-muted">{label}</p>
-      <p className="mt-1 text-sm leading-5 text-white">{value || 'Нет данных'}</p>
+      <p className="mt-1 break-words text-sm leading-5 text-white">{value || 'Нет данных'}</p>
+    </div>
+  )
+}
+
+function formatReviewDate(value: string) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
+}
+
+function ActionMeta({ action }: { action: LifeQuestSuggestedAction }) {
+  return (
+    <span className="text-xs text-muted">
+      {actionDomainLabels[action.domain] ?? action.domain} ·{' '}
+      {actionDifficultyLabels[action.difficulty] ?? action.difficulty} · +{action.xp} XP
+    </span>
+  )
+}
+
+function WeeklyReviewSummaryPanel({
+  summary,
+  message,
+  onDelete,
+}: {
+  summary: WeeklyReviewSummary | null
+  message: string | null
+  onDelete: (id: string) => void
+}) {
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+
+  return (
+    <div className="mb-4 rounded-[1.5rem] border border-cyan/15 bg-cyan/10 p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-cyan">Недельный итог</p>
+          <p className="mt-1 text-sm leading-5 text-muted">
+            Последний подтверждённый недельный разбор хранится только локально.
+          </p>
+        </div>
+      </div>
+
+      {summary ? (
+        <div className="mt-3 space-y-2">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+            <p className="text-xs text-muted">
+              Период: {formatReviewDate(summary.periodStart)} — {formatReviewDate(summary.periodEnd)}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Сохранено: {formatReviewDate(summary.createdAt)}
+            </p>
+          </div>
+          <PreviewRow label="Сообщение Ядра" value={summary.coreMessage} />
+          <PreviewRow label="Фокус по телу" value={summary.bodyFocus} />
+          <PreviewRow label="Риск" value={summary.risk} />
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+              Сохранённые действия
+            </p>
+            {summary.suggestedActions.length ? (
+              <div className="mt-2 space-y-2">
+                {summary.suggestedActions.map((action) => (
+                  <div key={`${summary.id}-${action.title}`} className="min-w-0">
+                    <p className="break-words text-sm leading-5 text-white">{action.title}</p>
+                    <ActionMeta action={action} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted">Действия не сохранялись.</p>
+            )}
+          </div>
+
+          {pendingDeleteId === summary.id ? (
+            <div className="grid grid-cols-2 gap-2">
+              <PrimaryButton
+                tone="warning"
+                fullWidth
+                className="px-2 text-xs"
+                onClick={() => {
+                  onDelete(summary.id)
+                  setPendingDeleteId(null)
+                }}
+              >
+                Удалить итог
+              </PrimaryButton>
+              <PrimaryButton
+                tone="secondary"
+                fullWidth
+                className="px-2 text-xs"
+                onClick={() => setPendingDeleteId(null)}
+              >
+                Оставить
+              </PrimaryButton>
+            </div>
+          ) : (
+            <PrimaryButton
+              tone="secondary"
+              fullWidth
+              className="!min-h-10 px-3 py-2 text-xs"
+              icon={<Trash2 className="h-4 w-4" />}
+              onClick={() => setPendingDeleteId(summary.id)}
+            >
+              Удалить
+            </PrimaryButton>
+          )}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-5 text-muted">
+          Здесь появится последний подтверждённый недельный разбор.
+        </p>
+      )}
+
+      {message ? (
+        <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-5 text-white">
+          {message}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -91,7 +217,7 @@ function ParsedResponsePreview({
             onChange={toggleApplyCoreMessage}
             className="mt-1 h-4 w-4 shrink-0 accent-cyan"
           />
-          <span>
+          <span className="min-w-0">
             <span className="block text-sm font-medium text-white">Обновить сообщение Ядра</span>
             <span className="mt-1 block text-xs leading-5 text-muted">{response.coreMessage}</span>
           </span>
@@ -135,12 +261,11 @@ function ParsedResponsePreview({
                   onChange={() => toggleSuggestedAction(index)}
                   className="mt-1 h-4 w-4 shrink-0 accent-cyan"
                 />
-                <span>
-                  <span className="block text-sm font-medium text-white">{action.title}</span>
-                  <span className="mt-1 block text-xs text-muted">
-                    {actionDomainLabels[action.domain] ?? action.domain} ·{' '}
-                    {actionDifficultyLabels[action.difficulty] ?? action.difficulty} · +{action.xp} XP
+                <span className="min-w-0">
+                  <span className="block break-words text-sm font-medium text-white">
+                    {action.title}
                   </span>
+                  <ActionMeta action={action} />
                 </span>
               </label>
             ))}
@@ -198,6 +323,10 @@ export function PromptCenterSheet() {
   const parsedResponse = usePromptCenterStore((state) => state.parsedResponse)
   const parseError = usePromptCenterStore((state) => state.parseError)
   const applyMessage = usePromptCenterStore((state) => state.applyMessage)
+  const pendingWeeklyReviewSummary = usePromptCenterStore(
+    (state) => state.pendingWeeklyReviewSummary,
+  )
+  const weeklyReviewSaveMessage = usePromptCenterStore((state) => state.weeklyReviewSaveMessage)
   const selectedSuggestedActionIndexes = usePromptCenterStore(
     (state) => state.selectedSuggestedActionIndexes,
   )
@@ -218,7 +347,18 @@ export function PromptCenterSheet() {
   const clearSuggestedActionSelection = usePromptCenterStore(
     (state) => state.clearSuggestedActionSelection,
   )
+  const savePendingWeeklyReviewSummary = usePromptCenterStore(
+    (state) => state.savePendingWeeklyReviewSummary,
+  )
+  const dismissPendingWeeklyReviewSummary = usePromptCenterStore(
+    (state) => state.dismissPendingWeeklyReviewSummary,
+  )
   const closePromptCenter = usePromptCenterStore((state) => state.closePromptCenter)
+  const weeklyReviewSummaries = useWeeklyReviewStore((state) => state.summaries)
+  const weeklyReviewStoreMessage = useWeeklyReviewStore((state) => state.lastMessage)
+  const deleteWeeklyReviewSummary = useWeeklyReviewStore(
+    (state) => state.deleteWeeklyReviewSummary,
+  )
 
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? cards[0] ?? null
   const contextPreviewRows = isOpen ? getContextPreviewRows() : []
@@ -321,6 +461,12 @@ export function PromptCenterSheet() {
                   )
                 })}
               </div>
+
+              <WeeklyReviewSummaryPanel
+                summary={weeklyReviewSummaries[0] ?? null}
+                message={weeklyReviewStoreMessage}
+                onDelete={deleteWeeklyReviewSummary}
+              />
 
               <GlassCard className="mb-4 border border-white/10 bg-black/20 p-3.5">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
@@ -486,6 +632,62 @@ export function PromptCenterSheet() {
                 {applyMessage ? (
                   <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-5 text-white">
                     {applyMessage}
+                  </p>
+                ) : null}
+
+                {pendingWeeklyReviewSummary ? (
+                  <div className="mt-3 rounded-[1.5rem] border border-primary/25 bg-primary/10 p-3.5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                      Сохранить этот недельный итог?
+                    </p>
+                    <div className="mt-3 grid gap-2">
+                      <PreviewRow label="Главный вывод" value={pendingWeeklyReviewSummary.summary} />
+                      <PreviewRow label="Фокус по телу" value={pendingWeeklyReviewSummary.bodyFocus} />
+                      <PreviewRow label="Риск" value={pendingWeeklyReviewSummary.risk} />
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+                          Выбранные действия
+                        </p>
+                        {pendingWeeklyReviewSummary.suggestedActions.length ? (
+                          <div className="mt-2 space-y-2">
+                            {pendingWeeklyReviewSummary.suggestedActions.map((action) => (
+                              <div key={`${action.domain}-${action.title}`} className="min-w-0">
+                                <p className="break-words text-sm leading-5 text-white">
+                                  {action.title}
+                                </p>
+                                <ActionMeta action={action} />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-muted">Действия не выбраны.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <PrimaryButton
+                        tone="primary"
+                        fullWidth
+                        className="px-2 text-xs sm:text-sm"
+                        onClick={savePendingWeeklyReviewSummary}
+                      >
+                        Сохранить итог
+                      </PrimaryButton>
+                      <PrimaryButton
+                        tone="secondary"
+                        fullWidth
+                        className="px-2 text-xs sm:text-sm"
+                        onClick={dismissPendingWeeklyReviewSummary}
+                      >
+                        Не сохранять
+                      </PrimaryButton>
+                    </div>
+                  </div>
+                ) : null}
+
+                {weeklyReviewSaveMessage ? (
+                  <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-5 text-white">
+                    {weeklyReviewSaveMessage}
                   </p>
                 ) : null}
               </div>

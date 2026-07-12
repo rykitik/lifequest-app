@@ -6,10 +6,26 @@ import { useQuestStore } from '@/stores/useQuestStore'
 import { useRescueStore } from '@/stores/useRescueStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTodayStore } from '@/stores/useTodayStore'
-import type { BodyDailyLog, QuestItem, TodayRoute } from '@/shared/types'
+import type { BodyDailyLog, BodyNutritionStatus, QuestItem, TodayRoute } from '@/shared/types'
+import {
+  getDebtSummary,
+  getMoneyCalmNote,
+  getMonthlyPlan,
+  getMonthlyPlanProjection,
+  getSuggestedMoneyActions,
+  getTotalBalance,
+  getWeeklyDelta,
+} from '@/features/money/lib/money'
 
 const QUEST_LIMIT = 5
 const DAILY_LOG_LIMIT = 7
+const NUTRITION_FLAGS: BodyNutritionStatus[] = [
+  'Переел',
+  'Сорвался',
+  'Поздний ужин',
+  'Сладкое',
+  'Мало белка',
+]
 
 function compactQuest(quest: QuestItem | null) {
   if (!quest) {
@@ -50,6 +66,127 @@ function sortLogsByDateDesc(logs: BodyDailyLog[]) {
   return [...logs].sort((left, right) => right.date.localeCompare(left.date))
 }
 
+function sortLogsByDateAsc(logs: BodyDailyLog[]) {
+  return [...logs].sort((left, right) => left.date.localeCompare(right.date))
+}
+
+function roundNumber(value: number, fractionDigits = 1) {
+  const multiplier = 10 ** fractionDigits
+
+  return Math.round(value * multiplier) / multiplier
+}
+
+function getFiniteNumbers(values: Array<number | undefined>) {
+  return values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+}
+
+function average(values: Array<number | undefined>) {
+  const finiteValues = getFiniteNumbers(values)
+
+  if (!finiteValues.length) {
+    return null
+  }
+
+  return roundNumber(finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length)
+}
+
+function compactDailyBodyLog(log: BodyDailyLog) {
+  return {
+    date: log.date,
+    weightKg: log.weightKg,
+    waterLiters: log.waterLiters,
+    steps: log.steps,
+    nutritionStatus: log.nutritionStatus ?? 'Не выбрано',
+    movementType: log.movementType ?? 'Не выбрано',
+    workout: log.workout,
+    workoutDone: log.workoutDone,
+  }
+}
+
+function createDailyBodyLogFromToday(today: ReturnType<typeof useBodyStore.getState>['today']) {
+  return {
+    date: today.date,
+    weightKg: today.weightKg,
+    waterLiters: today.waterLiters,
+    steps: today.steps,
+    workoutDone: today.workoutDone,
+    workout: today.workout,
+    nutritionStatus: today.nutritionStatus,
+    movementType: today.movementType,
+  } satisfies BodyDailyLog
+}
+
+function getLastSevenBodyLogs() {
+  const body = useBodyStore.getState()
+  const logsByDate = new Map<string, BodyDailyLog>()
+
+  body.dailyLogs.forEach((log) => {
+    logsByDate.set(log.date, log)
+  })
+  logsByDate.set(body.today.date, createDailyBodyLogFromToday(body.today))
+
+  return sortLogsByDateDesc(Array.from(logsByDate.values())).slice(0, DAILY_LOG_LIMIT)
+}
+
+function countNutritionFlags(logs: BodyDailyLog[]) {
+  return NUTRITION_FLAGS.reduce<Record<string, number>>(
+    (accumulator, flag) => ({
+      ...accumulator,
+      [flag]: logs.filter((log) => log.nutritionStatus === flag).length,
+    }),
+    {},
+  )
+}
+
+function buildBodyWeeklySummary(logs: BodyDailyLog[]) {
+  const chronologicalLogs = sortLogsByDateAsc(logs)
+  const weightLogs = chronologicalLogs.filter(
+    (log) => typeof log.weightKg === 'number' && Number.isFinite(log.weightKg),
+  )
+  const weightStart = weightLogs[0]?.weightKg ?? null
+  const weightEnd = weightLogs.at(-1)?.weightKg ?? null
+
+  return {
+    daysCount: logs.length,
+    weightStart,
+    weightEnd,
+    weightDelta:
+      weightLogs.length >= 2 && typeof weightStart === 'number' && typeof weightEnd === 'number'
+        ? roundNumber(weightEnd - weightStart)
+        : null,
+    averageWaterLiters: average(logs.map((log) => log.waterLiters)),
+    averageSteps: average(logs.map((log) => log.steps)),
+    movementDays: logs.filter(
+      (log) => log.movementType && !['Не выбрано', 'Без тренировки'].includes(log.movementType),
+    ).length,
+    workoutDays: logs.filter((log) => log.workoutDone).length,
+    nutritionFlagsCount: countNutritionFlags(logs),
+  }
+}
+
+function buildProgressContext() {
+  const progress = useProgressStore.getState()
+
+  return {
+    level: progress.level,
+    totalXp: progress.totalXp,
+    dailySummary: progress.dailySummary,
+    sectors: progress.sectors.map((sector) => ({
+      key: sector.key,
+      label: sector.label,
+      level: sector.level,
+      percent: sector.percent,
+      xp: sector.xp,
+    })),
+    xp: {
+      actionXp: progress.actionXp,
+      consistencyXp: progress.consistencyXp,
+      recoveryXp: progress.recoveryXp,
+    },
+    achievements: progress.achievements.slice(0, 5),
+  }
+}
+
 export function buildDailyContext() {
   const today = useTodayStore.getState()
   const quests = useQuestStore.getState()
@@ -76,22 +213,40 @@ export function buildBodyContext() {
 
   return {
     today: body.today,
-    lastSevenDailyLogs: sortLogsByDateDesc(body.dailyLogs).slice(0, DAILY_LOG_LIMIT),
+    lastSevenDailyLogs: getLastSevenBodyLogs().map(compactDailyBodyLog),
     weightHistory: body.history.slice(-10),
   }
 }
 
 export function buildMoneyContext() {
   const money = useMoneyStore.getState()
+  const month = new Date().toISOString().slice(0, 7)
+  const debtSummary = getDebtSummary(money.debts)
+  const monthlyPlan = getMonthlyPlan(money.monthlyPlans, month)
+  const projection = getMonthlyPlanProjection(money, month)
 
   return {
-    snapshot: money.snapshot,
-    dailyMoneyActions: money.dailyMoneyQuests.slice(0, 6).map((action) => ({
+    snapshot: {
+      balance: getTotalBalance(money.accounts, money.transactions),
+      weeklyDelta: getWeeklyDelta(money.transactions),
+      debt: debtSummary.remainingDebt,
+      debtGoal: debtSummary.activeDebts.reduce((sum, debt) => sum + debt.originalAmount, 0),
+      calmNote: getMoneyCalmNote(money, month),
+      history: [],
+    },
+    accounts: money.accounts
+      .filter((account) => !account.isArchived)
+      .map((account) => ({
+        id: account.id,
+        name: account.name,
+        type: account.type,
+      })),
+    monthlyPlan,
+    projection,
+    suggestedActions: getSuggestedMoneyActions(money).map((action) => ({
       id: action.id,
-      label: action.label,
-      minutes: action.minutes,
-      completed: action.completed,
-      rewardXp: action.rewardXp,
+      title: action.title,
+      description: action.description,
     })),
   }
 }
@@ -114,25 +269,52 @@ export function buildRescueContext() {
 }
 
 export function buildWeeklyReviewContext() {
-  const progress = useProgressStore.getState()
+  const body = useBodyStore.getState()
+  const today = useTodayStore.getState()
+  const quests = useQuestStore.getState()
+  const companion = useCompanionStore.getState()
+  const settings = useSettingsStore.getState()
+  const weeklyBodyLogs = sortLogsByDateAsc(getLastSevenBodyLogs())
+  const allQuests = [...quests.active, ...quests.inbox, ...quests.parked]
+  const completedQuests = allQuests.filter((quest) => quest.status === 'complete')
 
   return {
-    level: progress.level,
-    totalXp: progress.totalXp,
-    dailySummary: progress.dailySummary,
-    sectors: progress.sectors.map((sector) => ({
-      key: sector.key,
-      label: sector.label,
-      level: sector.level,
-      percent: sector.percent,
-      xp: sector.xp,
-    })),
-    xp: {
-      actionXp: progress.actionXp,
-      consistencyXp: progress.consistencyXp,
-      recoveryXp: progress.recoveryXp,
+    period: {
+      days: DAILY_LOG_LIMIT,
+      daysCount: weeklyBodyLogs.length,
+      dataQualityNote:
+        weeklyBodyLogs.length < 3
+          ? 'данных пока мало; выводы должны быть осторожными'
+          : 'данных достаточно для мягкого недельного разбора',
     },
-    achievements: progress.achievements.slice(0, 5),
+    settings: {
+      userName: settings.userName,
+      userRole: settings.userRole,
+      preferredTone: settings.preferredTone,
+    },
+    body: {
+      currentSnapshot: body.today,
+      dailyLogs: weeklyBodyLogs.map(compactDailyBodyLog),
+      weightHistory: body.history.slice(-10),
+      summary: buildBodyWeeklySummary(weeklyBodyLogs),
+    },
+    progress: buildProgressContext(),
+    today: {
+      mode: today.currentMode,
+      route: compactRoute(today.route),
+    },
+    quests: {
+      active: compactQuestList(quests.active.filter((quest) => quest.status !== 'complete'), 4),
+      completed: compactQuestList(completedQuests, 4),
+      inbox: compactQuestList(quests.inbox, 3),
+    },
+    rescue: buildRescueContext(),
+    companion: {
+      mood: companion.mood,
+      activeMessage: companion.activeMessage,
+      evolutionLevel: companion.evolutionLevel,
+      stabilityScore: companion.stabilityScore,
+    },
   }
 }
 
@@ -147,7 +329,7 @@ export function buildFullLifeQuestContext() {
       preferredTone: settings.preferredTone,
     },
     today: buildDailyContext(),
-    progress: buildWeeklyReviewContext(),
+    progress: buildProgressContext(),
     body: buildBodyContext(),
     money: buildMoneyContext(),
     rescue: buildRescueContext(),

@@ -1,4 +1,4 @@
-import { buildFullLifeQuestContext } from '@/services/contextBuilder'
+import { buildFullLifeQuestContext, buildWeeklyReviewContext } from '@/services/contextBuilder'
 import type { PreferredTone, PromptCard } from '@/shared/types'
 
 export type PromptType =
@@ -25,10 +25,12 @@ function mapPromptType(card: PromptCard): PromptType {
       return 'rescue'
     case 'money':
       return 'money_review'
+    case 'weekly-review':
+      return 'weekly_review'
     case 'relationships':
       return 'life_unpack'
     case 'unpack-life':
-      return 'weekly_review'
+      return 'life_unpack'
     case 'body-weight-loss':
       return 'body_weight_loss'
     default:
@@ -76,9 +78,15 @@ function getTaskInstruction(promptType: PromptType) {
       ]
     case 'weekly_review':
       return [
-        'Сделай короткий обзор недели по LifeQuest.',
-        'Покажи, где система держится, где есть риск, и какой следующий шаг самый полезный.',
-        'Не делай длинную аналитику.',
+        'Сделай короткий недельный разбор LifeQuest за последние 7 дней.',
+        'Кратко оцени неделю без стыда, давления и драматизации.',
+        'Найди 2-3 закономерности по данным, если данных достаточно.',
+        'Отдельно разбери тело/похудение, фокус/продуктивность и восстановление/энергию.',
+        'Найди один главный риск следующей недели.',
+        'Дай один главный шаг на следующую неделю.',
+        'Дай одну быструю победу на завтра.',
+        'Дай запасной план на плохой день.',
+        'Если данных мало, честно скажи об этом и предложи улучшить сбор данных.',
       ]
     case 'money_review':
       return [
@@ -119,13 +127,14 @@ function getJsonContract() {
 }`
 }
 
-function serializeContext(context: ReturnType<typeof buildFullLifeQuestContext>) {
+function serializeContext(context: unknown) {
   return JSON.stringify(context, null, 2)
 }
 
 export function buildPrompt(card: PromptCard, options: PromptBuildOptions) {
   const promptType = mapPromptType(card)
-  const context = buildFullLifeQuestContext()
+  const fullContext = buildFullLifeQuestContext()
+  const context = promptType === 'weekly_review' ? buildWeeklyReviewContext() : fullContext
 
   return [
     'Роль:',
@@ -145,7 +154,7 @@ export function buildPrompt(card: PromptCard, options: PromptBuildOptions) {
     ...getTaskInstruction(promptType).map((line) => `- ${line}`),
     '',
     'Ограничения:',
-    `- Тон: ${getToneInstruction(context.settings.preferredTone)}`,
+    `- Тон: ${getToneInstruction(fullContext.settings.preferredTone)}`,
     '- Без стыда.',
     '- Без токсичной мотивации.',
     '- Не давать огромный план.',
@@ -153,6 +162,8 @@ export function buildPrompt(card: PromptCard, options: PromptBuildOptions) {
     '- Дать быструю победу.',
     '- Дать запасной план.',
     '- Если данных мало, не выдумывать факты.',
+    '- Для недельного разбора не превращать ответ в отчёт с графиками или фитнес-трекер.',
+    '- Рекомендации должны быть маленькими и реалистичными.',
     '- Лучше указать мягкую рекомендацию, чем уверенно додумывать.',
     '',
     'Формат ответа:',

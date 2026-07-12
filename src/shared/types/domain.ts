@@ -194,6 +194,102 @@ export interface MoneyAction {
   rewardXp: number
 }
 
+export type MoneyAccountType = 'cash' | 'debit_card' | 'savings' | 'other'
+export type MoneyTransactionType = 'income' | 'expense' | 'adjustment'
+export type MoneyAdjustmentDirection = 'increase' | 'decrease'
+export type MoneyExpenseCategory =
+  | 'food'
+  | 'transport'
+  | 'housing'
+  | 'health'
+  | 'education'
+  | 'subscriptions'
+  | 'entertainment'
+  | 'debt_payment'
+  | 'savings'
+  | 'other'
+export type MoneyIncomeCategory =
+  | 'salary'
+  | 'scholarship'
+  | 'gift'
+  | 'refund'
+  | 'freelance'
+  | 'other_income'
+export type MoneyCategory = MoneyExpenseCategory | MoneyIncomeCategory
+export type PlannedPaymentType = 'expense' | 'income'
+export type PlannedPaymentStatus = 'planned' | 'completed' | 'skipped'
+export type DebtStatus = 'active' | 'closed'
+
+export interface MoneyAccount extends UserScopedEntity {
+  id: string
+  name: string
+  type: MoneyAccountType
+  openingBalance: number
+  createdAt: string
+  updatedAt: string
+  isArchived: boolean
+}
+
+export interface MoneyTransaction extends UserScopedEntity {
+  id: string
+  accountId: string
+  type: MoneyTransactionType
+  amount: number
+  category: MoneyCategory
+  title: string
+  transactionDate: string
+  note?: string
+  createdAt: string
+  updatedAt: string
+  plannedPaymentId?: string
+  debtId?: string
+  adjustmentDirection?: MoneyAdjustmentDirection
+  idempotencyKey?: string
+}
+
+export interface PlannedPayment extends UserScopedEntity {
+  id: string
+  title: string
+  amount: number
+  type: PlannedPaymentType
+  category: MoneyCategory
+  accountId?: string
+  dueDate: string
+  note?: string
+  isMandatory: boolean
+  status: PlannedPaymentStatus
+  completedTransactionId?: string
+  repeatMonthly?: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Debt extends UserScopedEntity {
+  id: string
+  title: string
+  originalAmount: number
+  remainingAmount: number
+  minimumPayment?: number
+  nextPaymentDate?: string
+  note?: string
+  status: DebtStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MonthlyMoneyPlan extends UserScopedEntity {
+  id: string
+  month: string
+  expectedIncome: number
+  mandatoryExpenses: number
+  debtPaymentTarget: number
+  savingsTarget: number
+  flexibleSpendingLimit: number
+  note?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface RescueProblem {
   id: string
   label: string
@@ -266,6 +362,18 @@ export interface LifeQuestPromptResponse {
   risk: string
   coreMessage: string
   suggestedActions: LifeQuestSuggestedAction[]
+}
+
+export interface WeeklyReviewSummary extends UserScopedEntity {
+  id: string
+  createdAt: string
+  periodStart: string
+  periodEnd: string
+  coreMessage: string
+  bodyFocus: string
+  risk: string
+  suggestedActions: LifeQuestSuggestedAction[]
+  source: 'weekly_review'
 }
 
 export interface CompanionProfile extends UserScopedEntity {
