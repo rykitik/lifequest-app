@@ -305,7 +305,7 @@ function getContextPreviewRows() {
     },
     {
       label: 'Деньги',
-      value: `Баланс ${context.money.snapshot.balance}, долг ${context.money.snapshot.debt}`,
+      value: `Баланс ${context.money.totalBalance}, долг ${context.money.debtsTotal}`,
     },
   ]
 }

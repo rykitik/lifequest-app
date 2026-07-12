@@ -446,6 +446,78 @@ describe('useMoneyStore', () => {
   it('форматирование невалидной даты не вызывает crash', async () => {
     const { formatDateSafe } = await importMoneyLib()
 
+    expect(formatDateSafe('2026-07-12T19:52:00.000Z')).toContain('2026')
     expect(formatDateSafe('не дата')).toBe('Дата не указана')
+  })
+
+  it('importPreviewTransactions не создаёт дубли при повторном импорте той же выписки', async () => {
+    const { useMoneyStore } = await importMoneyStore()
+    const { parseSberStatementText } = await import('@/services/moneyImport/sberStatementParser')
+    const sampleText = `
+СберБанк
+Выписка по платёжному счёту
+Карта **** 6128
+За период 01.07.2026 — 12.07.2026
+Остаток на начало периода 10000,00 ₽
+01.07.2026 Продукты Пятерочка -700,00 ₽ 9300,00 ₽
+02.07.2026 Зарплата +2000,00 ₽ 11300,00 ₽
+`
+    const firstPreview = parseSberStatementText(sampleText, useMoneyStore.getState().transactions)
+
+    expect(useMoneyStore.getState().setImportPreview(firstPreview).ok).toBe(true)
+    expect(useMoneyStore.getState().importPreviewTransactions()).toMatchObject({
+      ok: true,
+      imported: 2,
+      duplicates: 0,
+    })
+
+    const secondPreview = parseSberStatementText(sampleText, useMoneyStore.getState().transactions)
+
+    expect(useMoneyStore.getState().setImportPreview(secondPreview).ok).toBe(true)
+    expect(useMoneyStore.getState().importPreviewTransactions()).toMatchObject({
+      ok: true,
+      imported: 0,
+      duplicates: 2,
+    })
+    expect(useMoneyStore.getState().transactions).toHaveLength(2)
+  })
+
+  it('повреждённый importPreview не ломает store', async () => {
+    const { useMoneyStore } = await importMoneyStore()
+
+    useMoneyStore.setState({
+      importPreview: { source: 'sber_text' } as never,
+    })
+
+    const result = useMoneyStore.getState().importPreviewTransactions()
+
+    expect(result.ok).toBe(false)
+    expect(useMoneyStore.getState().importPreview).toBeNull()
+    expect(useMoneyStore.getState().importWarnings[0]).toContain('повреждён')
+  })
+
+  it('старый persisted state без importPreview и import-полей мигрирует спокойно', async () => {
+    vi.resetModules()
+    installStorage()
+    localStorage.setItem(
+      'lifequest-money',
+      JSON.stringify({
+        state: {
+          accounts: [validAccount()],
+          transactions: [validTransaction()],
+          plannedPayments: [],
+          debts: [],
+          monthlyPlans: [],
+        },
+        version: 1,
+      }),
+    )
+
+    const { useMoneyStore } = await import('@/stores/useMoneyStore')
+
+    expect(useMoneyStore.getState().accounts).toHaveLength(1)
+    expect(useMoneyStore.getState().transactions).toHaveLength(1)
+    expect(useMoneyStore.getState().importPreview).toBeNull()
+    expect(useMoneyStore.getState().importWarnings).toEqual([])
   })
 })

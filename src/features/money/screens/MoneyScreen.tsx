@@ -1,12 +1,14 @@
-import { type FormEvent, type ReactNode, useMemo, useState } from 'react'
+import { type ChangeEvent, type FormEvent, type ReactNode, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Check,
   CircleDollarSign,
   Edit3,
+  FileText,
   Plus,
   SlidersHorizontal,
   Trash2,
+  Upload,
   Wallet,
   X,
 } from 'lucide-react'
@@ -22,6 +24,7 @@ import {
   getMonthTotals,
   getSevenDayMoneyBars,
   getSuggestedMoneyActions,
+  getTopExpenseCategories,
   getTotalBalance,
   getWeeklyDelta,
   moneyAccountTypeLabels,
@@ -45,6 +48,10 @@ import type {
   PlannedPayment,
   PlannedPaymentType,
 } from '@/shared/types'
+import {
+  parseSberPdfStatement,
+  parseSberStatementText,
+} from '@/services/moneyImport/sberStatementParser'
 import { useMoneyStore } from '@/stores/useMoneyStore'
 
 type SheetMode =
@@ -958,10 +965,25 @@ function ConfirmForm({ text, onConfirm, onDone }: { text: string; onConfirm: () 
   )
 }
 
+function getImportSourceLabel(source: string) {
+  switch (source) {
+    case 'sber_pdf':
+      return 'PDF Сбера'
+    case 'sber_text':
+      return 'Текст Сбера'
+    default:
+      return 'Неизвестный источник'
+  }
+}
+
 export function MoneyScreen() {
   const state = useMoneyStore()
   const [sheet, setSheet] = useState<SheetState | null>(null)
   const [statusMessage, setStatusMessage] = useState('')
+  const [importText, setImportText] = useState('')
+  const [importTextOpen, setImportTextOpen] = useState(false)
+  const [importStatus, setImportStatus] = useState('')
+  const [isParsingImport, setIsParsingImport] = useState(false)
   const [transactionTypeFilter, setTransactionTypeFilter] = useState<'all' | 'income' | 'expense' | 'adjustment'>('all')
   const [accountFilter, setAccountFilter] = useState('all')
   const activeAccounts = state.accounts.filter((account) => !account.isArchived)
@@ -973,6 +995,7 @@ export function MoneyScreen() {
   const monthPlan = getMonthlyPlan(state.monthlyPlans, currentMonth)
   const projection = getMonthlyPlanProjection(state, currentMonth)
   const monthTotals = getMonthTotals(state.transactions, currentMonth)
+  const topExpenseCategories = getTopExpenseCategories(state.transactions, currentMonth, 3)
   const calmNote = getMoneyCalmNote(state, currentMonth)
   const suggestedActions = getSuggestedMoneyActions(state)
   const recentTransactions = useMemo(() => {
@@ -991,6 +1014,51 @@ export function MoneyScreen() {
     setStatusMessage(message)
     window.setTimeout(() => setStatusMessage(''), 1800)
     setSheet(null)
+  }
+
+  const handleParseTextImport = () => {
+    if (!importText.trim() || isParsingImport) {
+      setImportStatus('Вставь текст выписки.')
+      return
+    }
+
+    setIsParsingImport(true)
+    const preview = parseSberStatementText(importText, state.transactions)
+    const result = state.setImportPreview(preview)
+    setIsParsingImport(false)
+    setImportStatus(result.ok ? 'Предпросмотр готов.' : result.reason ?? 'Не удалось разобрать текст.')
+  }
+
+  const handlePdfImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+
+    if (!file || isParsingImport) {
+      return
+    }
+
+    setIsParsingImport(true)
+    const preview = await parseSberPdfStatement(file, state.transactions)
+    const result = state.setImportPreview(preview)
+    setIsParsingImport(false)
+    setImportStatus(result.ok ? 'Предпросмотр готов.' : result.reason ?? 'Не удалось разобрать файл.')
+    event.target.value = ''
+  }
+
+  const handleImportPreview = () => {
+    const result = state.importPreviewTransactions()
+
+    showStatus(result.reason ?? 'Импорт завершён')
+    setImportStatus(
+      result.ok
+        ? `Новые операции: ${result.imported ?? 0}. Дубли: ${result.duplicates ?? 0}.`
+        : result.reason ?? 'Импорт не выполнен.',
+    )
+  }
+
+  const handleClearImport = () => {
+    state.clearImportPreview()
+    setImportText('')
+    setImportStatus('')
   }
 
   const openSuggestedAction = (action: ReturnType<typeof getSuggestedMoneyActions>[number]) => {
@@ -1102,6 +1170,134 @@ export function MoneyScreen() {
         <div className="mt-4">
           <SevenDayBars values={sevenDayBars} />
         </div>
+      </GlassCard>
+
+      <GlassCard className="mb-5">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan/80">Обновить деньги</p>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Загрузи выписку из банка. LifeQuest разберёт операции локально и покажет предпросмотр.
+            </p>
+            {state.lastImportAt ? (
+              <p className="mt-2 text-xs text-cyan">Последний импорт: {formatDateSafe(state.lastImportAt)}</p>
+            ) : null}
+          </div>
+          <Upload className="mt-1 h-5 w-5 shrink-0 text-cyan" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <label className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-medium text-text transition hover:border-cyan/30 hover:bg-white/10">
+            <Upload className="h-4 w-4" />
+            Загрузить PDF
+            <input
+              className="sr-only"
+              accept="application/pdf,text/plain"
+              type="file"
+              onChange={handlePdfImport}
+            />
+          </label>
+          <PrimaryButton
+            tone="secondary"
+            icon={<FileText className="h-4 w-4" />}
+            onClick={() => setImportTextOpen((value) => !value)}
+          >
+            Вставить текст
+          </PrimaryButton>
+        </div>
+
+        {importTextOpen ? (
+          <div className="mt-4 space-y-3">
+            <label className={labelClass} htmlFor="sber-import-text">
+              Текст выписки
+            </label>
+            <textarea
+              className={cn(inputClass, 'min-h-36 py-3')}
+              id="sber-import-text"
+              placeholder="Вставь текст выписки Сбера без персональных данных, если хочешь сначала проверить формат."
+              value={importText}
+              onChange={(event) => setImportText(event.target.value)}
+            />
+            <PrimaryButton fullWidth disabled={isParsingImport} onClick={handleParseTextImport}>
+              Разобрать текст
+            </PrimaryButton>
+          </div>
+        ) : null}
+
+        {importStatus ? (
+          <p className="mt-3 rounded-2xl border border-cyan/15 bg-cyan/5 px-3 py-2 text-sm text-cyan">
+            {importStatus}
+          </p>
+        ) : null}
+
+        {state.importWarnings.length ? (
+          <div className="mt-3 space-y-2">
+            {state.importWarnings.map((warning) => (
+              <p key={warning} className="rounded-2xl border border-warning/20 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">
+                {warning}
+              </p>
+            ))}
+          </div>
+        ) : null}
+
+        {state.importPreview ? (
+          <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted">Предпросмотр</p>
+                <p className="mt-2 font-display text-lg font-semibold text-white">
+                  {getImportSourceLabel(state.importPreview.source)}
+                </p>
+                <p className="mt-1 text-sm text-muted">
+                  {state.importPreview.periodStart && state.importPreview.periodEnd
+                    ? `${formatDateSafe(state.importPreview.periodStart)} - ${formatDateSafe(state.importPreview.periodEnd)}`
+                    : 'Период не распознан'}
+                </p>
+              </div>
+              <StatusPill tone={state.importPreview.totals.newTransactions > 0 ? 'good' : 'default'}>
+                Новые: {state.importPreview.totals.newTransactions}
+              </StatusPill>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <StatusPill>Счета: {state.importPreview.accounts.length}</StatusPill>
+              <StatusPill>Операции: {state.importPreview.transactions.length}</StatusPill>
+              <StatusPill>Дубли: {state.importPreview.totals.duplicates}</StatusPill>
+              <StatusPill>Переводы: {formatCurrency(state.importPreview.totals.transfer)}</StatusPill>
+              <StatusPill tone="good">Доходы: {formatCurrency(state.importPreview.totals.income)}</StatusPill>
+              <StatusPill tone="warn">Расходы: {formatCurrency(state.importPreview.totals.expense)}</StatusPill>
+            </div>
+            <div className="mt-4 space-y-2">
+              {state.importPreview.transactions.slice(0, 6).map((transaction) => (
+                <div key={transaction.importHash ?? transaction.id} className="rounded-2xl border border-white/10 bg-black/15 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium text-white">{transaction.rawDescription ?? transaction.title}</p>
+                      <p className="mt-1 text-xs text-muted">
+                        {formatDateSafe(transaction.transactionDate)} · {moneyCategoryLabels[transaction.category]}
+                      </p>
+                    </div>
+                    <span className={cn('shrink-0 text-sm font-semibold', transaction.type === 'income' ? 'text-success' : 'text-white')}>
+                      {transaction.type === 'income' ? '+' : '-'}
+                      {formatCurrency(transaction.amount)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <PrimaryButton
+                fullWidth
+                disabled={state.importPreview.totals.newTransactions === 0}
+                onClick={handleImportPreview}
+              >
+                Импортировать новые
+              </PrimaryButton>
+              <PrimaryButton fullWidth tone="ghost" onClick={handleClearImport}>
+                Очистить
+              </PrimaryButton>
+            </div>
+          </div>
+        ) : null}
       </GlassCard>
 
       <GlassCard className="mb-5">
@@ -1397,6 +1593,11 @@ export function MoneyScreen() {
             <p className="mt-1 text-sm text-muted">
               Месяц: доходы {formatCurrency(monthTotals.income)}, расходы {formatCurrency(monthTotals.expense)}
             </p>
+            {topExpenseCategories.length ? (
+              <p className="mt-1 text-xs text-muted">
+                Топ расходов: {topExpenseCategories.map((item) => item.label).join(', ')}
+              </p>
+            ) : null}
           </div>
           <CircleDollarSign className="h-5 w-5 text-cyan" />
         </div>

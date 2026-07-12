@@ -3,12 +3,14 @@ import type {
   Debt,
   DebtStatus,
   MoneyAccount,
+  MoneyAccountSource,
   MoneyAccountType,
   MoneyAdjustmentDirection,
   MoneyCategory,
   MoneyExpenseCategory,
   MoneyIncomeCategory,
   MoneyTransaction,
+  MoneyTransactionSource,
   MoneyTransactionType,
   MonthlyMoneyPlan,
   PlannedPayment,
@@ -18,6 +20,24 @@ import type {
 
 export const MONEY_STORAGE_KEY = 'lifequest-money'
 export const MONEY_STORAGE_VERSION = 1
+
+export type MoneyImportSource = 'sber_pdf' | 'sber_text' | 'unknown'
+
+export interface MoneyImportPreview {
+  source: MoneyImportSource
+  periodStart?: string
+  periodEnd?: string
+  accounts: MoneyAccount[]
+  transactions: MoneyTransaction[]
+  totals: {
+    income: number
+    expense: number
+    transfer: number
+    newTransactions: number
+    duplicates: number
+  }
+  warnings: string[]
+}
 
 export const moneyAccountTypeLabels: Record<MoneyAccountType, string> = {
   cash: 'Наличные',
@@ -65,6 +85,8 @@ export interface MoneyPersistedState {
   debts: Debt[]
   monthlyPlans: MonthlyMoneyPlan[]
   lastBalanceCheckAt?: string
+  importWarnings?: string[]
+  lastImportAt?: string
 }
 
 export type MoneyStateSnapshot = MoneyPersistedState
@@ -95,6 +117,8 @@ export function createEmptyMoneyState(): MoneyPersistedState {
     debts: [],
     monthlyPlans: [],
     lastBalanceCheckAt: undefined,
+    importWarnings: [],
+    lastImportAt: undefined,
   }
 }
 
@@ -157,7 +181,13 @@ export function addMonthsToDateKey(dateKey: string, months: number) {
 }
 
 export function formatDateSafe(dateKey?: string) {
-  if (!dateKey || !isValidDateKey(dateKey)) {
+  if (!dateKey) {
+    return 'Дата не указана'
+  }
+
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? new Date(`${dateKey}T12:00:00`) : new Date(dateKey)
+
+  if (!Number.isFinite(date.getTime())) {
     return 'Дата не указана'
   }
 
@@ -165,7 +195,7 @@ export function formatDateSafe(dateKey?: string) {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  }).format(new Date(`${dateKey}T12:00:00`))
+  }).format(date)
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -184,6 +214,20 @@ function readOptionalString(value: unknown) {
 
 function enumValue<T extends string>(value: unknown, values: readonly T[], fallback: T) {
   return values.includes(value as T) ? (value as T) : fallback
+}
+
+function readOptionalPositiveNumber(value: unknown) {
+  if (value === undefined) {
+    return undefined
+  }
+
+  return normalizeAmount(value) ?? undefined
+}
+
+function readLast4(value: unknown) {
+  const text = readString(value).replace(/\D/g, '')
+
+  return text.length === 4 ? text : undefined
 }
 
 function sanitizeAccount(value: unknown): MoneyAccount | null {
@@ -209,6 +253,10 @@ function sanitizeAccount(value: unknown): MoneyAccount | null {
     createdAt,
     updatedAt,
     isArchived: value.isArchived === true,
+    source: enumValue<MoneyAccountSource>(value.source, ['manual', 'sber', 'unknown'], 'manual'),
+    last4: readLast4(value.last4),
+    creditLimit: readOptionalPositiveNumber(value.creditLimit),
+    debt: readOptionalPositiveNumber(value.debt),
   }
 }
 
@@ -270,6 +318,15 @@ function sanitizeTransaction(value: unknown, accountIds: Set<string>): MoneyTran
           )
         : undefined,
     idempotencyKey: readOptionalString(value.idempotencyKey),
+    source: enumValue<MoneyTransactionSource>(
+      value.source,
+      ['manual', 'sber_pdf', 'sber_text', 'unknown'],
+      'manual',
+    ),
+    importHash: readOptionalString(value.importHash),
+    externalId: readOptionalString(value.externalId),
+    accountLast4: readLast4(value.accountLast4),
+    rawDescription: readOptionalString(value.rawDescription),
   }
 }
 
@@ -458,6 +515,7 @@ export function sanitizeMoneyPersistedState(value: unknown): MoneyPersistedState
   }
 
   const lastBalanceCheckAt = readOptionalString(value.lastBalanceCheckAt)
+  const lastImportAt = readOptionalString(value.lastImportAt)
 
   return {
     accounts,
@@ -467,6 +525,13 @@ export function sanitizeMoneyPersistedState(value: unknown): MoneyPersistedState
     monthlyPlans: Array.from(plansByMonth.values()),
     lastBalanceCheckAt:
       lastBalanceCheckAt && isValidDateKey(lastBalanceCheckAt) ? lastBalanceCheckAt : undefined,
+    importWarnings: Array.isArray(value.importWarnings)
+      ? value.importWarnings
+          .map((warning) => readString(warning))
+          .filter(Boolean)
+          .slice(0, 12)
+      : [],
+    lastImportAt: lastImportAt && isValidDateKey(lastImportAt) ? lastImportAt : undefined,
   }
 }
 
@@ -572,6 +637,56 @@ export function getMonthTotals(transactions: MoneyTransaction[], month = getMont
     },
     { income: 0, expense: 0 },
   )
+}
+
+export function getTopExpenseCategories(transactions: MoneyTransaction[], month = getMonthKey(), limit = 5) {
+  const totals = new Map<MoneyExpenseCategory, number>()
+
+  transactions.forEach((transaction) => {
+    if (
+      transaction.type !== 'expense' ||
+      !transaction.transactionDate.startsWith(month) ||
+      transaction.category === 'debt_payment'
+    ) {
+      return
+    }
+
+    const category = enumValue<MoneyExpenseCategory>(
+      transaction.category,
+      moneyExpenseCategories,
+      'other',
+    )
+
+    totals.set(category, (totals.get(category) ?? 0) + transaction.amount)
+  })
+
+  return Array.from(totals.entries())
+    .map(([category, amount]) => ({
+      category,
+      label: moneyExpenseCategoryLabels[category],
+      amount: Number(amount.toFixed(2)),
+    }))
+    .sort((left, right) => right.amount - left.amount)
+    .slice(0, limit)
+}
+
+export function isDuplicateImportTransaction(
+  transaction: MoneyTransaction,
+  existingTransactions: MoneyTransaction[],
+) {
+  return Boolean(
+    transaction.importHash &&
+      existingTransactions.some((existing) => existing.importHash === transaction.importHash),
+  )
+}
+
+export function countImportDuplicates(
+  transactions: MoneyTransaction[],
+  existingTransactions: MoneyTransaction[],
+) {
+  return transactions.filter((transaction) =>
+    isDuplicateImportTransaction(transaction, existingTransactions),
+  ).length
 }
 
 export function getDebtProgress(debt: Debt) {

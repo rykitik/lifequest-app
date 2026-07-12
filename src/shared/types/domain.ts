@@ -197,6 +197,8 @@ export interface MoneyAction {
 export type MoneyAccountType = 'cash' | 'debit_card' | 'savings' | 'other'
 export type MoneyTransactionType = 'income' | 'expense' | 'adjustment'
 export type MoneyAdjustmentDirection = 'increase' | 'decrease'
+export type MoneyTransactionSource = 'manual' | 'sber_pdf' | 'sber_text' | 'unknown'
+export type MoneyAccountSource = 'manual' | 'sber' | 'unknown'
 export type MoneyExpenseCategory =
   | 'food'
   | 'transport'
@@ -228,6 +230,10 @@ export interface MoneyAccount extends UserScopedEntity {
   createdAt: string
   updatedAt: string
   isArchived: boolean
+  source?: MoneyAccountSource
+  last4?: string
+  creditLimit?: number
+  debt?: number
 }
 
 export interface MoneyTransaction extends UserScopedEntity {
@@ -245,6 +251,11 @@ export interface MoneyTransaction extends UserScopedEntity {
   debtId?: string
   adjustmentDirection?: MoneyAdjustmentDirection
   idempotencyKey?: string
+  source?: MoneyTransactionSource
+  importHash?: string
+  externalId?: string
+  accountLast4?: string
+  rawDescription?: string
 }
 
 export interface PlannedPayment extends UserScopedEntity {

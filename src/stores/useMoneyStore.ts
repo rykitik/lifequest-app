@@ -5,9 +5,11 @@ import {
   createEmptyMoneyState,
   createId,
   getAccountBalance,
+  isDuplicateImportTransaction,
   migrateMoneyState,
   MONEY_STORAGE_KEY,
   MONEY_STORAGE_VERSION,
+  type MoneyImportPreview,
   moneyCategoryLabels,
   normalizeAmount,
   normalizeMoneyValue,
@@ -102,6 +104,9 @@ interface MoneyState {
   debts: Debt[]
   monthlyPlans: MonthlyMoneyPlan[]
   lastBalanceCheckAt?: string
+  importPreview: MoneyImportPreview | null
+  importWarnings: string[]
+  lastImportAt?: string
   addAccount: (input: AccountInput) => ActionResult
   updateAccount: (id: string, input: Partial<AccountInput>) => ActionResult
   archiveAccount: (id: string) => ActionResult
@@ -121,6 +126,9 @@ interface MoneyState {
   setMonthlyPlan: (input: MonthlyPlanInput) => ActionResult
   updateMonthlyPlan: (month: string, input: Partial<MonthlyPlanInput>) => ActionResult
   deleteMonthlyPlan: (month: string) => ActionResult
+  setImportPreview: (preview: MoneyImportPreview | null) => ActionResult
+  clearImportPreview: () => void
+  importPreviewTransactions: () => ActionResult & { imported?: number; duplicates?: number }
   markBalanceChecked: () => void
   resetMoneyState: () => void
   resetDemoData: () => void
@@ -128,7 +136,14 @@ interface MoneyState {
 
 type MoneyPersistedStoreState = Pick<
   MoneyState,
-  'accounts' | 'transactions' | 'plannedPayments' | 'debts' | 'monthlyPlans' | 'lastBalanceCheckAt'
+  | 'accounts'
+  | 'transactions'
+  | 'plannedPayments'
+  | 'debts'
+  | 'monthlyPlans'
+  | 'lastBalanceCheckAt'
+  | 'importWarnings'
+  | 'lastImportAt'
 >
 
 function nowIso() {
@@ -208,10 +223,59 @@ function createPlannedPaymentTransaction(
   }
 }
 
+function isSafeImportPreview(value: MoneyImportPreview | null): value is MoneyImportPreview {
+  return Boolean(
+    value &&
+      Array.isArray(value.accounts) &&
+      Array.isArray(value.transactions) &&
+      value.totals &&
+      Array.isArray(value.warnings),
+  )
+}
+
+function findImportAccount(
+  accounts: MoneyAccount[],
+  importAccount: MoneyAccount | undefined,
+  transaction: MoneyTransaction,
+) {
+  const last4 = transaction.accountLast4 ?? importAccount?.last4
+
+  if (last4) {
+    const byLast4 = accounts.find((account) => !account.isArchived && account.last4 === last4)
+
+    if (byLast4) {
+      return byLast4
+    }
+  }
+
+  return accounts.find((account) => account.id === transaction.accountId)
+}
+
+function createAccountFromImport(account: MoneyAccount | undefined, transaction: MoneyTransaction) {
+  const now = nowIso()
+  const last4 = transaction.accountLast4 ?? account?.last4
+
+  return {
+    id: account?.id ?? createId('account'),
+    name: account?.name ?? (last4 ? `Сбер • ${last4}` : 'Сбер'),
+    type: account?.type ?? 'debit_card',
+    openingBalance: account?.openingBalance ?? 0,
+    createdAt: account?.createdAt ?? now,
+    updatedAt: now,
+    isArchived: false,
+    source: account?.source ?? 'sber',
+    last4,
+    creditLimit: account?.creditLimit,
+    debt: account?.debt,
+  } satisfies MoneyAccount
+}
+
 export const useMoneyStore = create<MoneyState>()(
   persist(
     (set, get): MoneyState => ({
       ...createEmptyMoneyState(),
+      importPreview: null,
+      importWarnings: [],
       addAccount: (input) => {
         const name = input.name.trim()
         const openingBalance = normalizeMoneyValue(input.openingBalance)
@@ -901,6 +965,98 @@ export const useMoneyStore = create<MoneyState>()(
 
         return deleted ? { ok: true } : { ok: false, reason: 'План месяца не найден.' }
       },
+      setImportPreview: (preview) => {
+        if (preview !== null && !isSafeImportPreview(preview)) {
+          return { ok: false, reason: 'Предпросмотр импорта повреждён.' }
+        }
+
+        set({
+          importPreview: preview,
+          importWarnings: preview?.warnings.slice(0, 12) ?? [],
+        })
+
+        return { ok: true }
+      },
+      clearImportPreview: () =>
+        set({
+          importPreview: null,
+          importWarnings: [],
+        }),
+      importPreviewTransactions: () => {
+        let result: ActionResult & { imported?: number; duplicates?: number } = {
+          ok: false,
+          reason: 'Нет подготовленного импорта.',
+        }
+
+        set((state) => {
+          const preview = state.importPreview
+
+          if (!isSafeImportPreview(preview)) {
+            result = { ok: false, reason: 'Предпросмотр импорта повреждён.' }
+            return {
+              importPreview: null,
+              importWarnings: ['Предпросмотр импорта повреждён. Разбери выписку ещё раз.'],
+            }
+          }
+
+          const now = nowIso()
+          const accounts = [...state.accounts]
+          const importedTransactions: MoneyTransaction[] = []
+          let duplicates = 0
+          const accountByPreviewId = new Map(preview.accounts.map((account) => [account.id, account]))
+
+          preview.transactions.forEach((transaction) => {
+            if (!transaction.importHash) {
+              duplicates += 1
+              return
+            }
+
+            if (
+              isDuplicateImportTransaction(transaction, state.transactions) ||
+              importedTransactions.some((item) => item.importHash === transaction.importHash)
+            ) {
+              duplicates += 1
+              return
+            }
+
+            const importAccount = accountByPreviewId.get(transaction.accountId)
+            const existingAccount = findImportAccount(accounts, importAccount, transaction)
+            const account = existingAccount ?? createAccountFromImport(importAccount, transaction)
+
+            if (!existingAccount) {
+              accounts.unshift(account)
+            }
+
+            importedTransactions.push({
+              ...transaction,
+              id: createId('tx'),
+              accountId: account.id,
+              createdAt: now,
+              updatedAt: now,
+              source: transaction.source ?? preview.source,
+            })
+          })
+
+          result = {
+            ok: true,
+            imported: importedTransactions.length,
+            duplicates,
+            reason: importedTransactions.length
+              ? `Импортировано операций: ${importedTransactions.length}.`
+              : 'Новых операций не найдено.',
+          }
+
+          return {
+            accounts,
+            transactions: [...importedTransactions, ...state.transactions],
+            importPreview: null,
+            importWarnings: preview.warnings.slice(0, 12),
+            lastImportAt: now,
+          }
+        })
+
+        return result
+      },
       markBalanceChecked: () =>
         set({
           lastBalanceCheckAt: nowIso(),
@@ -908,10 +1064,12 @@ export const useMoneyStore = create<MoneyState>()(
       resetMoneyState: () =>
         set({
           ...createEmptyMoneyState(),
+          importPreview: null,
         }),
       resetDemoData: () =>
         set({
           ...createEmptyMoneyState(),
+          importPreview: null,
         }),
     }),
     {
@@ -922,6 +1080,7 @@ export const useMoneyStore = create<MoneyState>()(
       merge: (persistedState, currentState) => ({
         ...currentState,
         ...sanitizeMoneyPersistedState(persistedState),
+        importPreview: null,
       }),
       partialize: (state): MoneyPersistedStoreState => ({
         accounts: state.accounts,
@@ -930,6 +1089,8 @@ export const useMoneyStore = create<MoneyState>()(
         debts: state.debts,
         monthlyPlans: state.monthlyPlans,
         lastBalanceCheckAt: state.lastBalanceCheckAt,
+        importWarnings: state.importWarnings,
+        lastImportAt: state.lastImportAt,
       }),
     },
   ),

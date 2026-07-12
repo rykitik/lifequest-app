@@ -9,12 +9,13 @@ import { useTodayStore } from '@/stores/useTodayStore'
 import type { BodyDailyLog, BodyNutritionStatus, QuestItem, TodayRoute } from '@/shared/types'
 import {
   getDebtSummary,
-  getMoneyCalmNote,
+  getMonthKey,
   getMonthlyPlan,
   getMonthlyPlanProjection,
-  getSuggestedMoneyActions,
+  getMonthTotals,
+  getPlannedPaymentTotals,
+  getTopExpenseCategories,
   getTotalBalance,
-  getWeeklyDelta,
 } from '@/features/money/lib/money'
 
 const QUEST_LIMIT = 5
@@ -220,34 +221,38 @@ export function buildBodyContext() {
 
 export function buildMoneyContext() {
   const money = useMoneyStore.getState()
-  const month = new Date().toISOString().slice(0, 7)
+  const month = getMonthKey()
   const debtSummary = getDebtSummary(money.debts)
   const monthlyPlan = getMonthlyPlan(money.monthlyPlans, month)
   const projection = getMonthlyPlanProjection(money, month)
+  const monthTotals = getMonthTotals(money.transactions, month)
+  const plannedPaymentTotals = getPlannedPaymentTotals(money.plannedPayments, month)
+  const recentLargeTransactions = money.transactions
+    .filter((transaction) => transaction.type !== 'adjustment')
+    .sort((left, right) => right.amount - left.amount)
+    .slice(0, 5)
+    .map((transaction) => ({
+      date: transaction.transactionDate,
+      type: transaction.type,
+      amount: transaction.amount,
+      category: transaction.category,
+      title: transaction.title,
+    }))
 
   return {
-    snapshot: {
-      balance: getTotalBalance(money.accounts, money.transactions),
-      weeklyDelta: getWeeklyDelta(money.transactions),
-      debt: debtSummary.remainingDebt,
-      debtGoal: debtSummary.activeDebts.reduce((sum, debt) => sum + debt.originalAmount, 0),
-      calmNote: getMoneyCalmNote(money, month),
-      history: [],
-    },
-    accounts: money.accounts
-      .filter((account) => !account.isArchived)
-      .map((account) => ({
-        id: account.id,
-        name: account.name,
-        type: account.type,
-      })),
+    totalBalance: getTotalBalance(money.accounts, money.transactions),
+    monthIncome: monthTotals.income,
+    monthExpense: monthTotals.expense,
+    plannedPaymentsTotal: plannedPaymentTotals.expense,
+    debtsTotal: debtSummary.remainingDebt,
+    safeToSpend: projection.safeToSpend,
+    topExpenseCategories: getTopExpenseCategories(money.transactions, month, 5),
+    recentLargeTransactions,
+    lastImportAt: money.lastImportAt,
+    importWarnings: money.importWarnings.slice(0, 5),
+    accountsCount: money.accounts.filter((account) => !account.isArchived).length,
     monthlyPlan,
     projection,
-    suggestedActions: getSuggestedMoneyActions(money).map((action) => ({
-      id: action.id,
-      title: action.title,
-      description: action.description,
-    })),
   }
 }
 
