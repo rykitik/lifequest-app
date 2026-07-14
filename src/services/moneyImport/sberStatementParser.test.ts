@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { parseSberPdfStatement, parseSberStatementText } from '@/services/moneyImport/sberStatementParser'
+import { parseSberStatementText } from '@/services/moneyImport/sberStatementParser'
+import { parseSberPdfStatement } from '@/services/moneyImport/sberPdfStatementParser'
 import debitBasicFixture from '@/services/moneyImport/__fixtures__/sber-debit-basic.txt?raw'
 import creditBasicFixture from '@/services/moneyImport/__fixtures__/sber-credit-basic.txt?raw'
 import transfersHeavyFixture from '@/services/moneyImport/__fixtures__/sber-transfers-heavy.txt?raw'

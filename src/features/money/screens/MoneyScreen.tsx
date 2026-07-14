@@ -48,10 +48,7 @@ import type {
   PlannedPayment,
   PlannedPaymentType,
 } from '@/shared/types'
-import {
-  parseSberPdfStatement,
-  parseSberStatementText,
-} from '@/services/moneyImport/sberStatementParser'
+import { parseSberStatementText } from '@/services/moneyImport/sberStatementParser'
 import { useMoneyStore } from '@/stores/useMoneyStore'
 
 type SheetMode =
@@ -1037,6 +1034,8 @@ export function MoneyScreen() {
     }
 
     setIsParsingImport(true)
+    setImportStatus('Читаю PDF...')
+    const { parseSberPdfStatement } = await import('@/services/moneyImport/sberPdfStatementParser')
     const preview = await parseSberPdfStatement(file, state.transactions)
     const result = state.setImportPreview(preview)
     setIsParsingImport(false)
