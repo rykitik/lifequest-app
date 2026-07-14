@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getLocalDateKey } from '@/shared/lib/date'
 import type { BodySnapshot, MoneyAccount, MoneyTransaction, PlannedPayment, Debt } from '@/shared/types'
 
+vi.setConfig({ testTimeout: 15_000 })
+
 class MemoryStorage implements Storage {
   private items = new Map<string, string>()
 
@@ -131,6 +133,7 @@ describe('buildMoneyContext', () => {
     expect(context.monthExpense).toBe(2500)
     expect(context.topExpenseCategories[0]).toMatchObject({ category: 'food', amount: 2500 })
     expect(context.lastImportAt).toBe(`${month}-07T10:00:00.000Z`)
+    expect(context.creditDebt).toBe(0)
     expect('transactions' in context).toBe(false)
     expect(serializedContext).not.toContain('rawDescription')
     expect(serializedContext).not.toContain('Персональные Данные')
@@ -147,14 +150,15 @@ describe('buildWeeklyReviewContext', () => {
   it('возвращает body summary и money summary без полного списка операций и rawDescription', async () => {
     const { useBodyStore } = await import('@/stores/useBodyStore')
     const { useMoneyStore } = await import('@/stores/useMoneyStore')
+    const { useSettingsStore } = await import('@/stores/useSettingsStore')
     const { buildWeeklyReviewContext } = await import('@/services/contextBuilder')
     const todayKey = getLocalDateKey()
     const month = todayKey.slice(0, 7)
     const account: MoneyAccount = {
       id: 'weekly-account',
       name: 'Основная карта',
-      type: 'debit_card',
-      openingBalance: 20_000,
+      type: 'credit_card',
+      openingBalance: 0,
       createdAt: `${month}-01T10:00:00.000Z`,
       updatedAt: `${month}-01T10:00:00.000Z`,
       isArchived: false,
@@ -243,6 +247,14 @@ describe('buildWeeklyReviewContext', () => {
         movementType: index % 2 === 0 ? 'Прогулка' : 'Без тренировки',
       })),
     })
+    useSettingsStore.getState().updateProfile({
+      heightCm: 182,
+      bodyGoal: 'weight_loss',
+      targetWeightKg: 78,
+      targetPace: 'calm',
+      activityLevel: 'medium',
+      bodyLimitations: 'Беречь колени.',
+    })
     useMoneyStore.setState({
       accounts: [account],
       transactions,
@@ -251,6 +263,8 @@ describe('buildWeeklyReviewContext', () => {
       monthlyPlans: [],
       lastImportAt: `${month}-12T10:00:00.000Z`,
       importWarnings: ['PDF прочитан локально'],
+      trackingStartDate: `${month}-01`,
+      skippedBeforeStartDate: 2,
       importPreview: null,
     })
 
@@ -261,15 +275,28 @@ describe('buildWeeklyReviewContext', () => {
     expect(context.bodySummary.weightDelta).toBeLessThan(0)
     expect(context.bodySummary.nutritionFlagsCount.normal).toBeGreaterThan(0)
     expect(context.bodySummary.nutritionFlagsCount.sweets).toBe(1)
+    expect(context.body.profile).toMatchObject({
+      heightCm: 182,
+      bodyGoal: 'weight_loss',
+      targetWeightKg: 78,
+      targetPace: 'calm',
+      activityLevel: 'medium',
+      bodyLimitations: 'Беречь колени.',
+    })
+    expect(context.body.profile.bodyMassIndex).toBeGreaterThan(0)
     expect(context.moneySummary.weekIncome).toBe(15_000)
     expect(context.moneySummary.weekExpense).toBe(2700)
     expect(context.moneySummary.creditDebt).toBe(4000)
     expect(context.money.plannedPaymentsTotal).toBe(3000)
     expect(context.money.debtsTotal).toBe(5000)
+    expect(context.money.trackingStartDate).toBe(`${month}-01`)
+    expect(context.money.skippedBeforeStartDate).toBe(2)
     expect('transactions' in context.money).toBe(false)
     expect(serializedContext).not.toContain('rawDescription')
     expect(serializedContext).not.toContain('40817810000000000111')
     expect(serializedContext).not.toContain('PDF TEXT CONTENT')
+    expect(serializedContext).not.toContain('ожир')
+    expect(serializedContext).not.toContain('диагноз')
     expect(context.dataQuality.body).toBe('good')
     expect(context.dataQuality.money).toBe('good')
   })

@@ -15,6 +15,7 @@ import {
 import {
   formatDateSafe,
   getAccountBalance,
+  getCreditDebt,
   getDebtProgress,
   getDebtSummary,
   getMoneyCalmNote,
@@ -79,6 +80,22 @@ const fieldClass = 'space-y-2'
 
 function parseAmount(value: FormDataEntryValue | null) {
   return Number(String(value ?? '').replace(',', '.'))
+}
+
+function parseOptionalAmount(value: FormDataEntryValue | null) {
+  const raw = String(value ?? '').trim()
+
+  if (!raw) {
+    return undefined
+  }
+
+  const parsed = Number(raw.replace(',', '.'))
+
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function formatBaselineAmountInput(value?: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
 }
 
 function getDefaultAccountId(accounts: MoneyAccount[]) {
@@ -229,6 +246,7 @@ function AccountForm({
 }) {
   const addAccount = useMoneyStore((state) => state.addAccount)
   const updateAccount = useMoneyStore((state) => state.updateAccount)
+  const [type, setType] = useState<MoneyAccountType>(account?.type ?? 'debit_card')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -241,8 +259,11 @@ function AccountForm({
     const form = new FormData(event.currentTarget)
     const input = {
       name: String(form.get('name') ?? ''),
-      type: String(form.get('type') ?? 'debit_card') as MoneyAccountType,
+      type,
       openingBalance: parseAmount(form.get('openingBalance')),
+      last4: String(form.get('last4') ?? ''),
+      creditLimit: parseOptionalAmount(form.get('creditLimit')),
+      debt: parseOptionalAmount(form.get('debt')),
     }
     const result = account ? updateAccount(account.id, input) : addAccount(input)
 
@@ -275,7 +296,13 @@ function AccountForm({
         <label className={labelClass} htmlFor="account-type">
           Тип
         </label>
-        <select className={inputClass} defaultValue={account?.type ?? 'debit_card'} id="account-type" name="type">
+        <select
+          className={inputClass}
+          id="account-type"
+          name="type"
+          value={type}
+          onChange={(event) => setType(event.target.value as MoneyAccountType)}
+        >
           {Object.entries(moneyAccountTypeLabels).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -290,6 +317,7 @@ function AccountForm({
         <input
           className={inputClass}
           defaultValue={account?.openingBalance ?? 0}
+          disabled={type === 'credit_card'}
           id="account-opening-balance"
           inputMode="decimal"
           name="openingBalance"
@@ -297,6 +325,52 @@ function AccountForm({
           type="number"
         />
       </div>
+      <div className={fieldClass}>
+        <label className={labelClass} htmlFor="account-last4">
+          Последние 4 цифры
+        </label>
+        <input
+          className={inputClass}
+          defaultValue={account?.last4 ?? ''}
+          id="account-last4"
+          inputMode="numeric"
+          maxLength={4}
+          name="last4"
+          placeholder="Необязательно"
+        />
+      </div>
+      {type === 'credit_card' ? (
+        <div className="grid grid-cols-2 gap-3">
+          <div className={fieldClass}>
+            <label className={labelClass} htmlFor="account-credit-limit">
+              Кредитный лимит
+            </label>
+            <input
+              className={inputClass}
+              defaultValue={account?.creditLimit ?? ''}
+              id="account-credit-limit"
+              inputMode="decimal"
+              name="creditLimit"
+              step="0.01"
+              type="number"
+            />
+          </div>
+          <div className={fieldClass}>
+            <label className={labelClass} htmlFor="account-credit-debt">
+              Задолженность
+            </label>
+            <input
+              className={inputClass}
+              defaultValue={account?.debt ?? ''}
+              id="account-credit-debt"
+              inputMode="decimal"
+              name="debt"
+              step="0.01"
+              type="number"
+            />
+          </div>
+        </div>
+      ) : null}
       <PrimaryButton fullWidth disabled={isSubmitting} type="submit">
         {account ? 'Сохранить счёт' : 'Добавить счёт'}
       </PrimaryButton>
@@ -537,6 +611,214 @@ function BalanceAdjustmentForm({
       </div>
       <PrimaryButton fullWidth disabled={isSubmitting || accounts.length === 0} type="submit">
         Сверить баланс
+      </PrimaryButton>
+    </form>
+  )
+}
+
+function findBaselineAccount(accounts: MoneyAccount[], type: MoneyAccountType, preferredName: string) {
+  const normalizedPreferredName = preferredName.toLowerCase()
+
+  return (
+    accounts.find((account) => account.type === type && account.name.toLowerCase() === normalizedPreferredName) ??
+    accounts.find((account) => account.type === type && account.name.toLowerCase().includes(normalizedPreferredName)) ??
+    accounts.find((account) => account.type === type)
+  )
+}
+
+function MoneyBaselineForm({
+  accounts,
+  hasTransactions,
+  trackingStartDate,
+  onDone,
+}: {
+  accounts: MoneyAccount[]
+  hasTransactions: boolean
+  trackingStartDate?: string
+  onDone: (message: string) => void
+}) {
+  const setupMoneyBaseline = useMoneyStore((state) => state.setupMoneyBaseline)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const debitAccount = findBaselineAccount(accounts, 'debit_card', 'Основная карта')
+  const cashAccount = findBaselineAccount(accounts, 'cash', 'Наличные')
+  const savingsAccount = findBaselineAccount(accounts, 'savings', 'Другой счёт')
+  const creditAccount = findBaselineAccount(accounts, 'credit_card', 'Кредитка')
+  const baselineItems = [
+    {
+      key: 'debit',
+      title: 'Основная карта',
+      balanceLabel: 'Текущий остаток',
+      account: debitAccount,
+    },
+    {
+      key: 'cash',
+      title: 'Наличные',
+      balanceLabel: 'Текущий остаток',
+      account: cashAccount,
+    },
+    {
+      key: 'savings',
+      title: 'Другой счёт',
+      balanceLabel: 'Текущий остаток',
+      account: savingsAccount,
+    },
+  ]
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isSubmitting) {
+      return
+    }
+
+    setIsSubmitting(true)
+    const form = new FormData(event.currentTarget)
+    const startDate = String(form.get('trackingStartDate') || getLocalDateKey())
+    const baselineAccounts: Array<{
+      name: string
+      type: MoneyAccountType
+      openingBalance?: number
+      last4?: string
+      creditLimit?: number
+      debt?: number
+    }> = [
+      {
+        name: String(form.get('debitName') || 'Основная карта'),
+        type: 'debit_card',
+        openingBalance: parseOptionalAmount(form.get('debitBalance')),
+        last4: String(form.get('debitLast4') ?? ''),
+      },
+      {
+        name: String(form.get('cashName') || 'Наличные'),
+        type: 'cash',
+        openingBalance: parseOptionalAmount(form.get('cashBalance')),
+      },
+      {
+        name: String(form.get('savingsName') || 'Другой счёт'),
+        type: 'savings',
+        openingBalance: parseOptionalAmount(form.get('savingsBalance')),
+      },
+      {
+        name: String(form.get('creditName') || 'Кредитка'),
+        type: 'credit_card',
+        openingBalance: 0,
+        last4: String(form.get('creditLast4') ?? ''),
+        creditLimit: parseOptionalAmount(form.get('creditLimit')),
+        debt: parseOptionalAmount(form.get('creditDebt')),
+      },
+    ]
+    const result = setupMoneyBaseline({
+      trackingStartDate: startDate,
+      accounts: baselineAccounts.filter(
+        (account) =>
+          account.openingBalance !== undefined ||
+          account.creditLimit !== undefined ||
+          account.debt !== undefined ||
+          Boolean(account.last4?.trim()),
+      ),
+    })
+
+    setIsSubmitting(false)
+    onDone(result.ok ? 'Старт учёта сохранён' : result.reason ?? 'Проверь стартовые данные')
+  }
+
+  return (
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <div className={fieldClass}>
+        <label className={labelClass} htmlFor="money-tracking-start">
+          Дата старта учёта
+        </label>
+        <input
+          className={inputClass}
+          defaultValue={trackingStartDate ?? getLocalDateKey()}
+          id="money-tracking-start"
+          name="trackingStartDate"
+          required
+          type="date"
+        />
+      </div>
+
+      {hasTransactions ? (
+        <p className="rounded-2xl border border-warning/20 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">
+          Изменение стартового остатка повлияет на расчёт баланса.
+        </p>
+      ) : null}
+
+      <div className="grid gap-3">
+        {baselineItems.map((item) => (
+          <div key={item.key} className="rounded-3xl border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-sm font-medium text-white">{item.title}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <input
+                className={inputClass}
+                defaultValue={item.account?.name ?? item.title}
+                name={`${item.key}Name`}
+                aria-label={`${item.title}: название`}
+              />
+              <input
+                className={inputClass}
+                defaultValue={formatBaselineAmountInput(item.account?.openingBalance)}
+                inputMode="decimal"
+                name={`${item.key}Balance`}
+                placeholder={item.balanceLabel}
+                step="0.01"
+                type="number"
+              />
+            </div>
+            {item.key === 'debit' ? (
+              <input
+                className={cn(inputClass, 'mt-2')}
+                defaultValue={item.account?.last4 ?? ''}
+                inputMode="numeric"
+                maxLength={4}
+                name="debitLast4"
+                placeholder="Последние 4 цифры, если есть"
+              />
+            ) : null}
+          </div>
+        ))}
+
+        <div className="rounded-3xl border border-primary/20 bg-primary/10 p-3">
+          <p className="text-sm font-medium text-white">Кредитка</p>
+          <p className="mt-1 text-xs leading-5 text-muted">Кредитный лимит не считается свободными деньгами.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <input
+              className={inputClass}
+              defaultValue={creditAccount?.name ?? 'Кредитка'}
+              name="creditName"
+              aria-label="Кредитка: название"
+            />
+            <input
+              className={inputClass}
+              defaultValue={creditAccount?.last4 ?? ''}
+              inputMode="numeric"
+              maxLength={4}
+              name="creditLast4"
+              placeholder="Последние 4 цифры"
+            />
+            <input
+              className={inputClass}
+              defaultValue={formatBaselineAmountInput(creditAccount?.creditLimit)}
+              inputMode="decimal"
+              name="creditLimit"
+              placeholder="Кредитный лимит"
+              step="0.01"
+              type="number"
+            />
+            <input
+              className={inputClass}
+              defaultValue={formatBaselineAmountInput(creditAccount?.debt)}
+              inputMode="decimal"
+              name="creditDebt"
+              placeholder="Текущая задолженность"
+              step="0.01"
+              type="number"
+            />
+          </div>
+        </div>
+      </div>
+
+      <PrimaryButton fullWidth disabled={isSubmitting} type="submit">
+        Сохранить старт учёта
       </PrimaryButton>
     </form>
   )
@@ -989,6 +1271,7 @@ export function MoneyScreen() {
   const weeklyDelta = getWeeklyDelta(state.transactions)
   const sevenDayBars = getSevenDayMoneyBars(state.transactions)
   const debtSummary = getDebtSummary(state.debts)
+  const creditDebt = getCreditDebt(state.accounts)
   const monthPlan = getMonthlyPlan(state.monthlyPlans, currentMonth)
   const projection = getMonthlyPlanProjection(state, currentMonth)
   const monthTotals = getMonthTotals(state.transactions, currentMonth)
@@ -1006,6 +1289,36 @@ export function MoneyScreen() {
     .filter((payment) => payment.status === 'planned' || payment.dueDate.startsWith(currentMonth))
     .sort((left, right) => left.dueDate.localeCompare(right.dueDate))
     .slice(0, 8)
+  const importReconciliation = useMemo(() => {
+    const preview = state.importPreview
+
+    if (preview?.statementEndingBalance === undefined || !preview.accounts.length) {
+      return null
+    }
+
+    const previewAccount = preview.accounts[0]!
+    const account = activeAccounts.find(
+      (item) =>
+        (previewAccount.last4 && item.last4 === previewAccount.last4) ||
+        item.id === previewAccount.id,
+    )
+
+    if (!account || account.type === 'credit_card') {
+      return null
+    }
+
+    const calculatedBalance = getAccountBalance(account, state.transactions)
+    const diff = Number((preview.statementEndingBalance - calculatedBalance).toFixed(2))
+
+    return Math.abs(diff) > 1
+      ? {
+          account,
+          calculatedBalance,
+          statementEndingBalance: preview.statementEndingBalance,
+          diff,
+        }
+      : null
+  }, [activeAccounts, state.importPreview, state.transactions])
 
   const showStatus = (message: string) => {
     setStatusMessage(message)
@@ -1156,6 +1469,13 @@ export function MoneyScreen() {
               {weeklyDelta >= 0 ? '+' : ''}
               {formatCurrency(weeklyDelta)} за 7 дней
             </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <StatusPill>Учёт с: {state.trackingStartDate ? formatDateSafe(state.trackingStartDate) : 'не задан'}</StatusPill>
+              <StatusPill tone={projection.safeToSpend >= 0 ? 'good' : 'warn'}>
+                Безопасно: {formatCurrency(projection.safeToSpend)}
+              </StatusPill>
+              {creditDebt > 0 ? <StatusPill tone="warn">Кредитная задолженность: {formatCurrency(creditDebt)}</StatusPill> : null}
+            </div>
           </div>
           <PrimaryButton
             aria-label="Добавить операцию"
@@ -1169,6 +1489,26 @@ export function MoneyScreen() {
         <div className="mt-4">
           <SevenDayBars values={sevenDayBars} />
         </div>
+      </GlassCard>
+
+      <GlassCard className="mb-5 border border-primary/20 bg-primary/5">
+        <div className="mb-4">
+          <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Старт учёта денег</p>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Не нужно загружать историю за годы. Укажи текущие остатки — LifeQuest начнёт считать деньги с этой даты.
+          </p>
+        </div>
+        <MoneyBaselineForm
+          key={`${state.trackingStartDate ?? ''}|${activeAccounts
+            .map((account) =>
+              [account.id, account.openingBalance, account.last4, account.creditLimit, account.debt].join(':'),
+            )
+            .join('|')}`}
+          accounts={activeAccounts}
+          hasTransactions={state.transactions.length > 0}
+          trackingStartDate={state.trackingStartDate}
+          onDone={showStatus}
+        />
       </GlassCard>
 
       <GlassCard className="mb-5">
@@ -1261,10 +1601,33 @@ export function MoneyScreen() {
               <StatusPill>Счета: {state.importPreview.accounts.length}</StatusPill>
               <StatusPill>Операции: {state.importPreview.transactions.length}</StatusPill>
               <StatusPill>Дубли: {state.importPreview.totals.duplicates}</StatusPill>
+              <StatusPill>До старта: {state.importPreview.totals.skippedBeforeStartDate ?? 0}</StatusPill>
               <StatusPill>Переводы: {formatCurrency(state.importPreview.totals.transfer)}</StatusPill>
               <StatusPill tone="good">Доходы: {formatCurrency(state.importPreview.totals.income)}</StatusPill>
               <StatusPill tone="warn">Расходы: {formatCurrency(state.importPreview.totals.expense)}</StatusPill>
             </div>
+            {importReconciliation ? (
+              <div className="mt-4 rounded-3xl border border-warning/20 bg-warning/10 p-3">
+                <p className="text-sm font-medium text-white">Баланс по выписке отличается от расчётного.</p>
+                <p className="mt-1 text-xs leading-5 text-warning">
+                  {importReconciliation.account.name}: расчётный {formatCurrency(importReconciliation.calculatedBalance)}, по выписке {formatCurrency(importReconciliation.statementEndingBalance)}.
+                </p>
+                <PrimaryButton
+                  className="mt-3"
+                  fullWidth
+                  tone="secondary"
+                  onClick={() => {
+                    const result = state.recordBalanceAdjustment(
+                      importReconciliation.account.id,
+                      importReconciliation.statementEndingBalance,
+                    )
+                    showStatus(result.ok ? 'Корректировка создана' : result.reason ?? 'Корректировка не создана')
+                  }}
+                >
+                  Создать корректировку баланса
+                </PrimaryButton>
+              </div>
+            ) : null}
             <div className="mt-4 space-y-2">
               {state.importPreview.transactions.slice(0, 6).map((transaction) => (
                 <div key={transaction.importHash ?? transaction.id} className="rounded-2xl border border-white/10 bg-black/15 p-3">
@@ -1320,11 +1683,24 @@ export function MoneyScreen() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="break-words font-medium text-white">{account.name}</p>
-                    <p className="mt-1 text-sm text-muted">{moneyAccountTypeLabels[account.type]}</p>
+                    <p className="mt-1 text-sm text-muted">
+                      {moneyAccountTypeLabels[account.type]}
+                      {account.last4 ? ` • ${account.last4}` : ''}
+                    </p>
                   </div>
-                  <p className="shrink-0 font-display text-xl font-bold text-white">
-                    {formatCurrency(getAccountBalance(account, state.transactions))}
-                  </p>
+                  {account.type === 'credit_card' ? (
+                    <div className="shrink-0 text-right">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-warning">задолженность</p>
+                      <p className="font-display text-xl font-bold text-warning">
+                        {formatCurrency(account.debt ?? 0)}
+                      </p>
+                      <p className="mt-1 text-xs text-muted">лимит {formatCurrency(account.creditLimit ?? 0)}</p>
+                    </div>
+                  ) : (
+                    <p className="shrink-0 font-display text-xl font-bold text-white">
+                      {formatCurrency(getAccountBalance(account, state.transactions))}
+                    </p>
+                  )}
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   <button

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import {
   addMonthsToDateKey,
+  countImportDuplicates,
   createEmptyMoneyState,
   createId,
   getAccountBalance,
@@ -41,6 +42,9 @@ interface AccountInput {
   name: string
   type: MoneyAccountType
   openingBalance: number
+  last4?: string
+  creditLimit?: number
+  debt?: number
 }
 
 interface TransactionInput {
@@ -97,16 +101,30 @@ interface MonthlyPlanInput {
   note?: string
 }
 
+interface MoneyBaselineInput {
+  trackingStartDate: string
+  accounts: Array<{
+    name: string
+    type: MoneyAccountType
+    openingBalance?: number
+    last4?: string
+    creditLimit?: number
+    debt?: number
+  }>
+}
+
 interface MoneyState {
   accounts: MoneyAccount[]
   transactions: MoneyTransaction[]
   plannedPayments: PlannedPayment[]
   debts: Debt[]
   monthlyPlans: MonthlyMoneyPlan[]
+  trackingStartDate?: string
   lastBalanceCheckAt?: string
   importPreview: MoneyImportPreview | null
   importWarnings: string[]
   lastImportAt?: string
+  skippedBeforeStartDate: number
   addAccount: (input: AccountInput) => ActionResult
   updateAccount: (id: string, input: Partial<AccountInput>) => ActionResult
   archiveAccount: (id: string) => ActionResult
@@ -126,6 +144,8 @@ interface MoneyState {
   setMonthlyPlan: (input: MonthlyPlanInput) => ActionResult
   updateMonthlyPlan: (month: string, input: Partial<MonthlyPlanInput>) => ActionResult
   deleteMonthlyPlan: (month: string) => ActionResult
+  setTrackingStartDate: (dateKey: string) => ActionResult
+  setupMoneyBaseline: (input: MoneyBaselineInput) => ActionResult
   setImportPreview: (preview: MoneyImportPreview | null) => ActionResult
   clearImportPreview: () => void
   importPreviewTransactions: () => ActionResult & { imported?: number; duplicates?: number }
@@ -141,9 +161,11 @@ type MoneyPersistedStoreState = Pick<
   | 'plannedPayments'
   | 'debts'
   | 'monthlyPlans'
+  | 'trackingStartDate'
   | 'lastBalanceCheckAt'
   | 'importWarnings'
   | 'lastImportAt'
+  | 'skippedBeforeStartDate'
 >
 
 function nowIso() {
@@ -270,12 +292,86 @@ function createAccountFromImport(account: MoneyAccount | undefined, transaction:
   } satisfies MoneyAccount
 }
 
+function normalizeLast4(value: string | undefined) {
+  const digits = value?.replace(/\D/g, '') ?? ''
+
+  return digits.length === 4 ? digits : undefined
+}
+
+function getSafeCreditValue(value: number | undefined) {
+  if (value === undefined) {
+    return undefined
+  }
+
+  const amount = normalizeMoneyValue(value)
+
+  return amount !== null && amount >= 0 ? amount : undefined
+}
+
+function isBeforeTrackingStart(transaction: MoneyTransaction, trackingStartDate: string | undefined) {
+  return Boolean(trackingStartDate && transaction.transactionDate < trackingStartDate)
+}
+
+function applyTrackingStartDateToPreview(
+  preview: MoneyImportPreview,
+  existingTransactions: MoneyTransaction[],
+  trackingStartDate: string | undefined,
+) {
+  if (!trackingStartDate) {
+    return {
+      preview,
+      skippedBeforeStartDate: preview.totals.skippedBeforeStartDate ?? 0,
+    }
+  }
+
+  const filteredTransactions = preview.transactions.filter(
+    (transaction) => !isBeforeTrackingStart(transaction, trackingStartDate),
+  )
+  const skippedBeforeStartDate = preview.transactions.length - filteredTransactions.length
+  const duplicates = countImportDuplicates(filteredTransactions, existingTransactions)
+  const transferPattern = /(перевод|между своими|со своего|на свой|свой сч[её]т|transfer)/i
+  const transfer = filteredTransactions
+    .filter((transaction) =>
+      transferPattern.test([transaction.title, transaction.note, transaction.rawDescription].filter(Boolean).join(' ')),
+    )
+    .reduce((sum, transaction) => sum + transaction.amount, 0)
+  const warnings = skippedBeforeStartDate
+    ? [
+        ...preview.warnings,
+        `Пропущено до даты старта: ${skippedBeforeStartDate}.`,
+      ]
+    : preview.warnings
+
+  return {
+    preview: {
+      ...preview,
+      transactions: filteredTransactions,
+      totals: {
+        ...preview.totals,
+        income: filteredTransactions
+          .filter((transaction) => transaction.type === 'income')
+          .reduce((sum, transaction) => sum + transaction.amount, 0),
+        expense: filteredTransactions
+          .filter((transaction) => transaction.type === 'expense')
+          .reduce((sum, transaction) => sum + transaction.amount, 0),
+        transfer: Number(transfer.toFixed(2)),
+        duplicates,
+        newTransactions: Math.max(0, filteredTransactions.length - duplicates),
+        skippedBeforeStartDate,
+      },
+      warnings,
+    },
+    skippedBeforeStartDate,
+  }
+}
+
 export const useMoneyStore = create<MoneyState>()(
   persist(
     (set, get): MoneyState => ({
       ...createEmptyMoneyState(),
       importPreview: null,
       importWarnings: [],
+      skippedBeforeStartDate: 0,
       addAccount: (input) => {
         const name = input.name.trim()
         const openingBalance = normalizeMoneyValue(input.openingBalance)
@@ -289,10 +385,13 @@ export const useMoneyStore = create<MoneyState>()(
           id: createId('account'),
           name,
           type: input.type,
-          openingBalance,
+          openingBalance: input.type === 'credit_card' ? 0 : openingBalance,
           createdAt: now,
           updatedAt: now,
           isArchived: false,
+          last4: normalizeLast4(input.last4),
+          creditLimit: input.type === 'credit_card' ? getSafeCreditValue(input.creditLimit) : undefined,
+          debt: input.type === 'credit_card' ? getSafeCreditValue(input.debt) : undefined,
         }
 
         set((state) => ({
@@ -325,7 +424,20 @@ export const useMoneyStore = create<MoneyState>()(
               ...account,
               name: input.name?.trim() || account.name,
               type: input.type ?? account.type,
-              openingBalance,
+              openingBalance: (input.type ?? account.type) === 'credit_card' ? 0 : openingBalance,
+              last4: input.last4 === undefined ? account.last4 : normalizeLast4(input.last4),
+              creditLimit:
+                (input.type ?? account.type) === 'credit_card'
+                  ? input.creditLimit === undefined
+                    ? account.creditLimit
+                    : getSafeCreditValue(input.creditLimit)
+                  : undefined,
+              debt:
+                (input.type ?? account.type) === 'credit_card'
+                  ? input.debt === undefined
+                    ? account.debt
+                    : getSafeCreditValue(input.debt)
+                  : undefined,
               updatedAt: nowIso(),
             }
           }),
@@ -965,14 +1077,105 @@ export const useMoneyStore = create<MoneyState>()(
 
         return deleted ? { ok: true } : { ok: false, reason: 'План месяца не найден.' }
       },
+      setTrackingStartDate: (dateKey) => {
+        if (!isDateLike(dateKey)) {
+          return { ok: false, reason: 'Проверь дату старта учёта.' }
+        }
+
+        set({
+          trackingStartDate: dateKey,
+        })
+
+        return { ok: true }
+      },
+      setupMoneyBaseline: (input) => {
+        if (!isDateLike(input.trackingStartDate)) {
+          return { ok: false, reason: 'Проверь дату старта учёта.' }
+        }
+
+        const now = nowIso()
+        const nextAccounts = input.accounts
+          .map((accountInput): MoneyAccount | null => {
+            const name = accountInput.name.trim()
+            const openingBalance = normalizeMoneyValue(accountInput.openingBalance ?? 0)
+
+            if (!name || openingBalance === null) {
+              return null
+            }
+
+            return {
+              id: createId('account'),
+              name,
+              type: accountInput.type,
+              openingBalance: accountInput.type === 'credit_card' ? 0 : openingBalance,
+              createdAt: now,
+              updatedAt: now,
+              isArchived: false,
+              source: 'manual',
+              last4: normalizeLast4(accountInput.last4),
+              creditLimit:
+                accountInput.type === 'credit_card'
+                  ? getSafeCreditValue(accountInput.creditLimit)
+                  : undefined,
+              debt:
+                accountInput.type === 'credit_card'
+                  ? getSafeCreditValue(accountInput.debt)
+                  : undefined,
+            } satisfies MoneyAccount
+          })
+          .filter((account): account is MoneyAccount => Boolean(account))
+
+        set((state) => {
+          const accounts = [...state.accounts]
+
+          nextAccounts.forEach((nextAccount) => {
+            const existingIndex = accounts.findIndex(
+              (account) =>
+                !account.isArchived &&
+                ((nextAccount.last4 && account.last4 === nextAccount.last4) ||
+                  account.name.toLowerCase() === nextAccount.name.toLowerCase()),
+            )
+
+            if (existingIndex === -1) {
+              accounts.unshift(nextAccount)
+              return
+            }
+
+            const existing = accounts[existingIndex]!
+
+            accounts[existingIndex] = {
+              ...existing,
+              name: nextAccount.name,
+              type: nextAccount.type,
+              openingBalance: nextAccount.openingBalance,
+              last4: nextAccount.last4 ?? existing.last4,
+              creditLimit: nextAccount.creditLimit,
+              debt: nextAccount.debt,
+              updatedAt: now,
+            }
+          })
+
+          return {
+            accounts,
+            trackingStartDate: input.trackingStartDate,
+          }
+        })
+
+        return { ok: true }
+      },
       setImportPreview: (preview) => {
         if (preview !== null && !isSafeImportPreview(preview)) {
           return { ok: false, reason: 'Предпросмотр импорта повреждён.' }
         }
 
+        const trackedPreview = preview
+          ? applyTrackingStartDateToPreview(preview, get().transactions, get().trackingStartDate)
+          : null
+
         set({
-          importPreview: preview,
-          importWarnings: preview?.warnings.slice(0, 12) ?? [],
+          importPreview: trackedPreview?.preview ?? null,
+          importWarnings: trackedPreview?.preview.warnings.slice(0, 12) ?? [],
+          skippedBeforeStartDate: trackedPreview?.skippedBeforeStartDate ?? 0,
         })
 
         return { ok: true }
@@ -981,6 +1184,7 @@ export const useMoneyStore = create<MoneyState>()(
         set({
           importPreview: null,
           importWarnings: [],
+          skippedBeforeStartDate: 0,
         }),
       importPreviewTransactions: () => {
         let result: ActionResult & { imported?: number; duplicates?: number } = {
@@ -1006,6 +1210,11 @@ export const useMoneyStore = create<MoneyState>()(
           const accountByPreviewId = new Map(preview.accounts.map((account) => [account.id, account]))
 
           preview.transactions.forEach((transaction) => {
+            if (isBeforeTrackingStart(transaction, state.trackingStartDate)) {
+              duplicates += 1
+              return
+            }
+
             if (!transaction.importHash && !transaction.importFingerprint) {
               duplicates += 1
               return
@@ -1029,6 +1238,16 @@ export const useMoneyStore = create<MoneyState>()(
 
             if (!existingAccount) {
               accounts.unshift(account)
+            } else if (importAccount?.type === 'credit_card') {
+              const index = accounts.findIndex((item) => item.id === existingAccount.id)
+
+              accounts[index] = {
+                ...existingAccount,
+                type: 'credit_card',
+                creditLimit: importAccount.creditLimit ?? existingAccount.creditLimit,
+                debt: importAccount.debt ?? existingAccount.debt,
+                updatedAt: now,
+              }
             }
 
             importedTransactions.push({
@@ -1056,6 +1275,7 @@ export const useMoneyStore = create<MoneyState>()(
             importPreview: null,
             importWarnings: preview.warnings.slice(0, 12),
             lastImportAt: now,
+            skippedBeforeStartDate: preview.totals.skippedBeforeStartDate ?? 0,
           }
         })
 
@@ -1092,9 +1312,11 @@ export const useMoneyStore = create<MoneyState>()(
         plannedPayments: state.plannedPayments,
         debts: state.debts,
         monthlyPlans: state.monthlyPlans,
+        trackingStartDate: state.trackingStartDate,
         lastBalanceCheckAt: state.lastBalanceCheckAt,
         importWarnings: state.importWarnings,
         lastImportAt: state.lastImportAt,
+        skippedBeforeStartDate: state.skippedBeforeStartDate,
       }),
     },
   ),

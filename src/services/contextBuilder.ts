@@ -10,6 +10,7 @@ import { getLocalDateKey } from '@/shared/lib/date'
 import type { BodyDailyLog, MoneyTransaction, QuestItem, TodayRoute } from '@/shared/types'
 import {
   getDebtSummary,
+  getCreditDebt as getCreditDebtFromAccounts,
   getMonthKey,
   getMonthlyPlan,
   getMonthlyPlanProjection,
@@ -108,6 +109,33 @@ function average(values: Array<number | undefined>) {
   }
 
   return roundNumber(finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length)
+}
+
+function getProfileBodySummary() {
+  const settings = useSettingsStore.getState()
+  const weightKg = useBodyStore.getState().today.weightKg
+  const heightMeters = settings.heightCm ? settings.heightCm / 100 : null
+  const bodyMassIndex =
+    heightMeters && Number.isFinite(weightKg) && weightKg > 0
+      ? roundNumber(weightKg / (heightMeters * heightMeters), 1)
+      : null
+
+  return {
+    heightCm: settings.heightCm ?? null,
+    birthYear: settings.birthYear ?? null,
+    sex: settings.sex ?? 'not_specified',
+    bodyGoal: settings.bodyGoal ?? 'not_set',
+    targetWeightKg: settings.targetWeightKg ?? null,
+    targetPace: settings.targetPace ?? 'calm',
+    activityLevel: settings.activityLevel ?? 'medium',
+    usualSleepTime: settings.usualSleepTime ?? null,
+    usualWakeTime: settings.usualWakeTime ?? null,
+    bodyLimitations: settings.bodyLimitations ?? null,
+    bodyMassIndex,
+    bodyMassIndexNote: bodyMassIndex
+      ? 'Технический индекс массы тела для контекста. Без медицинских выводов.'
+      : undefined,
+  }
 }
 
 function compactDailyBodyLog(log: BodyDailyLog) {
@@ -269,9 +297,7 @@ function getRecentLargeTransactions(transactions: MoneyTransaction[], limit = 5)
 
 function getCreditDebt() {
   const money = useMoneyStore.getState()
-  const creditDebt = money.accounts
-    .filter((account) => !account.isArchived)
-    .reduce((sum, account) => sum + (Number.isFinite(account.debt) ? account.debt ?? 0 : 0), 0)
+  const creditDebt = getCreditDebtFromAccounts(money.accounts)
 
   return creditDebt > 0 ? Number(creditDebt.toFixed(2)) : undefined
 }
@@ -317,6 +343,8 @@ function buildWeeklyMoneyContext() {
     recentLargeTransactions: getRecentLargeTransactions(money.transactions, 5),
     lastImportAt: money.lastImportAt,
     importWarnings: money.importWarnings.slice(0, 5),
+    trackingStartDate: money.trackingStartDate,
+    skippedBeforeStartDate: money.skippedBeforeStartDate,
     dataQuality,
     dataQualityNote:
       dataQuality === 'low'
@@ -334,6 +362,7 @@ function buildWeeklyMoneyContext() {
       creditDebt,
       safeToSpend: projection.safeToSpend,
       lastImportAt: money.lastImportAt,
+      trackingStartDate: money.trackingStartDate,
     },
   }
 }
@@ -386,6 +415,7 @@ export function buildBodyContext() {
   const body = useBodyStore.getState()
 
   return {
+    profile: getProfileBodySummary(),
     today: body.today,
     lastSevenDailyLogs: getLastSevenBodyLogs().map(compactDailyBodyLog),
     weightHistory: body.history.slice(-10),
@@ -407,16 +437,19 @@ export function buildMoneyContext() {
     .map(compactMoneyTransactionForContext)
 
   return {
+    trackingStartDate: money.trackingStartDate,
     totalBalance: getTotalBalance(money.accounts, money.transactions),
     monthIncome: monthTotals.income,
     monthExpense: monthTotals.expense,
     plannedPaymentsTotal: plannedPaymentTotals.expense,
     debtsTotal: debtSummary.remainingDebt,
+    creditDebt: getCreditDebtFromAccounts(money.accounts),
     safeToSpend: projection.safeToSpend,
     topExpenseCategories: getTopExpenseCategories(money.transactions, month, 5),
     recentLargeTransactions,
     lastImportAt: money.lastImportAt,
     importWarnings: money.importWarnings.slice(0, 5),
+    skippedBeforeStartDate: money.skippedBeforeStartDate,
     accountsCount: money.accounts.filter((account) => !account.isArchived).length,
     monthlyPlan,
     projection,
@@ -484,6 +517,7 @@ export function buildWeeklyReviewContext() {
       preferredTone: settings.preferredTone,
     },
     body: {
+      profile: getProfileBodySummary(),
       currentSnapshot: body.today,
       dailyLogs: weeklyBodyLogs.map(compactDailyBodyLog),
       weightHistory: body.history.slice(-10),

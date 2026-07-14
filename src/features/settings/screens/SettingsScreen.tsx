@@ -19,6 +19,11 @@ import { useSyncStore } from '@/stores/useSyncStore'
 import type { PreferredTone, SettingsProfile } from '@/shared/types'
 import type { SyncStatus } from '@/shared/types'
 
+type BodyGoal = NonNullable<SettingsProfile['bodyGoal']>
+type BodySex = NonNullable<SettingsProfile['sex']>
+type TargetPace = NonNullable<SettingsProfile['targetPace']>
+type ActivityLevel = NonNullable<SettingsProfile['activityLevel']>
+
 const toneOptions: Array<{
   key: PreferredTone
   label: string
@@ -40,6 +45,35 @@ const toneOptions: Array<{
     description: 'Больше опоры и валидации без давления и токсичной мотивации.',
   },
 ]
+
+const sexOptions: Array<{ key: BodySex; label: string }> = [
+  { key: 'not_specified', label: 'Не указывать' },
+  { key: 'male', label: 'Мужской' },
+  { key: 'female', label: 'Женский' },
+]
+
+const bodyGoalOptions: Array<{ key: BodyGoal; label: string }> = [
+  { key: 'not_set', label: 'Не выбрана' },
+  { key: 'weight_loss', label: 'Снижение веса' },
+  { key: 'maintain', label: 'Поддержание' },
+  { key: 'energy', label: 'Энергия' },
+  { key: 'health', label: 'Здоровье' },
+]
+
+const targetPaceOptions: Array<{ key: TargetPace; label: string }> = [
+  { key: 'calm', label: 'Спокойно' },
+  { key: 'moderate', label: 'Умеренно' },
+  { key: 'active', label: 'Активно' },
+]
+
+const activityLevelOptions: Array<{ key: ActivityLevel; label: string }> = [
+  { key: 'low', label: 'Низкая' },
+  { key: 'medium', label: 'Средняя' },
+  { key: 'high', label: 'Высокая' },
+]
+
+const settingsInputClass =
+  'w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-muted focus:border-primary/50 focus:bg-white/10'
 
 interface ProfileSettingsFormProps {
   initialProfile: SettingsProfile
@@ -63,6 +97,18 @@ function getServiceWorkerStatusLabel(
 
 function normalizeProfileValue(value: string) {
   return value.trim()
+}
+
+function parseOptionalNumber(value: string) {
+  const trimmed = value.trim()
+
+  if (!trimmed) {
+    return undefined
+  }
+
+  const parsed = Number(trimmed.replace(',', '.'))
+
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function formatBackupDate(value: string | null) {
@@ -165,13 +211,39 @@ function ProfileSettingsForm({ initialProfile, onSave }: ProfileSettingsFormProp
   const [draftName, setDraftName] = useState(initialProfile.userName)
   const [draftRole, setDraftRole] = useState(initialProfile.userRole)
   const [draftTone, setDraftTone] = useState<PreferredTone>(initialProfile.preferredTone)
+  const [draftHeightCm, setDraftHeightCm] = useState(String(initialProfile.heightCm ?? ''))
+  const [draftBirthYear, setDraftBirthYear] = useState(String(initialProfile.birthYear ?? ''))
+  const [draftSex, setDraftSex] = useState<BodySex>(initialProfile.sex ?? 'not_specified')
+  const [draftBodyGoal, setDraftBodyGoal] = useState<BodyGoal>(initialProfile.bodyGoal ?? 'not_set')
+  const [draftTargetWeightKg, setDraftTargetWeightKg] = useState(String(initialProfile.targetWeightKg ?? ''))
+  const [draftTargetPace, setDraftTargetPace] = useState<TargetPace>(initialProfile.targetPace ?? 'calm')
+  const [draftActivityLevel, setDraftActivityLevel] = useState<ActivityLevel>(initialProfile.activityLevel ?? 'medium')
+  const [draftUsualSleepTime, setDraftUsualSleepTime] = useState(initialProfile.usualSleepTime ?? '')
+  const [draftUsualWakeTime, setDraftUsualWakeTime] = useState(initialProfile.usualWakeTime ?? '')
+  const [draftBodyLimitations, setDraftBodyLimitations] = useState(initialProfile.bodyLimitations ?? '')
 
   const normalizedName = normalizeProfileValue(draftName)
   const normalizedRole = normalizeProfileValue(draftRole)
+  const normalizedHeightCm = parseOptionalNumber(draftHeightCm)
+  const normalizedBirthYear = parseOptionalNumber(draftBirthYear)
+  const normalizedTargetWeightKg = parseOptionalNumber(draftTargetWeightKg)
+  const normalizedSleepTime = normalizeProfileValue(draftUsualSleepTime)
+  const normalizedWakeTime = normalizeProfileValue(draftUsualWakeTime)
+  const normalizedBodyLimitations = normalizeProfileValue(draftBodyLimitations)
   const isDirty =
     normalizedName !== initialProfile.userName ||
     normalizedRole !== initialProfile.userRole ||
-    draftTone !== initialProfile.preferredTone
+    draftTone !== initialProfile.preferredTone ||
+    normalizedHeightCm !== initialProfile.heightCm ||
+    normalizedBirthYear !== initialProfile.birthYear ||
+    draftSex !== (initialProfile.sex ?? 'not_specified') ||
+    draftBodyGoal !== (initialProfile.bodyGoal ?? 'not_set') ||
+    normalizedTargetWeightKg !== initialProfile.targetWeightKg ||
+    draftTargetPace !== (initialProfile.targetPace ?? 'calm') ||
+    draftActivityLevel !== (initialProfile.activityLevel ?? 'medium') ||
+    normalizedSleepTime !== (initialProfile.usualSleepTime ?? '') ||
+    normalizedWakeTime !== (initialProfile.usualWakeTime ?? '') ||
+    normalizedBodyLimitations !== (initialProfile.bodyLimitations ?? '')
 
   return (
     <div className="mt-4 space-y-4">
@@ -180,7 +252,7 @@ function ProfileSettingsForm({ initialProfile, onSave }: ProfileSettingsFormProp
         <input
           value={draftName}
           onChange={(event) => setDraftName(event.target.value)}
-          className="w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-muted focus:border-primary/50 focus:bg-white/10"
+          className={settingsInputClass}
           placeholder="Как система должна к тебе обращаться"
         />
       </label>
@@ -190,7 +262,7 @@ function ProfileSettingsForm({ initialProfile, onSave }: ProfileSettingsFormProp
         <input
           value={draftRole}
           onChange={(event) => setDraftRole(event.target.value)}
-          className="w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-muted focus:border-primary/50 focus:bg-white/10"
+          className={settingsInputClass}
           placeholder="Например: Оператор системы"
         />
       </label>
@@ -220,6 +292,118 @@ function ProfileSettingsForm({ initialProfile, onSave }: ProfileSettingsFormProp
         </div>
       </div>
 
+      <details className="rounded-3xl border border-cyan/15 bg-cyan/5 p-4" open>
+        <summary className="cursor-pointer text-sm font-medium text-white">Профиль тела и энергии</summary>
+        <p className="mt-2 text-sm leading-6 text-slate-200">
+          Эти поля помогают Ядру точнее понимать цель, темп и ограничения. Заполняй только то, что уже понятно.
+        </p>
+        <div className="mt-4 grid gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-white">Рост, см</span>
+              <input
+                className={settingsInputClass}
+                inputMode="decimal"
+                min="80"
+                type="number"
+                value={draftHeightCm}
+                onChange={(event) => setDraftHeightCm(event.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-white">Год рождения</span>
+              <input
+                className={settingsInputClass}
+                inputMode="numeric"
+                min="1900"
+                type="number"
+                value={draftBirthYear}
+                onChange={(event) => setDraftBirthYear(event.target.value)}
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-white">Пол</span>
+            <select className={settingsInputClass} value={draftSex} onChange={(event) => setDraftSex(event.target.value as BodySex)}>
+              {sexOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-white">Цель тела</span>
+            <select className={settingsInputClass} value={draftBodyGoal} onChange={(event) => setDraftBodyGoal(event.target.value as BodyGoal)}>
+              {bodyGoalOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-white">Целевой вес</span>
+              <input
+                className={settingsInputClass}
+                inputMode="decimal"
+                min="20"
+                step="0.1"
+                type="number"
+                value={draftTargetWeightKg}
+                onChange={(event) => setDraftTargetWeightKg(event.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-white">Темп</span>
+              <select className={settingsInputClass} value={draftTargetPace} onChange={(event) => setDraftTargetPace(event.target.value as TargetPace)}>
+                {targetPaceOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-white">Активность</span>
+            <select className={settingsInputClass} value={draftActivityLevel} onChange={(event) => setDraftActivityLevel(event.target.value as ActivityLevel)}>
+              {activityLevelOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-white">Обычно ложусь</span>
+              <input className={settingsInputClass} type="time" value={draftUsualSleepTime} onChange={(event) => setDraftUsualSleepTime(event.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-white">Обычно встаю</span>
+              <input className={settingsInputClass} type="time" value={draftUsualWakeTime} onChange={(event) => setDraftUsualWakeTime(event.target.value)} />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-white">Ограничения/заметки по телу</span>
+            <textarea
+              className={`${settingsInputClass} min-h-24`}
+              value={draftBodyLimitations}
+              onChange={(event) => setDraftBodyLimitations(event.target.value)}
+              placeholder="Например: берегу колени, не планировать прыжковые тренировки."
+            />
+          </label>
+        </div>
+      </details>
+
       <PrimaryButton
         fullWidth
         disabled={!isDirty}
@@ -229,6 +413,16 @@ function ProfileSettingsForm({ initialProfile, onSave }: ProfileSettingsFormProp
             userName: normalizedName,
             userRole: normalizedRole,
             preferredTone: draftTone,
+            heightCm: normalizedHeightCm,
+            birthYear: normalizedBirthYear,
+            sex: draftSex,
+            bodyGoal: draftBodyGoal,
+            targetWeightKg: normalizedTargetWeightKg,
+            targetPace: draftTargetPace,
+            activityLevel: draftActivityLevel,
+            usualSleepTime: normalizedSleepTime || undefined,
+            usualWakeTime: normalizedWakeTime || undefined,
+            bodyLimitations: normalizedBodyLimitations || undefined,
           })
         }
       >
@@ -243,6 +437,16 @@ export function SettingsScreen() {
   const userName = useSettingsStore((state) => state.userName)
   const userRole = useSettingsStore((state) => state.userRole)
   const preferredTone = useSettingsStore((state) => state.preferredTone)
+  const heightCm = useSettingsStore((state) => state.heightCm)
+  const birthYear = useSettingsStore((state) => state.birthYear)
+  const sex = useSettingsStore((state) => state.sex)
+  const bodyGoal = useSettingsStore((state) => state.bodyGoal)
+  const targetWeightKg = useSettingsStore((state) => state.targetWeightKg)
+  const targetPace = useSettingsStore((state) => state.targetPace)
+  const activityLevel = useSettingsStore((state) => state.activityLevel)
+  const usualSleepTime = useSettingsStore((state) => state.usualSleepTime)
+  const usualWakeTime = useSettingsStore((state) => state.usualWakeTime)
+  const bodyLimitations = useSettingsStore((state) => state.bodyLimitations)
   const lastBackupExportAt = useSettingsStore((state) => state.lastBackupExportAt)
   const accountSyncStatus = useSettingsStore((state) => state.accountSyncStatus)
   const accountSyncError = useSettingsStore((state) => state.accountSyncError)
@@ -287,23 +491,78 @@ export function SettingsScreen() {
     tone: 'success' | 'error'
     message: string
   } | null>(null)
+  const [profileFeedback, setProfileFeedback] = useState('')
   const [backupStatus, setBackupStatus] = useState<{
     tone: 'success' | 'error'
     message: string
   } | null>(null)
 
   const profileFormKey = useMemo(
-    () => `${userName}|${userRole}|${preferredTone}`,
-    [preferredTone, userName, userRole],
+    () =>
+      [
+        userName,
+        userRole,
+        preferredTone,
+        heightCm,
+        birthYear,
+        sex,
+        bodyGoal,
+        targetWeightKg,
+        targetPace,
+        activityLevel,
+        usualSleepTime,
+        usualWakeTime,
+        bodyLimitations,
+      ].join('|'),
+    [
+      activityLevel,
+      birthYear,
+      bodyGoal,
+      bodyLimitations,
+      heightCm,
+      preferredTone,
+      sex,
+      targetPace,
+      targetWeightKg,
+      usualSleepTime,
+      usualWakeTime,
+      userName,
+      userRole,
+    ],
   )
   const profileDefaults = useMemo<SettingsProfile>(
     () => ({
       userName,
       userRole,
       preferredTone,
+      heightCm,
+      birthYear,
+      sex,
+      bodyGoal,
+      targetWeightKg,
+      targetPace,
+      activityLevel,
+      usualSleepTime,
+      usualWakeTime,
+      bodyLimitations,
       userId: authUser?.userId,
     }),
-    [authUser?.userId, preferredTone, userName, userRole],
+    [
+      activityLevel,
+      authUser?.userId,
+      birthYear,
+      bodyGoal,
+      bodyLimitations,
+      heightCm,
+      preferredTone,
+      sex,
+      targetPace,
+      targetWeightKg,
+      usualSleepTime,
+      usualWakeTime,
+      userName,
+      userRole,
+    ],
   )
   const lastBackupLabel = useMemo(() => formatBackupDate(lastBackupExportAt), [lastBackupExportAt])
   const accountStatusLabel = useMemo(
@@ -530,12 +789,24 @@ export function SettingsScreen() {
       />
 
       <GlassCard tone="strong" className="mb-5">
-        <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Профиль</p>
+        <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Профиль LifeQuest</p>
+        <p className="mt-3 text-sm leading-6 text-slate-200">
+          Эти данные помогают Ядру точнее понимать тело, энергию и цели. Всё хранится локально.
+        </p>
         <ProfileSettingsForm
           key={profileFormKey}
           initialProfile={profileDefaults}
-          onSave={updateProfile}
+          onSave={(profile) => {
+            updateProfile(profile)
+            setProfileFeedback('Профиль обновлён')
+            window.setTimeout(() => setProfileFeedback(''), 1800)
+          }}
         />
+        {profileFeedback ? (
+          <p className="mt-3 rounded-full border border-success/25 bg-success/10 px-4 py-2 text-sm text-success">
+            {profileFeedback}
+          </p>
+        ) : null}
 
         <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-4">
           <p className="text-xs uppercase tracking-[0.18em] text-muted">Профиль в аккаунте</p>

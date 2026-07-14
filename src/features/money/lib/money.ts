@@ -27,6 +27,7 @@ export interface MoneyImportPreview {
   source: MoneyImportSource
   periodStart?: string
   periodEnd?: string
+  statementEndingBalance?: number
   accounts: MoneyAccount[]
   transactions: MoneyTransaction[]
   totals: {
@@ -35,6 +36,7 @@ export interface MoneyImportPreview {
     transfer: number
     newTransactions: number
     duplicates: number
+    skippedBeforeStartDate?: number
   }
   warnings: string[]
 }
@@ -43,6 +45,7 @@ export const moneyAccountTypeLabels: Record<MoneyAccountType, string> = {
   cash: 'Наличные',
   debit_card: 'Карта',
   savings: 'Накопления',
+  credit_card: 'Кредитка',
   other: 'Другое',
 }
 
@@ -84,9 +87,11 @@ export interface MoneyPersistedState {
   plannedPayments: PlannedPayment[]
   debts: Debt[]
   monthlyPlans: MonthlyMoneyPlan[]
+  trackingStartDate?: string
   lastBalanceCheckAt?: string
   importWarnings?: string[]
   lastImportAt?: string
+  skippedBeforeStartDate?: number
 }
 
 export type MoneyStateSnapshot = MoneyPersistedState
@@ -116,9 +121,11 @@ export function createEmptyMoneyState(): MoneyPersistedState {
     plannedPayments: [],
     debts: [],
     monthlyPlans: [],
+    trackingStartDate: undefined,
     lastBalanceCheckAt: undefined,
     importWarnings: [],
     lastImportAt: undefined,
+    skippedBeforeStartDate: 0,
   }
 }
 
@@ -248,7 +255,11 @@ function sanitizeAccount(value: unknown): MoneyAccount | null {
   return {
     id,
     name,
-    type: enumValue<MoneyAccountType>(value.type, ['cash', 'debit_card', 'savings', 'other'], 'other'),
+    type: enumValue<MoneyAccountType>(
+      value.type,
+      ['cash', 'debit_card', 'savings', 'credit_card', 'other'],
+      'other',
+    ),
     openingBalance,
     createdAt,
     updatedAt,
@@ -517,6 +528,8 @@ export function sanitizeMoneyPersistedState(value: unknown): MoneyPersistedState
 
   const lastBalanceCheckAt = readOptionalString(value.lastBalanceCheckAt)
   const lastImportAt = readOptionalString(value.lastImportAt)
+  const trackingStartDate = readOptionalString(value.trackingStartDate)
+  const skippedBeforeStartDate = normalizeMoneyValue(value.skippedBeforeStartDate ?? 0)
 
   return {
     accounts,
@@ -524,6 +537,8 @@ export function sanitizeMoneyPersistedState(value: unknown): MoneyPersistedState
     plannedPayments,
     debts,
     monthlyPlans: Array.from(plansByMonth.values()),
+    trackingStartDate:
+      trackingStartDate && isValidDateKey(trackingStartDate) ? trackingStartDate : undefined,
     lastBalanceCheckAt:
       lastBalanceCheckAt && isValidDateKey(lastBalanceCheckAt) ? lastBalanceCheckAt : undefined,
     importWarnings: Array.isArray(value.importWarnings)
@@ -533,6 +548,10 @@ export function sanitizeMoneyPersistedState(value: unknown): MoneyPersistedState
           .slice(0, 12)
       : [],
     lastImportAt: lastImportAt && isValidDateKey(lastImportAt) ? lastImportAt : undefined,
+    skippedBeforeStartDate:
+      skippedBeforeStartDate !== null && skippedBeforeStartDate >= 0
+        ? Math.round(skippedBeforeStartDate)
+        : 0,
   }
 }
 
@@ -571,10 +590,18 @@ export function getAccountBalance(account: MoneyAccount, transactions: MoneyTran
 export function getTotalBalance(accounts: MoneyAccount[], transactions: MoneyTransaction[]) {
   return Number(
     accounts
-      .filter((account) => !account.isArchived)
+      .filter((account) => !account.isArchived && account.type !== 'credit_card')
       .reduce((sum, account) => sum + getAccountBalance(account, transactions), 0)
       .toFixed(2),
   )
+}
+
+export function getCreditDebt(accounts: MoneyAccount[]) {
+  const accountDebt = accounts
+    .filter((account) => !account.isArchived && account.type === 'credit_card')
+    .reduce((sum, account) => sum + (Number.isFinite(account.debt) ? account.debt ?? 0 : 0), 0)
+
+  return Number(Math.max(0, accountDebt).toFixed(2))
 }
 
 function dateKeyToLocalDate(dateKey: string) {

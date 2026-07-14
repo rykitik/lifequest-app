@@ -7,6 +7,7 @@ import { ScreenHeader } from '@/shared/components/ScreenHeader'
 import { cn } from '@/shared/lib/cn'
 import type { BodyMovementType, BodyNutritionStatus } from '@/shared/types'
 import { useBodyStore } from '@/stores/useBodyStore'
+import { useSettingsStore } from '@/stores/useSettingsStore'
 
 const nutritionOptions: BodyNutritionStatus[] = [
   'Нормально',
@@ -35,6 +36,26 @@ const nutritionScore: Record<BodyNutritionStatus, number> = {
   Сладкое: 58,
 }
 
+const bodyGoalLabels = {
+  weight_loss: 'Снижение веса',
+  maintain: 'Поддержание',
+  energy: 'Энергия',
+  health: 'Здоровье',
+  not_set: 'Цель не выбрана',
+} as const
+
+const targetPaceLabels = {
+  calm: 'Спокойно',
+  moderate: 'Умеренно',
+  active: 'Активно',
+} as const
+
+const activityLevelLabels = {
+  low: 'Низкая активность',
+  medium: 'Средняя активность',
+  high: 'Высокая активность',
+} as const
+
 function getChipClass(active: boolean) {
   return cn(
     'min-h-11 rounded-2xl border px-3 py-2 text-sm font-medium transition',
@@ -55,6 +76,11 @@ export function BodyScreen() {
   const history = useBodyStore((state) => state.history)
   const saveCheckin = useBodyStore((state) => state.saveCheckin)
   const ensureTodayBodySnapshot = useBodyStore((state) => state.ensureTodayBodySnapshot)
+  const heightCm = useSettingsStore((state) => state.heightCm)
+  const bodyGoal = useSettingsStore((state) => state.bodyGoal)
+  const targetWeightKg = useSettingsStore((state) => state.targetWeightKg)
+  const targetPace = useSettingsStore((state) => state.targetPace)
+  const activityLevel = useSettingsStore((state) => state.activityLevel)
   const weightInputRef = useRef<HTMLInputElement>(null)
   const stepsInputRef = useRef<HTMLInputElement>(null)
   const [savedLabel, setSavedLabel] = useState('')
@@ -178,6 +204,19 @@ export function BodyScreen() {
         title="Тело"
         subtitle="Держи базовые показатели на виду, чтобы забота о себе была легче, чем избегание."
       />
+
+      {heightCm || targetWeightKg || (bodyGoal && bodyGoal !== 'not_set') ? (
+        <GlassCard className="mb-5 border border-cyan/15 bg-cyan/5">
+          <p className="text-xs uppercase tracking-[0.24em] text-cyan/80">Профиль тела</p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-200">
+            {heightCm ? <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Рост: {heightCm} см</span> : null}
+            {bodyGoal ? <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Цель: {bodyGoalLabels[bodyGoal]}</span> : null}
+            {targetWeightKg ? <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Целевой вес: {targetWeightKg} кг</span> : null}
+            {targetPace ? <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Темп: {targetPaceLabels[targetPace]}</span> : null}
+            {activityLevel ? <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">{activityLevelLabels[activityLevel]}</span> : null}
+          </div>
+        </GlassCard>
+      ) : null}
 
       <GlassCard tone="strong" className="mb-5">
         <div className="flex items-start justify-between gap-3">

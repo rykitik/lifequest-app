@@ -37,6 +37,16 @@ export interface SettingsProfile extends UserScopedEntity {
   userName: string
   userRole: string
   preferredTone: PreferredTone
+  heightCm?: number
+  birthYear?: number
+  sex?: 'male' | 'female' | 'not_specified'
+  bodyGoal?: 'weight_loss' | 'maintain' | 'energy' | 'health' | 'not_set'
+  targetWeightKg?: number
+  targetPace?: 'calm' | 'moderate' | 'active'
+  activityLevel?: 'low' | 'medium' | 'high'
+  usualSleepTime?: string
+  usualWakeTime?: string
+  bodyLimitations?: string
 }
 
 export interface AccountSettingsProfile extends SettingsProfile {
@@ -194,7 +204,7 @@ export interface MoneyAction {
   rewardXp: number
 }
 
-export type MoneyAccountType = 'cash' | 'debit_card' | 'savings' | 'other'
+export type MoneyAccountType = 'cash' | 'debit_card' | 'savings' | 'credit_card' | 'other'
 export type MoneyTransactionType = 'income' | 'expense' | 'adjustment'
 export type MoneyAdjustmentDirection = 'increase' | 'decrease'
 export type MoneyTransactionSource = 'manual' | 'sber_pdf' | 'sber_text' | 'unknown'

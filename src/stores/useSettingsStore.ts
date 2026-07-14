@@ -51,6 +51,16 @@ type SettingsPersistedState = Pick<
   | 'userName'
   | 'userRole'
   | 'preferredTone'
+  | 'heightCm'
+  | 'birthYear'
+  | 'sex'
+  | 'bodyGoal'
+  | 'targetWeightKg'
+  | 'targetPace'
+  | 'activityLevel'
+  | 'usualSleepTime'
+  | 'usualWakeTime'
+  | 'bodyLimitations'
   | 'lastBackupExportAt'
   | 'accountSyncedAt'
   | 'accountSyncVersion'
@@ -63,6 +73,16 @@ function createSettingsPersistedState(): SettingsPersistedState {
     userName: mockUser.name,
     userRole: 'Оператор системы',
     preferredTone: 'calm',
+    heightCm: undefined,
+    birthYear: undefined,
+    sex: 'not_specified',
+    bodyGoal: 'not_set',
+    targetWeightKg: undefined,
+    targetPace: 'calm',
+    activityLevel: 'medium',
+    usualSleepTime: undefined,
+    usualWakeTime: undefined,
+    bodyLimitations: undefined,
     lastBackupExportAt: null,
     accountSyncedAt: null,
     accountSyncVersion: null,
@@ -86,43 +106,104 @@ function normalizeTextInput(value: string | undefined) {
   return value?.trim() ?? ''
 }
 
+function normalizeOptionalTextInput(value: string | undefined) {
+  const trimmed = value?.trim() ?? ''
+
+  return trimmed.length ? trimmed : undefined
+}
+
+function normalizeOptionalNumber(value: number | undefined, options: { min: number; max: number }) {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (!Number.isFinite(value) || value < options.min || value > options.max) {
+    return undefined
+  }
+
+  return Number(value.toFixed(1))
+}
+
 function buildLocalProfileUpdate(
   state: SettingsState,
   profile: Partial<SettingsProfile>,
-): Pick<
-  SettingsState,
-  | 'userId'
-  | 'userName'
-  | 'userRole'
-  | 'preferredTone'
-  | 'accountSyncedAt'
-  | 'accountSyncVersion'
-  | 'accountSyncUserId'
-  | 'accountSyncStatus'
-  | 'accountSyncError'
-> | null {
+): Partial<SettingsState> | null {
   const nextUserId = profile.userId === undefined ? state.userId : profile.userId
   const nextUserName = profile.userName === undefined ? state.userName : normalizeTextInput(profile.userName)
   const nextUserRole = profile.userRole === undefined ? state.userRole : normalizeTextInput(profile.userRole)
   const nextPreferredTone = profile.preferredTone ?? state.preferredTone
+  const nextHeightCm =
+    profile.heightCm === undefined
+      ? state.heightCm
+      : normalizeOptionalNumber(profile.heightCm, { min: 80, max: 260 })
+  const nextBirthYear =
+    profile.birthYear === undefined
+      ? state.birthYear
+      : normalizeOptionalNumber(Math.round(profile.birthYear), { min: 1900, max: new Date().getFullYear() })
+  const nextSex = profile.sex ?? state.sex
+  const nextBodyGoal = profile.bodyGoal ?? state.bodyGoal
+  const nextTargetWeightKg =
+    profile.targetWeightKg === undefined
+      ? state.targetWeightKg
+      : normalizeOptionalNumber(profile.targetWeightKg, { min: 20, max: 300 })
+  const nextTargetPace = profile.targetPace ?? state.targetPace
+  const nextActivityLevel = profile.activityLevel ?? state.activityLevel
+  const nextUsualSleepTime =
+    profile.usualSleepTime === undefined
+      ? state.usualSleepTime
+      : normalizeOptionalTextInput(profile.usualSleepTime)
+  const nextUsualWakeTime =
+    profile.usualWakeTime === undefined
+      ? state.usualWakeTime
+      : normalizeOptionalTextInput(profile.usualWakeTime)
+  const nextBodyLimitations =
+    profile.bodyLimitations === undefined
+      ? state.bodyLimitations
+      : normalizeOptionalTextInput(profile.bodyLimitations)
 
   if (
     state.userId === nextUserId &&
     state.userName === nextUserName &&
     state.userRole === nextUserRole &&
-    state.preferredTone === nextPreferredTone
+    state.preferredTone === nextPreferredTone &&
+    state.heightCm === nextHeightCm &&
+    state.birthYear === nextBirthYear &&
+    state.sex === nextSex &&
+    state.bodyGoal === nextBodyGoal &&
+    state.targetWeightKg === nextTargetWeightKg &&
+    state.targetPace === nextTargetPace &&
+    state.activityLevel === nextActivityLevel &&
+    state.usualSleepTime === nextUsualSleepTime &&
+    state.usualWakeTime === nextUsualWakeTime &&
+    state.bodyLimitations === nextBodyLimitations
   ) {
     return null
   }
+
+  const accountSyncedFieldsChanged =
+    state.userId !== nextUserId ||
+    state.userName !== nextUserName ||
+    state.userRole !== nextUserRole ||
+    state.preferredTone !== nextPreferredTone
 
   return {
     userId: nextUserId,
     userName: nextUserName,
     userRole: nextUserRole,
     preferredTone: nextPreferredTone,
-    accountSyncedAt: null,
-    accountSyncVersion: null,
-    accountSyncUserId: null,
+    heightCm: nextHeightCm,
+    birthYear: nextBirthYear,
+    sex: nextSex,
+    bodyGoal: nextBodyGoal,
+    targetWeightKg: nextTargetWeightKg,
+    targetPace: nextTargetPace,
+    activityLevel: nextActivityLevel,
+    usualSleepTime: nextUsualSleepTime,
+    usualWakeTime: nextUsualWakeTime,
+    bodyLimitations: nextBodyLimitations,
+    accountSyncedAt: accountSyncedFieldsChanged ? null : state.accountSyncedAt,
+    accountSyncVersion: accountSyncedFieldsChanged ? null : state.accountSyncVersion,
+    accountSyncUserId: accountSyncedFieldsChanged ? null : state.accountSyncUserId,
     accountSyncStatus: 'idle',
     accountSyncError: null,
   }
@@ -334,7 +415,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'lifequest-settings',
-      version: 4,
+      version: 5,
       migrate: (persistedState) =>
         mergePersistedState(
           createSettingsPersistedState(),
@@ -345,6 +426,16 @@ export const useSettingsStore = create<SettingsState>()(
         userName: state.userName,
         userRole: state.userRole,
         preferredTone: state.preferredTone,
+        heightCm: state.heightCm,
+        birthYear: state.birthYear,
+        sex: state.sex,
+        bodyGoal: state.bodyGoal,
+        targetWeightKg: state.targetWeightKg,
+        targetPace: state.targetPace,
+        activityLevel: state.activityLevel,
+        usualSleepTime: state.usualSleepTime,
+        usualWakeTime: state.usualWakeTime,
+        bodyLimitations: state.bodyLimitations,
         lastBackupExportAt: state.lastBackupExportAt,
         accountSyncedAt: state.accountSyncedAt,
         accountSyncVersion: state.accountSyncVersion,

@@ -262,8 +262,8 @@ function createImportAccount(meta: ParsedStatementMeta, source: MoneyTransaction
   return {
     id: `sber-account-${last4 ?? stableHash([source, meta.periodStart ?? '', meta.periodEnd ?? ''])}`,
     name: last4 ? `Сбер • ${last4}` : 'Сбер',
-    type: source === 'sber_pdf' || source === 'sber_text' ? 'debit_card' : 'other',
-    openingBalance: meta.openingBalance ?? 0,
+    type: meta.creditLimit || meta.debt ? 'credit_card' : source === 'sber_pdf' || source === 'sber_text' ? 'debit_card' : 'other',
+    openingBalance: meta.creditLimit || meta.debt ? 0 : meta.openingBalance ?? 0,
     createdAt: now,
     updatedAt: now,
     isArchived: false,
@@ -461,6 +461,7 @@ export function parseSberStatementTextWithSource(
     source: source === 'sber_text' || source === 'sber_pdf' ? source : 'unknown',
     periodStart: meta.periodStart,
     periodEnd: meta.periodEnd,
+    statementEndingBalance: meta.endBalance,
     accounts: transactions.length || meta.accountLast4 ? [account] : [],
     transactions,
     totals: {

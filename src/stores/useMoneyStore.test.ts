@@ -165,6 +165,24 @@ describe('useMoneyStore', () => {
     ).toBe(1000)
   })
 
+  it('creditLimit не увеличивает общий баланс, а creditDebt считается отдельно', async () => {
+    const { getCreditDebt, getTotalBalance } = await importMoneyLib()
+    const accounts = [
+      validAccount({ openingBalance: 10_000 }),
+      validAccount({
+        id: 'credit-1',
+        name: 'Кредитка',
+        type: 'credit_card',
+        openingBalance: 0,
+        creditLimit: 150_000,
+        debt: 12_500,
+      }),
+    ]
+
+    expect(getTotalBalance(accounts, [])).toBe(10_000)
+    expect(getCreditDebt(accounts)).toBe(12_500)
+  })
+
   it('считает недельное изменение только за 7 календарных дней и без adjustment', async () => {
     const { getWeeklyDelta } = await importMoneyLib()
     const transactions = [
@@ -464,6 +482,78 @@ describe('useMoneyStore', () => {
     expect(formatDateSafe('не дата')).toBe('Дата не указана')
   })
 
+  it('сохраняет trackingStartDate и стартовые остатки baseline', async () => {
+    const { useMoneyStore } = await importMoneyStore()
+
+    const result = useMoneyStore.getState().setupMoneyBaseline({
+      trackingStartDate: '2026-07-10',
+      accounts: [
+        { name: 'Основная карта', type: 'debit_card', openingBalance: 10_000 },
+        { name: 'Наличные', type: 'cash', openingBalance: 1500 },
+        { name: 'Кредитка', type: 'credit_card', creditLimit: 100_000, debt: 20_000, last4: '1234' },
+      ],
+    })
+
+    expect(result.ok).toBe(true)
+    expect(useMoneyStore.getState().trackingStartDate).toBe('2026-07-10')
+    expect(useMoneyStore.getState().accounts).toHaveLength(3)
+    expect(useMoneyStore.getState().accounts.find((account) => account.type === 'credit_card')).toMatchObject({
+      openingBalance: 0,
+      creditLimit: 100_000,
+      debt: 20_000,
+      last4: '1234',
+    })
+  })
+
+  it('операции до trackingStartDate пропускаются в import preview', async () => {
+    const { useMoneyStore } = await importMoneyStore()
+    const { parseSberStatementText } = await import('@/services/moneyImport/sberStatementParser')
+    const sampleText = `
+СберБанк
+Выписка по платёжному счёту
+Карта **** 6128
+За период 01.07.2026 — 12.07.2026
+Остаток на начало периода 10000,00 ₽
+01.07.2026 Продукты Пятерочка -700,00 ₽ 9300,00 ₽
+11.07.2026 Зарплата +2000,00 ₽ 11300,00 ₽
+`
+
+    useMoneyStore.getState().setTrackingStartDate('2026-07-10')
+    const preview = parseSberStatementText(sampleText, useMoneyStore.getState().transactions)
+    expect(useMoneyStore.getState().setImportPreview(preview).ok).toBe(true)
+
+    expect(useMoneyStore.getState().importPreview?.transactions).toHaveLength(1)
+    expect(useMoneyStore.getState().importPreview?.totals.skippedBeforeStartDate).toBe(1)
+    expect(useMoneyStore.getState().importPreview?.totals.newTransactions).toBe(1)
+    expect(useMoneyStore.getState().skippedBeforeStartDate).toBe(1)
+  })
+
+  it('корректировка баланса после расхождения не создаётся автоматически', async () => {
+    const { useMoneyStore } = await importMoneyStore()
+    const accountId = useMoneyStore.getState().addAccount({
+      name: 'Карта',
+      type: 'debit_card',
+      openingBalance: 10_000,
+    }).id!
+    const preview: MoneyImportPreview = {
+      source: 'sber_text',
+      statementEndingBalance: 9000,
+      accounts: [{ ...validAccount({ id: accountId, last4: '1234' }) }],
+      transactions: [],
+      totals: {
+        income: 0,
+        expense: 0,
+        transfer: 0,
+        newTransactions: 0,
+        duplicates: 0,
+      },
+      warnings: [],
+    }
+
+    expect(useMoneyStore.getState().setImportPreview(preview).ok).toBe(true)
+    expect(useMoneyStore.getState().transactions).toHaveLength(0)
+  })
+
   it('importPreviewTransactions не создаёт дубли при повторном импорте той же выписки', async () => {
     const { useMoneyStore } = await importMoneyStore()
     const { parseSberStatementText } = await import('@/services/moneyImport/sberStatementParser')
@@ -616,5 +706,7 @@ describe('useMoneyStore', () => {
     expect(useMoneyStore.getState().transactions).toHaveLength(1)
     expect(useMoneyStore.getState().importPreview).toBeNull()
     expect(useMoneyStore.getState().importWarnings).toEqual([])
+    expect(useMoneyStore.getState().trackingStartDate).toBeUndefined()
+    expect(useMoneyStore.getState().skippedBeforeStartDate).toBe(0)
   })
 })

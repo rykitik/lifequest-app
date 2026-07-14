@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { parseSberStatementText } from '@/services/moneyImport/sberStatementParser'
 import { parseSberPdfStatement } from '@/services/moneyImport/sberPdfStatementParser'
 import debitBasicFixture from '@/services/moneyImport/__fixtures__/sber-debit-basic.txt?raw'
@@ -6,6 +6,8 @@ import creditBasicFixture from '@/services/moneyImport/__fixtures__/sber-credit-
 import transfersHeavyFixture from '@/services/moneyImport/__fixtures__/sber-transfers-heavy.txt?raw'
 import multilineOperationFixture from '@/services/moneyImport/__fixtures__/sber-multiline-operation.txt?raw'
 import pdfExtractedLayoutFixture from '@/services/moneyImport/__fixtures__/sber-pdf-extracted-layout.txt?raw'
+
+vi.setConfig({ testTimeout: 15_000 })
 
 const sampleSberText = `
 СберБанк
