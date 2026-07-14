@@ -1006,14 +1006,18 @@ export const useMoneyStore = create<MoneyState>()(
           const accountByPreviewId = new Map(preview.accounts.map((account) => [account.id, account]))
 
           preview.transactions.forEach((transaction) => {
-            if (!transaction.importHash) {
+            if (!transaction.importHash && !transaction.importFingerprint) {
               duplicates += 1
               return
             }
 
             if (
               isDuplicateImportTransaction(transaction, state.transactions) ||
-              importedTransactions.some((item) => item.importHash === transaction.importHash)
+              importedTransactions.some((item) =>
+                transaction.importFingerprint
+                  ? item.importFingerprint === transaction.importFingerprint
+                  : item.importHash === transaction.importHash,
+              )
             ) {
               duplicates += 1
               return

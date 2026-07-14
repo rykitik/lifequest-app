@@ -5,12 +5,19 @@ import {
   type MoneyImportPreview,
   normalizeMoneyValue,
 } from '@/features/money/lib/money'
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import type {
   MoneyAccount,
   MoneyCategory,
   MoneyTransaction,
   MoneyTransactionSource,
 } from '@/shared/types'
+
+interface PdfTextItem {
+  str?: string
+  transform?: number[]
+  hasEOL?: boolean
+}
 
 interface ParsedStatementMeta {
   accountLast4?: string
@@ -24,11 +31,13 @@ interface ParsedStatementMeta {
 
 interface ParsedAmount {
   amount: number
+  hasCurrency: boolean
   isIncome: boolean
+  isSigned: boolean
   raw: string
 }
 
-const amountPattern = /([+-]?\s*\d[\d\s\u00a0]*(?:[,.]\d{1,2})?)\s*(?:₽|руб\.?|RUB)?/gi
+const amountPattern = /([+-]?\s*\d[\d\s\u00a0]*(?:[,.]\d{1,2})?)\s*(₽|руб\.?|RUB)?/gi
 const operationDatePattern = /^(\d{2}\.\d{2}(?:\.\d{4})?)\s+(.+)$/
 
 function normalizeText(text: string) {
@@ -73,9 +82,13 @@ function extractAmountTokens(text: string) {
     const amount = parseMoneyValue(raw)
 
     if (amount !== null && amount > 0) {
+      const trimmedRaw = raw.trim()
+
       tokens.push({
         amount,
-        isIncome: raw.trim().startsWith('+'),
+        hasCurrency: Boolean(match[2]),
+        isIncome: trimmedRaw.startsWith('+'),
+        isSigned: /^[+-]/.test(trimmedRaw),
         raw,
       })
     }
@@ -85,7 +98,7 @@ function extractAmountTokens(text: string) {
 }
 
 function extractSignedAmountToken(text: string): ParsedAmount | null {
-  const match = text.match(/([+-]\s*\d[\d\s\u00a0]*(?:[,.]\d{1,2})?)\s*(?:₽|руб\.?|RUB)?/i)
+  const match = text.match(/([+-]\s*\d[\d\s\u00a0]*(?:[,.]\d{1,2})?)\s*(₽|руб\.?|RUB)?/i)
   const raw = match?.[1] ?? ''
   const amount = raw ? parseMoneyValue(raw) : null
 
@@ -95,7 +108,9 @@ function extractSignedAmountToken(text: string): ParsedAmount | null {
 
   return {
     amount: Math.abs(amount),
+    hasCurrency: Boolean(match?.[2]),
     isIncome: raw.trim().startsWith('+'),
+    isSigned: true,
     raw,
   }
 }
@@ -116,8 +131,12 @@ function extractLabelAmount(text: string, labels: string[]) {
 
 function extractMeta(text: string): ParsedStatementMeta {
   const periodMatch = text.match(/За период\s+(\d{2}\.\d{2}\.\d{4})\s*-\s*(\d{2}\.\d{2}\.\d{4})/i)
+  const maskedCardLast4Match = text.match(
+    /(?:карта|карты|карт[аеы]|MIR|МИР|Visa|Mastercard)[^\n]{0,120}?(?:\*{2,}|•{1,}|[xXхХ]{2,})\s*(\d{4})/i,
+  )
   const accountLast4Match =
-    text.match(/(?:карта|карты|сч[её]т|сч[её]та|MIR|Visa|Mastercard)[^\n\d]{0,40}(?:\*{2,}|[xXхХ]{2,}|№)?\s*(\d{4})/i) ??
+    maskedCardLast4Match ??
+    text.match(/(?:карта|карты|сч[её]т|сч[её]та|MIR|МИР|Visa|Mastercard)[^\n\d]{0,40}(?:\*{2,}|[xXхХ]{2,}|№)?\s*(\d{4})/i) ??
     text.match(/(?:\*{4}|[xXхХ]{4}|••••)\s*(\d{4})/)
 
   return {
@@ -201,6 +220,48 @@ function stableHash(parts: string[]) {
   return `imp-${(hash >>> 0).toString(16)}`
 }
 
+function normalizeFingerprintText(value: string) {
+  return value
+    .replace(/\u00a0/g, ' ')
+    .replace(/[−–—]/g, '-')
+    .replace(/операц(?:ия|ии|ию)?\s+по\s+карт[еы]?\s*(?:\*{2,}|•{1,}|x{2,}|х{2,})?\s*\d{4}/gi, ' ')
+    .replace(/\b(?:карта|карт[аеы])\s*(?:\*{2,}|•{1,}|x{2,}|х{2,})?\s*\d{4}\b/gi, ' ')
+    .replace(/\b(?:₽|руб\.?|rub)\b/gi, ' ')
+    .replace(/[.]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function normalizeFingerprintAmount(amount: number) {
+  const normalized = normalizeMoneyValue(amount)
+
+  return normalized === null ? '0.00' : normalized.toFixed(2)
+}
+
+function createImportFingerprint({
+  accountLast4,
+  amount,
+  description,
+  transactionDate,
+  type,
+}: {
+  accountLast4?: string
+  amount: number
+  description: string
+  transactionDate: string
+  type: MoneyTransaction['type']
+}) {
+  return stableHash([
+    'money-import-v1',
+    transactionDate,
+    type,
+    normalizeFingerprintAmount(amount),
+    normalizeFingerprintText(description),
+    accountLast4 ?? '',
+  ])
+}
+
 function createImportAccount(meta: ParsedStatementMeta, source: MoneyTransactionSource): MoneyAccount {
   const now = new Date().toISOString()
   const last4 = meta.accountLast4
@@ -248,7 +309,10 @@ function parseOperationLine(
   }
 
   const rest = dateMatch[2] ?? ''
-  const tokens = extractAmountTokens(rest)
+  const hasOperationTime = /\b\d{2}:\d{2}\b/.test(rest)
+  const tokens = extractAmountTokens(rest).filter(
+    (token) => token.hasCurrency || token.isSigned || hasOperationTime,
+  )
 
   if (!tokens.length) {
     return null
@@ -263,6 +327,7 @@ function parseOperationLine(
 
   const rawDescription = stripAmounts(rest, amountToken) || rest
   const isIncome = amountToken.isIncome
+  const type = isIncome ? 'income' : 'expense'
   const category = categorize(rawDescription, isIncome)
   const importHash = stableHash([
     source,
@@ -275,7 +340,7 @@ function parseOperationLine(
   return {
     id: createId('import-tx'),
     accountId: `sber-account-${meta.accountLast4 ?? stableHash([source, meta.periodStart ?? '', meta.periodEnd ?? ''])}`,
-    type: isIncome ? 'income' : 'expense',
+    type,
     amount: amountToken.amount,
     category,
     title: moneyCategoryLabels[category],
@@ -285,6 +350,13 @@ function parseOperationLine(
     updatedAt: new Date().toISOString(),
     source,
     importHash,
+    importFingerprint: createImportFingerprint({
+      accountLast4: meta.accountLast4,
+      amount: amountToken.amount,
+      description: rawDescription,
+      transactionDate,
+      type,
+    }),
     accountLast4: meta.accountLast4,
     rawDescription,
   }
@@ -342,9 +414,10 @@ function parseOperations(text: string, meta: ParsedStatementMeta, source: MoneyT
     .filter((transaction): transaction is MoneyTransaction => Boolean(transaction))
 }
 
-export function parseSberStatementText(
+function parseSberStatementTextWithSource(
   text: string,
   existingTransactions: MoneyTransaction[] = [],
+  detectedSource: Extract<MoneyTransactionSource, 'sber_pdf' | 'sber_text'> = 'sber_text',
 ): MoneyImportPreview {
   const normalizedText = normalizeText(text)
   const warnings: string[] = []
@@ -366,7 +439,7 @@ export function parseSberStatementText(
   }
 
   const isSberStatement = /Сбер|Sber|Выписка по плат[её]жному сч[её]ту|Выписка по сч[её]ту кредитной карты/i.test(normalizedText)
-  const source: MoneyTransactionSource = isSberStatement ? 'sber_text' : 'unknown'
+  const source: MoneyTransactionSource = isSberStatement ? detectedSource : 'unknown'
   const meta = extractMeta(normalizedText)
   const transactions = parseOperations(normalizedText, meta, source)
   const account = createImportAccount(meta, source)
@@ -392,7 +465,7 @@ export function parseSberStatementText(
   }
 
   return {
-    source: source === 'sber_text' ? 'sber_text' : 'unknown',
+    source: source === 'sber_text' || source === 'sber_pdf' ? source : 'unknown',
     periodStart: meta.periodStart,
     periodEnd: meta.periodEnd,
     accounts: transactions.length || meta.accountLast4 ? [account] : [],
@@ -412,14 +485,14 @@ export function parseSberStatementText(
   }
 }
 
-export async function parseSberPdfStatement(
-  file: File,
+export function parseSberStatementText(
+  text: string,
   existingTransactions: MoneyTransaction[] = [],
-): Promise<MoneyImportPreview> {
-  if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt')) {
-    return parseSberStatementText(await file.text(), existingTransactions)
-  }
+): MoneyImportPreview {
+  return parseSberStatementTextWithSource(text, existingTransactions, 'sber_text')
+}
 
+function emptyPdfPreview(warnings: string[]): MoneyImportPreview {
   return {
     source: 'sber_pdf',
     accounts: [],
@@ -431,6 +504,79 @@ export async function parseSberPdfStatement(
       newTransactions: 0,
       duplicates: 0,
     },
-    warnings: ['Не удалось прочитать PDF. Попробуй вставить текст выписки вручную.'],
+    warnings,
+  }
+}
+
+function extractPdfTextLines(items: PdfTextItem[]) {
+  const groupedLines = new Map<number, Array<{ x: number; text: string }>>()
+
+  items.forEach((item) => {
+    const text = item.str?.trim()
+    const transform = item.transform
+
+    if (!text || !Array.isArray(transform)) {
+      return
+    }
+
+    const x = Number(transform[4] ?? 0)
+    const y = Math.round(Number(transform[5] ?? 0) * 2) / 2
+
+    groupedLines.set(y, [...(groupedLines.get(y) ?? []), { x, text }])
+  })
+
+  return Array.from(groupedLines.entries())
+    .sort((left, right) => right[0] - left[0])
+    .map(([, lineItems]) =>
+      lineItems
+        .sort((left, right) => left.x - right.x)
+        .map((item) => item.text)
+        .join(' '),
+    )
+    .join('\n')
+}
+
+async function extractTextFromPdf(file: File) {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+
+  if (typeof window !== 'undefined') {
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+  }
+
+  const pdf = await pdfjs.getDocument({
+    data: new Uint8Array(await file.arrayBuffer()),
+  }).promise
+  const pageTexts: string[] = []
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber)
+    const textContent = await page.getTextContent()
+
+    pageTexts.push(extractPdfTextLines(textContent.items as PdfTextItem[]))
+  }
+
+  return pageTexts.join('\n')
+}
+
+export async function parseSberPdfStatement(
+  file: File,
+  existingTransactions: MoneyTransaction[] = [],
+): Promise<MoneyImportPreview> {
+  if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt')) {
+    return parseSberStatementText(await file.text(), existingTransactions)
+  }
+
+  try {
+    const extractedText = await extractTextFromPdf(file)
+
+    if (!extractedText.trim()) {
+      return emptyPdfPreview([
+        'PDF прочитан, но текст выписки не найден. Попробуй вставить текст выписки вручную.',
+      ])
+    }
+
+    return parseSberStatementTextWithSource(extractedText, existingTransactions, 'sber_pdf')
+  } catch {
+    return emptyPdfPreview(['Не удалось прочитать PDF. Попробуй вставить текст выписки вручную.'])
   }
 }

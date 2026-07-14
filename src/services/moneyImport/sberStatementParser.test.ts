@@ -4,6 +4,7 @@ import debitBasicFixture from '@/services/moneyImport/__fixtures__/sber-debit-ba
 import creditBasicFixture from '@/services/moneyImport/__fixtures__/sber-credit-basic.txt?raw'
 import transfersHeavyFixture from '@/services/moneyImport/__fixtures__/sber-transfers-heavy.txt?raw'
 import multilineOperationFixture from '@/services/moneyImport/__fixtures__/sber-multiline-operation.txt?raw'
+import pdfExtractedLayoutFixture from '@/services/moneyImport/__fixtures__/sber-pdf-extracted-layout.txt?raw'
 
 const sampleSberText = `
 СберБанк
@@ -62,6 +63,7 @@ describe('parseSberStatementText', () => {
     const preview = parseSberStatementText(sampleSberText)
 
     expect(preview.transactions.every((transaction) => transaction.importHash)).toBe(true)
+    expect(preview.transactions.every((transaction) => transaction.importFingerprint)).toBe(true)
     expect(preview.totals.transfer).toBe(400)
   })
 
@@ -73,7 +75,7 @@ describe('parseSberStatementText', () => {
     expect(secondPreview.totals.newTransactions).toBe(0)
   })
 
-  it('возвращает спокойный fallback для PDF без локального text extractor', async () => {
+  it('возвращает спокойный fallback для нечитаемого PDF', async () => {
     const file = new File(['%PDF-1.7'], 'statement.pdf', { type: 'application/pdf' })
     const preview = await parseSberPdfStatement(file)
 
@@ -141,5 +143,24 @@ describe('parseSberStatementText', () => {
       type: 'expense',
     })
     expect(transaction?.rawDescription).not.toContain('18 765')
+  })
+
+  it('разбирает pdfjs extracted layout без ложных операций из detail-строк', () => {
+    const preview = parseSberStatementText(pdfExtractedLayoutFixture)
+
+    expect(preview.periodStart).toBe('2026-07-01')
+    expect(preview.periodEnd).toBe('2026-07-12')
+    expect(preview.accounts[0]?.last4).toBe('1111')
+    expect(preview.transactions).toHaveLength(4)
+    expect(preview.transactions.map((transaction) => transaction.amount)).toEqual([
+      400,
+      18.48,
+      200,
+      12612.49,
+    ])
+    expect(preview.transactions.filter((transaction) => transaction.type === 'income')).toHaveLength(2)
+    expect(preview.transactions.filter((transaction) => transaction.type === 'expense')).toHaveLength(2)
+    expect(preview.transactions.some((transaction) => transaction.rawDescription?.includes('699060'))).toBe(false)
+    expect(preview.transactions.every((transaction) => transaction.importFingerprint)).toBe(true)
   })
 })

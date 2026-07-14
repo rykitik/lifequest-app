@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MoneyAccount, MoneyTransaction, PlannedPayment } from '@/shared/types'
 import debitBasicFixture from '@/services/moneyImport/__fixtures__/sber-debit-basic.txt?raw'
+import type { MoneyImportPreview } from '@/features/money/lib/money'
 
 vi.setConfig({ testTimeout: 15_000 })
 
@@ -94,6 +95,18 @@ function validPlannedPayment(input: Partial<PlannedPayment> = {}): PlannedPaymen
     createdAt: '2026-07-12T10:00:00.000Z',
     updatedAt: '2026-07-12T10:00:00.000Z',
     ...input,
+  }
+}
+
+function asPdfPreview(preview: MoneyImportPreview): MoneyImportPreview {
+  return {
+    ...preview,
+    source: 'sber_pdf',
+    transactions: preview.transactions.map((transaction) => ({
+      ...transaction,
+      source: 'sber_pdf',
+      importHash: `pdf-${transaction.importHash}`,
+    })),
   }
 }
 
@@ -502,6 +515,68 @@ describe('useMoneyStore', () => {
       duplicates: 4,
     })
     expect(useMoneyStore.getState().transactions).toHaveLength(4)
+  })
+
+  it('не дублирует операции при повторном импорте text → pdf по fingerprint', async () => {
+    const { useMoneyStore } = await importMoneyStore()
+    const { getTotalBalance } = await importMoneyLib()
+    const { parseSberStatementText } = await import('@/services/moneyImport/sberStatementParser')
+    const textPreview = parseSberStatementText(debitBasicFixture)
+    const pdfPreview = asPdfPreview(textPreview)
+
+    expect(useMoneyStore.getState().setImportPreview(textPreview).ok).toBe(true)
+    expect(useMoneyStore.getState().importPreviewTransactions()).toMatchObject({
+      imported: 4,
+      duplicates: 0,
+      ok: true,
+    })
+
+    const balanceAfterText = getTotalBalance(
+      useMoneyStore.getState().accounts,
+      useMoneyStore.getState().transactions,
+    )
+
+    expect(useMoneyStore.getState().setImportPreview(pdfPreview).ok).toBe(true)
+    expect(useMoneyStore.getState().importPreviewTransactions()).toMatchObject({
+      imported: 0,
+      duplicates: 4,
+      ok: true,
+    })
+    expect(useMoneyStore.getState().transactions).toHaveLength(4)
+    expect(getTotalBalance(useMoneyStore.getState().accounts, useMoneyStore.getState().transactions)).toBe(
+      balanceAfterText,
+    )
+  })
+
+  it('не дублирует операции при повторном импорте pdf → text по fingerprint', async () => {
+    const { useMoneyStore } = await importMoneyStore()
+    const { getTotalBalance } = await importMoneyLib()
+    const { parseSberStatementText } = await import('@/services/moneyImport/sberStatementParser')
+    const textPreview = parseSberStatementText(debitBasicFixture)
+    const pdfPreview = asPdfPreview(textPreview)
+
+    expect(useMoneyStore.getState().setImportPreview(pdfPreview).ok).toBe(true)
+    expect(useMoneyStore.getState().importPreviewTransactions()).toMatchObject({
+      imported: 4,
+      duplicates: 0,
+      ok: true,
+    })
+
+    const balanceAfterPdf = getTotalBalance(
+      useMoneyStore.getState().accounts,
+      useMoneyStore.getState().transactions,
+    )
+
+    expect(useMoneyStore.getState().setImportPreview(textPreview).ok).toBe(true)
+    expect(useMoneyStore.getState().importPreviewTransactions()).toMatchObject({
+      imported: 0,
+      duplicates: 4,
+      ok: true,
+    })
+    expect(useMoneyStore.getState().transactions).toHaveLength(4)
+    expect(getTotalBalance(useMoneyStore.getState().accounts, useMoneyStore.getState().transactions)).toBe(
+      balanceAfterPdf,
+    )
   })
 
   it('повреждённый importPreview не ломает store', async () => {

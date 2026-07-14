@@ -324,6 +324,7 @@ function sanitizeTransaction(value: unknown, accountIds: Set<string>): MoneyTran
       'manual',
     ),
     importHash: readOptionalString(value.importHash),
+    importFingerprint: readOptionalString(value.importFingerprint),
     externalId: readOptionalString(value.externalId),
     accountLast4: readLast4(value.accountLast4),
     rawDescription: readOptionalString(value.rawDescription),
@@ -674,10 +675,13 @@ export function isDuplicateImportTransaction(
   transaction: MoneyTransaction,
   existingTransactions: MoneyTransaction[],
 ) {
-  return Boolean(
-    transaction.importHash &&
-      existingTransactions.some((existing) => existing.importHash === transaction.importHash),
-  )
+  if (transaction.importFingerprint) {
+    return existingTransactions.some(
+      (existing) => existing.importFingerprint === transaction.importFingerprint,
+    )
+  }
+
+  return Boolean(transaction.importHash && existingTransactions.some((existing) => existing.importHash === transaction.importHash))
 }
 
 export function countImportDuplicates(

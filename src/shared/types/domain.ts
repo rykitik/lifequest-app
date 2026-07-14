@@ -253,6 +253,7 @@ export interface MoneyTransaction extends UserScopedEntity {
   idempotencyKey?: string
   source?: MoneyTransactionSource
   importHash?: string
+  importFingerprint?: string
   externalId?: string
   accountLast4?: string
   rawDescription?: string
