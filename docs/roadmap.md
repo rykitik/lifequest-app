@@ -98,4 +98,3 @@ Auth и первый settings sync уже есть, но общий sync runtime
 - обязательная авторизация;
 - большой dashboard;
 - встроенный OpenAI API.
-
