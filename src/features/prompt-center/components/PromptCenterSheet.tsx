@@ -11,7 +11,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { buildFullLifeQuestContext } from '@/services/contextBuilder'
+import { buildFullLifeQuestContext, buildWeeklyReviewContext } from '@/services/contextBuilder'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
@@ -31,6 +31,12 @@ const actionDifficultyLabels: Record<string, string> = {
   easy: 'Лёгко',
   medium: 'Средне',
   hard: 'Сложно',
+}
+
+const dataQualityLabels: Record<string, string> = {
+  low: 'мало данных',
+  medium: 'средне',
+  good: 'достаточно',
 }
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
@@ -66,95 +72,105 @@ function ActionMeta({ action }: { action: LifeQuestSuggestedAction }) {
 }
 
 function WeeklyReviewSummaryPanel({
-  summary,
+  summaries,
   message,
   onDelete,
 }: {
-  summary: WeeklyReviewSummary | null
+  summaries: WeeklyReviewSummary[]
   message: string | null
   onDelete: (id: string) => void
 }) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
+  const visibleSummaries = showAll ? summaries : summaries.slice(0, 3)
 
   return (
     <div className="mb-4 rounded-[1.5rem] border border-cyan/15 bg-cyan/10 p-3.5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-cyan">Недельный итог</p>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-cyan">История недель</p>
           <p className="mt-1 text-sm leading-5 text-muted">
-            Последний подтверждённый недельный разбор хранится только локально.
+            Подтверждённые недельные итоги хранятся только локально и не содержат выписки или полный список операций.
           </p>
         </div>
       </div>
 
-      {summary ? (
+      {visibleSummaries.length ? (
         <div className="mt-3 space-y-2">
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-            <p className="text-xs text-muted">
-              Период: {formatReviewDate(summary.periodStart)} — {formatReviewDate(summary.periodEnd)}
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              Сохранено: {formatReviewDate(summary.createdAt)}
-            </p>
-          </div>
-          <PreviewRow label="Сообщение Ядра" value={summary.coreMessage} />
-          <PreviewRow label="Фокус по телу" value={summary.bodyFocus} />
-          <PreviewRow label="Риск" value={summary.risk} />
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
-              Сохранённые действия
-            </p>
-            {summary.suggestedActions.length ? (
-              <div className="mt-2 space-y-2">
-                {summary.suggestedActions.map((action) => (
-                  <div key={`${summary.id}-${action.title}`} className="min-w-0">
-                    <p className="break-words text-sm leading-5 text-white">{action.title}</p>
-                    <ActionMeta action={action} />
-                  </div>
-                ))}
+          {visibleSummaries.map((summary) => (
+            <div key={summary.id} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted">
+                    {formatReviewDate(summary.weekStart ?? summary.periodStart)} —{' '}
+                    {formatReviewDate(summary.weekEnd ?? summary.periodEnd)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    Сохранено: {formatReviewDate(summary.createdAt)}
+                    {summary.dataQuality ? ` · Данные: ${dataQualityLabels[summary.dataQuality]}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2 text-muted transition hover:text-white"
+                  aria-label="Удалить недельный итог"
+                  onClick={() => setPendingDeleteId(summary.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
-            ) : (
-              <p className="mt-2 text-sm text-muted">Действия не сохранялись.</p>
-            )}
-          </div>
 
-          {pendingDeleteId === summary.id ? (
-            <div className="grid grid-cols-2 gap-2">
-              <PrimaryButton
-                tone="warning"
-                fullWidth
-                className="px-2 text-xs"
-                onClick={() => {
-                  onDelete(summary.id)
-                  setPendingDeleteId(null)
-                }}
-              >
-                Удалить итог
-              </PrimaryButton>
-              <PrimaryButton
-                tone="secondary"
-                fullWidth
-                className="px-2 text-xs"
-                onClick={() => setPendingDeleteId(null)}
-              >
-                Оставить
-              </PrimaryButton>
+              <div className="mt-3 grid gap-2">
+                <PreviewRow label="Главный вывод" value={summary.summary} />
+                <PreviewRow label="Фокус по телу" value={summary.bodyFocus} />
+                <PreviewRow label="Фокус по деньгам" value={summary.moneyFocus} />
+                <PreviewRow label="Риск" value={summary.risk} />
+              </div>
+
+              <p className="mt-3 text-xs text-muted">
+                Применено действий: {summary.appliedActionsCount} из {summary.suggestedActionsCount}
+              </p>
+
+              {pendingDeleteId === summary.id ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <PrimaryButton
+                    tone="warning"
+                    fullWidth
+                    className="px-2 text-xs"
+                    onClick={() => {
+                      onDelete(summary.id)
+                      setPendingDeleteId(null)
+                    }}
+                  >
+                    Удалить итог
+                  </PrimaryButton>
+                  <PrimaryButton
+                    tone="secondary"
+                    fullWidth
+                    className="px-2 text-xs"
+                    onClick={() => setPendingDeleteId(null)}
+                  >
+                    Оставить
+                  </PrimaryButton>
+                </div>
+              ) : null}
             </div>
-          ) : (
+          ))}
+
+          {summaries.length > 3 ? (
             <PrimaryButton
               tone="secondary"
               fullWidth
               className="!min-h-10 px-3 py-2 text-xs"
-              icon={<Trash2 className="h-4 w-4" />}
-              onClick={() => setPendingDeleteId(summary.id)}
+              onClick={() => setShowAll((value) => !value)}
             >
-              Удалить
+              {showAll ? 'Свернуть историю' : 'Показать ещё'}
             </PrimaryButton>
-          )}
+          ) : null}
         </div>
       ) : (
         <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-5 text-muted">
-          Здесь появится последний подтверждённый недельный разбор.
+          Здесь появятся сохранённые недельные итоги.
         </p>
       )}
 
@@ -278,7 +294,34 @@ function ParsedResponsePreview({
   )
 }
 
-function getContextPreviewRows() {
+function getContextPreviewRows(selectedCardId: string | null) {
+  if (selectedCardId === 'weekly-review') {
+    const context = buildWeeklyReviewContext()
+
+    return [
+      {
+        label: 'Неделя',
+        value: `${context.period.daysCount} дней, данные: ${dataQualityLabels[context.dataQuality.overall]}`,
+      },
+      {
+        label: 'Тело',
+        value: `вес ${context.bodySummary.weightStart ?? 'нет'} → ${context.bodySummary.weightEnd ?? 'нет'}, вода ${context.bodySummary.averageWaterLiters ?? 0} л, шаги ${context.bodySummary.averageSteps ?? 0}`,
+      },
+      {
+        label: 'Деньги',
+        value: `неделя: доход ${context.moneySummary.weekIncome}, расход ${context.moneySummary.weekExpense}, свободно ${context.moneySummary.safeToSpend ?? 0}`,
+      },
+      {
+        label: 'Фокус',
+        value: context.today.route.mainQuest?.title ?? 'Главный квест не выбран',
+      },
+      {
+        label: 'Восстановление',
+        value: context.today.route.recoveryQuest?.title ?? 'Запасной план не выбран',
+      },
+    ]
+  }
+
   const context = buildFullLifeQuestContext()
 
   return [
@@ -361,7 +404,7 @@ export function PromptCenterSheet() {
   )
 
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? cards[0] ?? null
-  const contextPreviewRows = isOpen ? getContextPreviewRows() : []
+  const contextPreviewRows = isOpen ? getContextPreviewRows(selectedCardId) : []
 
   useEffect(() => {
     if (!isOpen || generatedPrompt || !selectedCard) {
@@ -463,7 +506,7 @@ export function PromptCenterSheet() {
               </div>
 
               <WeeklyReviewSummaryPanel
-                summary={weeklyReviewSummaries[0] ?? null}
+                summaries={weeklyReviewSummaries}
                 message={weeklyReviewStoreMessage}
                 onDelete={deleteWeeklyReviewSummary}
               />
@@ -643,10 +686,15 @@ export function PromptCenterSheet() {
                     <div className="mt-3 grid gap-2">
                       <PreviewRow label="Главный вывод" value={pendingWeeklyReviewSummary.summary} />
                       <PreviewRow label="Фокус по телу" value={pendingWeeklyReviewSummary.bodyFocus} />
+                      <PreviewRow label="Фокус по деньгам" value={pendingWeeklyReviewSummary.moneyFocus} />
                       <PreviewRow label="Риск" value={pendingWeeklyReviewSummary.risk} />
                       <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                         <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
                           Выбранные действия
+                        </p>
+                        <p className="mt-1 text-xs text-muted">
+                          Применено: {pendingWeeklyReviewSummary.appliedActionsCount} из{' '}
+                          {pendingWeeklyReviewSummary.suggestedActionsCount}
                         </p>
                         {pendingWeeklyReviewSummary.suggestedActions.length ? (
                           <div className="mt-2 space-y-2">
@@ -664,14 +712,14 @@ export function PromptCenterSheet() {
                         )}
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       <PrimaryButton
                         tone="primary"
                         fullWidth
-                        className="px-2 text-xs sm:text-sm"
+                        className="px-3 text-xs sm:text-sm"
                         onClick={savePendingWeeklyReviewSummary}
                       >
-                        Сохранить итог
+                        Сохранить недельный итог
                       </PrimaryButton>
                       <PrimaryButton
                         tone="secondary"

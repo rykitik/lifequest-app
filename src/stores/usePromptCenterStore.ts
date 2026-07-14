@@ -6,7 +6,12 @@ import { buildPrompt } from '@/services/promptBuilder'
 import { parsePromptResponse } from '@/services/promptResponseParser'
 import { getLocalDateKey } from '@/shared/lib/date'
 import { mergePersistedState } from '@/shared/lib/persist'
-import type { LifeQuestPromptResponse, LifeQuestSuggestedAction, PromptCard } from '@/shared/types'
+import type {
+  LifeQuestPromptResponse,
+  LifeQuestSuggestedAction,
+  PromptCard,
+  WeeklyReviewDataQuality,
+} from '@/shared/types'
 import { useCompanionStore } from '@/stores/useCompanionStore'
 import { useQuestStore } from '@/stores/useQuestStore'
 import { useWeeklyReviewStore } from '@/stores/useWeeklyReviewStore'
@@ -15,9 +20,13 @@ interface PendingWeeklyReviewSummary {
   summary: string
   periodStart: string
   periodEnd: string
+  dataQuality?: WeeklyReviewDataQuality
   coreMessage: string
   bodyFocus: string
+  moneyFocus: string
   risk: string
+  suggestedActionsCount: number
+  appliedActionsCount: number
   suggestedActions: LifeQuestSuggestedAction[]
 }
 
@@ -88,7 +97,11 @@ function isWeeklyReviewCard(cardId: string | null) {
   return cardId === 'weekly-review'
 }
 
-function getWeeklyReviewPeriod() {
+function getWeeklyReviewPeriod(): {
+  periodStart: string
+  periodEnd: string
+  dataQuality: WeeklyReviewDataQuality
+} {
   const context = buildWeeklyReviewContext()
   const dates = context.body.dailyLogs
     .map((log) => log.date)
@@ -97,8 +110,9 @@ function getWeeklyReviewPeriod() {
   const fallbackDate = getLocalDateKey()
 
   return {
-    periodStart: dates[0] ?? fallbackDate,
-    periodEnd: dates.at(-1) ?? fallbackDate,
+    periodStart: context.period.weekStart ?? dates[0] ?? fallbackDate,
+    periodEnd: context.period.weekEnd ?? dates.at(-1) ?? fallbackDate,
+    dataQuality: context.dataQuality.overall as WeeklyReviewDataQuality,
   }
 }
 
@@ -348,9 +362,13 @@ export const usePromptCenterStore = create<PromptCenterState>()(
                 summary: parsedResponse.summary,
                 periodStart: weeklyReviewPeriod.periodStart,
                 periodEnd: weeklyReviewPeriod.periodEnd,
+                dataQuality: weeklyReviewPeriod.dataQuality,
                 coreMessage: parsedResponse.coreMessage,
                 bodyFocus: parsedResponse.bodyFocus,
+                moneyFocus: parsedResponse.moneyFocus,
                 risk: parsedResponse.risk,
+                suggestedActionsCount: parsedResponse.suggestedActions.length,
+                appliedActionsCount: selectedActions.length,
                 suggestedActions: selectedActions,
               }
             : null,
@@ -418,14 +436,21 @@ export const usePromptCenterStore = create<PromptCenterState>()(
         const result = useWeeklyReviewStore.getState().saveWeeklyReviewSummary({
           periodStart: pending.periodStart,
           periodEnd: pending.periodEnd,
+          weekStart: pending.periodStart,
+          weekEnd: pending.periodEnd,
+          dataQuality: pending.dataQuality,
+          summary: pending.summary,
           coreMessage: pending.coreMessage,
           bodyFocus: pending.bodyFocus,
+          moneyFocus: pending.moneyFocus,
           risk: pending.risk,
+          suggestedActionsCount: pending.suggestedActionsCount,
+          appliedActionsCount: pending.appliedActionsCount,
           suggestedActions: pending.suggestedActions,
         })
 
         set({
-          pendingWeeklyReviewSummary: result.ok ? null : pending,
+          pendingWeeklyReviewSummary: null,
           weeklyReviewSaveMessage: result.ok
             ? 'Недельный итог сохранён.'
             : 'Этот недельный итог уже сохранён.',

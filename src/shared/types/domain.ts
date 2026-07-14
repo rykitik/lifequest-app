@@ -376,13 +376,30 @@ export interface LifeQuestPromptResponse {
   suggestedActions: LifeQuestSuggestedAction[]
 }
 
-export interface WeeklyReviewSummary extends UserScopedEntity {
+export type WeeklyReviewDataQuality = 'low' | 'medium' | 'good'
+
+export interface WeeklyReviewRecord extends UserScopedEntity {
   id: string
   createdAt: string
+  weekStart?: string
+  weekEnd?: string
+  dataQuality?: WeeklyReviewDataQuality
+  summary: string
+  bodyFocus?: string
+  moneyFocus?: string
+  risk?: string
+  coreMessage?: string
+  suggestedActionsCount: number
+  appliedActionsCount: number
+  rawTextNote?: string
+}
+
+export interface WeeklyReviewSummary extends WeeklyReviewRecord {
   periodStart: string
   periodEnd: string
   coreMessage: string
   bodyFocus: string
+  moneyFocus: string
   risk: string
   suggestedActions: LifeQuestSuggestedAction[]
   source: 'weekly_review'

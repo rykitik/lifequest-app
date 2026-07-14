@@ -6,7 +6,8 @@ import { useQuestStore } from '@/stores/useQuestStore'
 import { useRescueStore } from '@/stores/useRescueStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTodayStore } from '@/stores/useTodayStore'
-import type { BodyDailyLog, BodyNutritionStatus, QuestItem, TodayRoute } from '@/shared/types'
+import { getLocalDateKey } from '@/shared/lib/date'
+import type { BodyDailyLog, MoneyTransaction, QuestItem, TodayRoute } from '@/shared/types'
 import {
   getDebtSummary,
   getMonthKey,
@@ -16,17 +17,14 @@ import {
   getPlannedPaymentTotals,
   getTopExpenseCategories,
   getTotalBalance,
+  moneyCategoryLabels,
 } from '@/features/money/lib/money'
 
 const QUEST_LIMIT = 5
 const DAILY_LOG_LIMIT = 7
-const NUTRITION_FLAGS: BodyNutritionStatus[] = [
-  'Переел',
-  'Сорвался',
-  'Поздний ужин',
-  'Сладкое',
-  'Мало белка',
-]
+const TRANSFER_PATTERN = /(перевод|между своими|со своего|на свой|свой сч[её]т|transfer)/i
+
+type DataQuality = 'low' | 'medium' | 'good'
 
 function compactQuest(quest: QuestItem | null) {
   if (!quest) {
@@ -69,6 +67,27 @@ function sortLogsByDateDesc(logs: BodyDailyLog[]) {
 
 function sortLogsByDateAsc(logs: BodyDailyLog[]) {
   return [...logs].sort((left, right) => left.date.localeCompare(right.date))
+}
+
+function dateKeyToLocalDate(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00`)
+}
+
+function getDateDiffInDays(leftDateKey: string, rightDateKey: string) {
+  const leftTime = dateKeyToLocalDate(leftDateKey).getTime()
+  const rightTime = dateKeyToLocalDate(rightDateKey).getTime()
+
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) {
+    return Number.POSITIVE_INFINITY
+  }
+
+  return Math.floor((leftTime - rightTime) / 86_400_000)
+}
+
+function isWithinLastDays(dateKey: string, todayKey = getLocalDateKey(), days = DAILY_LOG_LIMIT) {
+  const diff = getDateDiffInDays(todayKey, dateKey)
+
+  return diff >= 0 && diff < days
 }
 
 function roundNumber(value: number, fractionDigits = 1) {
@@ -120,23 +139,33 @@ function createDailyBodyLogFromToday(today: ReturnType<typeof useBodyStore.getSt
 function getLastSevenBodyLogs() {
   const body = useBodyStore.getState()
   const logsByDate = new Map<string, BodyDailyLog>()
+  const todayKey = body.today.date || getLocalDateKey()
 
   body.dailyLogs.forEach((log) => {
     logsByDate.set(log.date, log)
   })
   logsByDate.set(body.today.date, createDailyBodyLogFromToday(body.today))
 
-  return sortLogsByDateDesc(Array.from(logsByDate.values())).slice(0, DAILY_LOG_LIMIT)
+  return sortLogsByDateDesc(Array.from(logsByDate.values()))
+    .filter((log) => isWithinLastDays(log.date, todayKey))
+    .slice(0, DAILY_LOG_LIMIT)
 }
 
 function countNutritionFlags(logs: BodyDailyLog[]) {
-  return NUTRITION_FLAGS.reduce<Record<string, number>>(
-    (accumulator, flag) => ({
-      ...accumulator,
-      [flag]: logs.filter((log) => log.nutritionStatus === flag).length,
-    }),
-    {},
-  )
+  return {
+    normal: logs.filter((log) => log.nutritionStatus === 'Нормально').length,
+    overeaten: logs.filter((log) => log.nutritionStatus === 'Переел').length,
+    breakdown: logs.filter((log) => log.nutritionStatus === 'Сорвался').length,
+    lowProtein: logs.filter((log) => log.nutritionStatus === 'Мало белка').length,
+    lateDinner: logs.filter((log) => log.nutritionStatus === 'Поздний ужин').length,
+    sweets: logs.filter((log) => log.nutritionStatus === 'Сладкое').length,
+    Нормально: logs.filter((log) => log.nutritionStatus === 'Нормально').length,
+    Переел: logs.filter((log) => log.nutritionStatus === 'Переел').length,
+    Сорвался: logs.filter((log) => log.nutritionStatus === 'Сорвался').length,
+    'Мало белка': logs.filter((log) => log.nutritionStatus === 'Мало белка').length,
+    'Поздний ужин': logs.filter((log) => log.nutritionStatus === 'Поздний ужин').length,
+    Сладкое: logs.filter((log) => log.nutritionStatus === 'Сладкое').length,
+  }
 }
 
 function buildBodyWeeklySummary(logs: BodyDailyLog[]) {
@@ -162,6 +191,150 @@ function buildBodyWeeklySummary(logs: BodyDailyLog[]) {
     ).length,
     workoutDays: logs.filter((log) => log.workoutDone).length,
     nutritionFlagsCount: countNutritionFlags(logs),
+  }
+}
+
+function getBodyDataQuality(logs: BodyDailyLog[]): DataQuality {
+  if (logs.length >= 5) {
+    return 'good'
+  }
+
+  if (logs.length >= 3) {
+    return 'medium'
+  }
+
+  return 'low'
+}
+
+function getWeeklyMoneyTransactions(transactions: MoneyTransaction[]) {
+  const todayKey = getLocalDateKey()
+
+  return transactions.filter(
+    (transaction) =>
+      transaction.type !== 'adjustment' && isWithinLastDays(transaction.transactionDate, todayKey),
+  )
+}
+
+function getWeeklyMoneyTotals(transactions: MoneyTransaction[]) {
+  return transactions.reduce(
+    (totals, transaction) => {
+      if (transaction.type === 'income') {
+        totals.income += transaction.amount
+      }
+
+      if (transaction.type === 'expense') {
+        totals.expense += transaction.amount
+      }
+
+      if (isTransferLikeTransaction(transaction)) {
+        totals.transfer += transaction.amount
+      }
+
+      return totals
+    },
+    { income: 0, expense: 0, transfer: 0 },
+  )
+}
+
+function isTransferLikeTransaction(transaction: MoneyTransaction) {
+  const text = [transaction.title, transaction.note, transaction.rawDescription]
+    .filter(Boolean)
+    .join(' ')
+
+  return TRANSFER_PATTERN.test(text)
+}
+
+function compactMoneyTransactionForContext(transaction: MoneyTransaction) {
+  return {
+    date: transaction.transactionDate,
+    type: transaction.type,
+    amount: transaction.amount,
+    category: transaction.category,
+    categoryLabel: moneyCategoryLabels[transaction.category],
+    source: transaction.source ?? 'manual',
+  }
+}
+
+function getRecentLargeTransactions(transactions: MoneyTransaction[], limit = 5) {
+  return transactions
+    .filter((transaction) => transaction.type !== 'adjustment')
+    .sort((left, right) => {
+      const dateDiff = right.transactionDate.localeCompare(left.transactionDate)
+
+      return dateDiff || right.amount - left.amount
+    })
+    .slice(0, limit)
+    .map(compactMoneyTransactionForContext)
+}
+
+function getCreditDebt() {
+  const money = useMoneyStore.getState()
+  const creditDebt = money.accounts
+    .filter((account) => !account.isArchived)
+    .reduce((sum, account) => sum + (Number.isFinite(account.debt) ? account.debt ?? 0 : 0), 0)
+
+  return creditDebt > 0 ? Number(creditDebt.toFixed(2)) : undefined
+}
+
+function getMoneyDataQuality(weeklyTransactions: MoneyTransaction[], hasAccounts: boolean): DataQuality {
+  const money = useMoneyStore.getState()
+
+  if (money.lastImportAt || weeklyTransactions.length >= 5) {
+    return 'good'
+  }
+
+  if (hasAccounts || weeklyTransactions.length > 0) {
+    return 'medium'
+  }
+
+  return 'low'
+}
+
+function buildWeeklyMoneyContext() {
+  const money = useMoneyStore.getState()
+  const month = getMonthKey()
+  const debtSummary = getDebtSummary(money.debts)
+  const projection = getMonthlyPlanProjection(money, month)
+  const monthTotals = getMonthTotals(money.transactions, month)
+  const plannedPaymentTotals = getPlannedPaymentTotals(money.plannedPayments, month)
+  const weeklyTransactions = getWeeklyMoneyTransactions(money.transactions)
+  const weeklyTotals = getWeeklyMoneyTotals(weeklyTransactions)
+  const activeAccountsCount = money.accounts.filter((account) => !account.isArchived).length
+  const dataQuality = getMoneyDataQuality(weeklyTransactions, activeAccountsCount > 0)
+  const creditDebt = getCreditDebt()
+
+  return {
+    totalBalance: getTotalBalance(money.accounts, money.transactions),
+    safeToSpend: projection.safeToSpend,
+    monthIncome: monthTotals.income,
+    monthExpense: monthTotals.expense,
+    weekIncome: Number(weeklyTotals.income.toFixed(2)),
+    weekExpense: Number(weeklyTotals.expense.toFixed(2)),
+    plannedPaymentsTotal: plannedPaymentTotals.expense,
+    debtsTotal: debtSummary.remainingDebt,
+    creditDebt,
+    topExpenseCategories: getTopExpenseCategories(money.transactions, month, 5),
+    recentLargeTransactions: getRecentLargeTransactions(money.transactions, 5),
+    lastImportAt: money.lastImportAt,
+    importWarnings: money.importWarnings.slice(0, 5),
+    dataQuality,
+    dataQualityNote:
+      dataQuality === 'low'
+        ? 'Финансовых данных пока мало: нет импортированных операций или ручных записей за неделю.'
+        : undefined,
+    summary: {
+      weekIncome: Number(weeklyTotals.income.toFixed(2)),
+      weekExpense: Number(weeklyTotals.expense.toFixed(2)),
+      transferTotal: Number(weeklyTotals.transfer.toFixed(2)),
+      topExpenseCategories: getTopExpenseCategories(money.transactions, month, 5).map((item) => ({
+        category: item.category,
+        amount: item.amount,
+      })),
+      largeTransactionsCount: Math.min(5, money.transactions.filter((transaction) => transaction.type !== 'adjustment').length),
+      creditDebt,
+      safeToSpend: projection.safeToSpend,
+      lastImportAt: money.lastImportAt,
+    },
   }
 }
 
@@ -231,13 +404,7 @@ export function buildMoneyContext() {
     .filter((transaction) => transaction.type !== 'adjustment')
     .sort((left, right) => right.amount - left.amount)
     .slice(0, 5)
-    .map((transaction) => ({
-      date: transaction.transactionDate,
-      type: transaction.type,
-      amount: transaction.amount,
-      category: transaction.category,
-      title: transaction.title,
-    }))
+    .map(compactMoneyTransactionForContext)
 
   return {
     totalBalance: getTotalBalance(money.accounts, money.transactions),
@@ -280,17 +447,36 @@ export function buildWeeklyReviewContext() {
   const companion = useCompanionStore.getState()
   const settings = useSettingsStore.getState()
   const weeklyBodyLogs = sortLogsByDateAsc(getLastSevenBodyLogs())
+  const bodySummary = buildBodyWeeklySummary(weeklyBodyLogs)
+  const bodyDataQuality = getBodyDataQuality(weeklyBodyLogs)
+  const moneyContext = buildWeeklyMoneyContext()
   const allQuests = [...quests.active, ...quests.inbox, ...quests.parked]
   const completedQuests = allQuests.filter((quest) => quest.status === 'complete')
+  const mode = today.modes.find((item) => item.key === today.currentMode)
+  const fallbackDate = getLocalDateKey()
+  const weekStart = weeklyBodyLogs[0]?.date ?? fallbackDate
+  const weekEnd = weeklyBodyLogs.at(-1)?.date ?? fallbackDate
 
   return {
     period: {
       days: DAILY_LOG_LIMIT,
+      weekStart,
+      weekEnd,
       daysCount: weeklyBodyLogs.length,
+      dataQuality: bodyDataQuality,
       dataQualityNote:
-        weeklyBodyLogs.length < 3
-          ? 'данных пока мало; выводы должны быть осторожными'
-          : 'данных достаточно для мягкого недельного разбора',
+        bodyDataQuality === 'low'
+          ? 'Данных пока мало; выводы должны быть осторожными.'
+          : 'Данных достаточно для мягкого недельного разбора.',
+    },
+    dataQuality: {
+      body: bodyDataQuality,
+      money: moneyContext.dataQuality,
+      overall: bodyDataQuality === 'low' || moneyContext.dataQuality === 'low'
+        ? 'low'
+        : bodyDataQuality === 'medium' || moneyContext.dataQuality === 'medium'
+          ? 'medium'
+          : 'good',
     },
     settings: {
       userName: settings.userName,
@@ -301,11 +487,18 @@ export function buildWeeklyReviewContext() {
       currentSnapshot: body.today,
       dailyLogs: weeklyBodyLogs.map(compactDailyBodyLog),
       weightHistory: body.history.slice(-10),
-      summary: buildBodyWeeklySummary(weeklyBodyLogs),
+      summary: bodySummary,
+      dataQuality: bodyDataQuality,
     },
+    bodySummary,
+    money: moneyContext,
+    moneySummary: moneyContext.summary,
     progress: buildProgressContext(),
     today: {
-      mode: today.currentMode,
+      mode: {
+        key: today.currentMode,
+        label: mode?.label ?? today.currentMode,
+      },
       route: compactRoute(today.route),
     },
     quests: {

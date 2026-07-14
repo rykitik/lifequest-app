@@ -85,9 +85,14 @@ describe('useWeeklyReviewStore', () => {
     const result = useWeeklyReviewStore.getState().saveWeeklyReviewSummary({
       periodStart: '2026-07-06',
       periodEnd: '2026-07-12',
+      dataQuality: 'medium',
+      summary: 'Неделя держится на маленьких фактах.',
       coreMessage: 'Ядро спокойно.',
       bodyFocus: 'Вода и шаги.',
+      moneyFocus: 'Один денежный чек.',
       risk: 'Перегрузить план.',
+      suggestedActionsCount: 3,
+      appliedActionsCount: 1,
       suggestedActions: validWeeklyReviewResponse().suggestedActions,
     })
 
@@ -96,6 +101,13 @@ describe('useWeeklyReviewStore', () => {
     expect(useWeeklyReviewStore.getState().summaries[0]).toMatchObject({
       periodStart: '2026-07-06',
       periodEnd: '2026-07-12',
+      weekStart: '2026-07-06',
+      weekEnd: '2026-07-12',
+      dataQuality: 'medium',
+      summary: 'Неделя держится на маленьких фактах.',
+      moneyFocus: 'Один денежный чек.',
+      suggestedActionsCount: 3,
+      appliedActionsCount: 1,
       source: 'weekly_review',
     })
   })
@@ -135,7 +147,42 @@ describe('useWeeklyReviewStore', () => {
 
     expect(inboxAfterApply).toBe(inboxBeforeApply + 2)
     expect(quests.useQuestStore.getState().inbox).toHaveLength(inboxAfterApply)
+    expect(weekly.useWeeklyReviewStore.getState().summaries[0]).toMatchObject({
+      moneyFocus: validWeeklyReviewResponse().moneyFocus,
+      suggestedActionsCount: 3,
+      appliedActionsCount: 2,
+    })
     expect(weekly.useWeeklyReviewStore.getState().summaries[0]!.suggestedActions).toHaveLength(2)
+  })
+
+  it('повторное сохранение той же недели не оставляет активную pending-панель', async () => {
+    const { prompt, weekly } = await importPromptFlowStores()
+
+    prompt.usePromptCenterStore.setState({
+      selectedCardId: 'weekly-review',
+      parsedResponse: validWeeklyReviewResponse(),
+      selectedSuggestedActionIndexes: [0],
+      shouldApplyCoreMessage: false,
+    })
+
+    prompt.usePromptCenterStore.getState().applyParsedResponse()
+    prompt.usePromptCenterStore.getState().savePendingWeeklyReviewSummary()
+
+    prompt.usePromptCenterStore.setState({
+      selectedCardId: 'weekly-review',
+      parsedResponse: validWeeklyReviewResponse(),
+      selectedSuggestedActionIndexes: [0],
+      shouldApplyCoreMessage: false,
+    })
+
+    prompt.usePromptCenterStore.getState().applyParsedResponse()
+    prompt.usePromptCenterStore.getState().savePendingWeeklyReviewSummary()
+
+    expect(weekly.useWeeklyReviewStore.getState().summaries).toHaveLength(1)
+    expect(prompt.usePromptCenterStore.getState().pendingWeeklyReviewSummary).toBeNull()
+    expect(prompt.usePromptCenterStore.getState().weeklyReviewSaveMessage).toBe(
+      'Этот недельный итог уже сохранён.',
+    )
   })
 
   it('защищает от дубликата одного и того же weekly summary', async () => {
@@ -180,11 +227,34 @@ describe('useWeeklyReviewStore', () => {
     expect(useWeeklyReviewStore.getState().summaries).toHaveLength(1)
   })
 
-  it('хранит максимум 8 последних итогов', async () => {
+  it('не создаёт второй итог для той же недели даже с другим текстом', async () => {
+    const { useWeeklyReviewStore } = await importWeeklyStore()
+
+    expect(useWeeklyReviewStore.getState().saveWeeklyReviewSummary({
+      periodStart: '2026-07-06',
+      periodEnd: '2026-07-12',
+      summary: 'Первый вывод недели.',
+      coreMessage: 'Первое сообщение.',
+    }).ok).toBe(true)
+
+    const duplicateResult = useWeeklyReviewStore.getState().saveWeeklyReviewSummary({
+      periodStart: '2026-07-06',
+      periodEnd: '2026-07-12',
+      summary: 'Другой вывод той же недели.',
+      coreMessage: 'Другое сообщение.',
+      moneyFocus: 'Другой фокус.',
+    })
+
+    expect(duplicateResult.ok).toBe(false)
+    expect(duplicateResult.duplicate).toBe(true)
+    expect(useWeeklyReviewStore.getState().summaries).toHaveLength(1)
+  })
+
+  it('хранит максимум 12 последних итогов', async () => {
     vi.useFakeTimers()
     const { useWeeklyReviewStore } = await importWeeklyStore()
 
-    for (let index = 0; index < 9; index += 1) {
+    for (let index = 0; index < 13; index += 1) {
       vi.setSystemTime(new Date(`2026-07-${String(index + 1).padStart(2, '0')}T10:00:00.000Z`))
       useWeeklyReviewStore.getState().saveWeeklyReviewSummary({
         periodStart: `2026-07-${String(index + 1).padStart(2, '0')}`,
@@ -198,9 +268,9 @@ describe('useWeeklyReviewStore', () => {
 
     const summaries = useWeeklyReviewStore.getState().summaries
 
-    expect(summaries).toHaveLength(8)
+    expect(summaries).toHaveLength(12)
     expect(summaries.some((summary) => summary.coreMessage === 'Итог 0')).toBe(false)
-    expect(summaries[0]!.coreMessage).toBe('Итог 8')
+    expect(summaries[0]!.coreMessage).toBe('Итог 12')
   })
 
   it('показывает самым первым самый новый итог по createdAt', async () => {
@@ -249,6 +319,27 @@ describe('useWeeklyReviewStore', () => {
     expect(useWeeklyReviewStore.getState().summaries).toEqual([])
   })
 
+  it('не сохраняет приватные хвосты выписок и полные номера в weekly record', async () => {
+    const { useWeeklyReviewStore } = await importWeeklyStore()
+
+    useWeeklyReviewStore.getState().saveWeeklyReviewSummary({
+      periodStart: '2026-07-06',
+      periodEnd: '2026-07-12',
+      summary: 'PDF statement text rawDescription 40817810099910004312',
+      bodyFocus: 'Тело спокойно.',
+      moneyFocus: 'Счёт 40817810099910004312 проверен.',
+      rawTextNote: 'rawDescription PDF statement text 40817810099910004312',
+    })
+
+    const serialized = JSON.stringify(useWeeklyReviewStore.getState().summaries[0])
+
+    expect(serialized).not.toContain('rawDescription')
+    expect(serialized).not.toContain('PDF')
+    expect(serialized).not.toContain('statement text')
+    expect(serialized).not.toContain('40817810099910004312')
+    expect(serialized).toContain('[номер скрыт]')
+  })
+
   it('фильтрует persisted-записи неправильной структуры', async () => {
     vi.resetModules()
     installStorage()
@@ -276,6 +367,34 @@ describe('useWeeklyReviewStore', () => {
 
     expect(useWeeklyReviewStore.getState().summaries).toHaveLength(1)
     expect(useWeeklyReviewStore.getState().summaries[0]!.id).toBe('ok')
+    expect(useWeeklyReviewStore.getState().summaries[0]).toMatchObject({
+      summary: 'Сохранить.',
+      weekStart: '2026-07-06',
+      weekEnd: '2026-07-12',
+      suggestedActionsCount: 0,
+      appliedActionsCount: 0,
+    })
+  })
+
+  it('старый persisted state Prompt Center мягко мигрирует после добавления истории', async () => {
+    vi.resetModules()
+    installStorage()
+    localStorage.setItem(
+      'lifequest-prompt-center',
+      JSON.stringify({
+        state: {
+          selectedCard: { id: 'weekly-review' },
+          userRequest: 'Разбери неделю.',
+          preferredResponseFormat: 'Коротко.',
+        },
+        version: 1,
+      }),
+    )
+
+    const { usePromptCenterStore } = await import('@/stores/usePromptCenterStore')
+
+    expect(typeof usePromptCenterStore.getState().selectedCardId).toBe('string')
+    expect(usePromptCenterStore.getState().pendingWeeklyReviewSummary).toBeNull()
   })
 
   it('мягко нормализует отсутствующие optional-поля', async () => {
@@ -288,9 +407,13 @@ describe('useWeeklyReviewStore', () => {
 
     expect(result.ok).toBe(true)
     expect(result.summary).toMatchObject({
+      summary: 'Недельный итог сохранён.',
       coreMessage: '',
       bodyFocus: '',
+      moneyFocus: '',
       risk: '',
+      suggestedActionsCount: 0,
+      appliedActionsCount: 0,
       suggestedActions: [],
     })
   })

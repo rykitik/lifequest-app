@@ -5,19 +5,28 @@ import type {
   LifeQuestSuggestedAction,
   PromptImportDifficulty,
   PromptImportDomain,
+  WeeklyReviewDataQuality,
   WeeklyReviewSummary,
 } from '@/shared/types'
 import type { PersistStorage } from 'zustand/middleware'
 
-const WEEKLY_REVIEW_LIMIT = 8
+const WEEKLY_REVIEW_LIMIT = 12
 const WEEKLY_REVIEW_STORAGE_KEY = 'lifequest-weekly-reviews'
 
 interface WeeklyReviewSummaryInput {
   periodStart?: string
   periodEnd?: string
+  weekStart?: string
+  weekEnd?: string
+  dataQuality?: unknown
+  summary?: string
   coreMessage?: string
   bodyFocus?: string
+  moneyFocus?: string
   risk?: string
+  suggestedActionsCount?: unknown
+  appliedActionsCount?: unknown
+  rawTextNote?: string
   suggestedActions?: unknown
 }
 
@@ -52,8 +61,25 @@ function readText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function readCanonicalText(value: string) {
-  return value.trim().replace(/\s+/g, ' ')
+function readSafeText(value: unknown, maxLength = 700) {
+  return readText(value)
+    .replace(/\b\d{12,}\b/g, '[номер скрыт]')
+    .replace(/\brawDescription\b/gi, '')
+    .replace(/\bPDF\b/gi, '')
+    .replace(/\bstatement text\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, maxLength)
+    .trim()
+}
+
+function readDataQuality(value: unknown): WeeklyReviewDataQuality | undefined {
+  return value === 'low' || value === 'medium' || value === 'good' ? value : undefined
+}
+
+function readCount(value: unknown, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, Math.round(value))
+    : fallback
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -100,37 +126,50 @@ function createSummaryFingerprint(summary: WeeklyReviewSummary) {
   return JSON.stringify({
     periodStart: summary.periodStart,
     periodEnd: summary.periodEnd,
-    coreMessage: readCanonicalText(summary.coreMessage),
-    bodyFocus: readCanonicalText(summary.bodyFocus),
-    risk: readCanonicalText(summary.risk),
-    suggestedActions: summary.suggestedActions.map((action) => ({
-      title: readCanonicalText(action.title),
-      domain: action.domain,
-      difficulty: action.difficulty,
-      xp: action.xp,
-    })).sort((left, right) =>
-      `${left.title}|${left.domain}|${left.difficulty}|${left.xp}`.localeCompare(
-        `${right.title}|${right.domain}|${right.difficulty}|${right.xp}`,
-      ),
-    ),
+    weekStart: summary.weekStart,
+    weekEnd: summary.weekEnd,
     source: summary.source,
   })
 }
 
 function createWeeklyReviewSummary(input: WeeklyReviewSummaryInput): WeeklyReviewSummary {
   const fallbackDate = getLocalDateKey()
+  const suggestedActions = normalizeSuggestedActions(input.suggestedActions)
+  const periodStart = readSafeText(input.periodStart) || readSafeText(input.weekStart) || fallbackDate
+  const periodEnd =
+    readSafeText(input.periodEnd) || readSafeText(input.weekEnd) || readSafeText(input.periodStart) || fallbackDate
+  const summary = readSafeText(input.summary) || readSafeText(input.coreMessage) || 'Недельный итог сохранён.'
+  const coreMessage = readSafeText(input.coreMessage)
+  const bodyFocus = readSafeText(input.bodyFocus)
+  const moneyFocus = readSafeText(input.moneyFocus)
+  const risk = readSafeText(input.risk)
+  const dataQuality = readDataQuality(input.dataQuality)
 
-  return {
+  let reviewSummary: WeeklyReviewSummary = {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-    periodStart: readText(input.periodStart) || fallbackDate,
-    periodEnd: readText(input.periodEnd) || readText(input.periodStart) || fallbackDate,
-    coreMessage: readText(input.coreMessage),
-    bodyFocus: readText(input.bodyFocus),
-    risk: readText(input.risk),
-    suggestedActions: normalizeSuggestedActions(input.suggestedActions),
+    periodStart,
+    periodEnd,
+    weekStart: readSafeText(input.weekStart) || periodStart,
+    weekEnd: readSafeText(input.weekEnd) || periodEnd,
+    summary,
+    coreMessage,
+    bodyFocus,
+    moneyFocus,
+    risk,
+    suggestedActionsCount: readCount(input.suggestedActionsCount, suggestedActions.length),
+    appliedActionsCount: readCount(input.appliedActionsCount, suggestedActions.length),
+    suggestedActions,
     source: 'weekly_review',
   }
+
+  if (dataQuality) {
+    reviewSummary = { ...reviewSummary, dataQuality }
+  }
+
+  const rawTextNote = readSafeText(input.rawTextNote, 240)
+
+  return rawTextNote ? { ...reviewSummary, rawTextNote } : reviewSummary
 }
 
 function normalizePersistedSummary(value: unknown): WeeklyReviewSummary | null {
@@ -153,17 +192,38 @@ function normalizePersistedSummary(value: unknown): WeeklyReviewSummary | null {
     return null
   }
 
-  return {
+  const suggestedActions = normalizeSuggestedActions(value.suggestedActions)
+  const coreMessage = readSafeText(value.coreMessage)
+  const bodyFocus = readSafeText(value.bodyFocus)
+  const moneyFocus = readSafeText(value.moneyFocus)
+  const risk = readSafeText(value.risk)
+  const summary = readSafeText(value.summary) || coreMessage || bodyFocus || 'Недельный итог сохранён.'
+  const rawTextNote = readSafeText(value.rawTextNote, 240)
+  const dataQuality = readDataQuality(value.dataQuality)
+
+  let summaryRecord: WeeklyReviewSummary = {
     id,
     createdAt,
     periodStart,
     periodEnd,
-    coreMessage: readText(value.coreMessage),
-    bodyFocus: readText(value.bodyFocus),
-    risk: readText(value.risk),
-    suggestedActions: normalizeSuggestedActions(value.suggestedActions),
+    weekStart: readSafeText(value.weekStart) || periodStart,
+    weekEnd: readSafeText(value.weekEnd) || periodEnd,
+    summary,
+    coreMessage,
+    bodyFocus,
+    moneyFocus,
+    risk,
+    suggestedActionsCount: readCount(value.suggestedActionsCount, suggestedActions.length),
+    appliedActionsCount: readCount(value.appliedActionsCount, suggestedActions.length),
+    suggestedActions,
     source: 'weekly_review',
   }
+
+  if (dataQuality) {
+    summaryRecord = { ...summaryRecord, dataQuality }
+  }
+
+  return rawTextNote ? { ...summaryRecord, rawTextNote } : summaryRecord
 }
 
 function normalizeSummaries(value: unknown) {
