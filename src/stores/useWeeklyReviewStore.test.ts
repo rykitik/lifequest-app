@@ -397,6 +397,40 @@ describe('useWeeklyReviewStore', () => {
     expect(usePromptCenterStore.getState().pendingWeeklyReviewSummary).toBeNull()
   })
 
+  it('parseImportedResponse разбирает длинный текст, если в конце есть lifequest JSON', async () => {
+    const { prompt } = await importPromptFlowStores()
+
+    prompt.usePromptCenterStore.setState({
+      importedResponseText: `${'Длинный спокойный разбор недели. '.repeat(4_000)}${JSON.stringify({
+        lifequest: validWeeklyReviewResponse(),
+      })}`,
+      parseError: null,
+      parsedResponse: null,
+    })
+
+    prompt.usePromptCenterStore.getState().parseImportedResponse()
+
+    expect(prompt.usePromptCenterStore.getState().parseError).toBeNull()
+    expect(prompt.usePromptCenterStore.getState().parsedResponse?.summary).toBe(
+      validWeeklyReviewResponse().summary,
+    )
+  })
+
+  it('parseImportedResponse на длинном тексте без JSON выставляет мягкую ошибку', async () => {
+    const { prompt } = await importPromptFlowStores()
+
+    prompt.usePromptCenterStore.setState({
+      importedResponseText: 'x'.repeat(120_000),
+      parseError: null,
+      parsedResponse: null,
+    })
+
+    prompt.usePromptCenterStore.getState().parseImportedResponse()
+
+    expect(prompt.usePromptCenterStore.getState().parsedResponse).toBeNull()
+    expect(prompt.usePromptCenterStore.getState().parseError).toContain('JSON-блок lifequest')
+  })
+
   it('мягко нормализует отсутствующие optional-поля', async () => {
     const { useWeeklyReviewStore } = await importWeeklyStore()
 

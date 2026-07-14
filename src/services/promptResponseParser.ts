@@ -41,6 +41,7 @@ const responseKeys = [
 const actionKeys = ['title', 'domain', 'difficulty', 'xp'] as const
 const domains: PromptImportDomain[] = ['today', 'plan', 'body', 'money', 'rescue', 'core']
 const difficulties: PromptImportDifficulty[] = ['easy', 'medium', 'hard']
+const MAX_JSON_CANDIDATE_LENGTH = 100_000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -190,6 +191,13 @@ function extractBalancedJson(text: string, startIndex: number) {
   let escaped = false
 
   for (let index = startIndex; index < text.length; index += 1) {
+    if (index - startIndex > MAX_JSON_CANDIDATE_LENGTH) {
+      return {
+        ok: false,
+        reason: 'JSON-блок слишком длинный. Вставь только финальный JSON-блок lifequest.',
+      } as const
+    }
+
     const char = text[index]
 
     if (inString) {
@@ -217,91 +225,149 @@ function extractBalancedJson(text: string, startIndex: number) {
       depth -= 1
 
       if (depth === 0) {
-        return text.slice(startIndex, index + 1)
+        return {
+          ok: true,
+          candidate: text.slice(startIndex, index + 1),
+        } as const
       }
     }
+  }
+
+  return {
+    ok: false,
+    reason: 'JSON-блок найден, но фигурные скобки не закрыты.',
+  } as const
+}
+
+function extractJsonCodeBlock(rawText: string) {
+  let searchIndex = 0
+  let firstJsonCandidate:
+    | {
+        ok: true
+        candidate: string
+      }
+    | {
+        ok: false
+        reason: string
+      }
+    | null = null
+
+  while (searchIndex < rawText.length) {
+    const fenceStart = rawText.indexOf('```', searchIndex)
+
+    if (fenceStart === -1) {
+      return firstJsonCandidate
+    }
+
+    const headerStart = fenceStart + 3
+    const headerEnd = rawText.indexOf('\n', headerStart)
+
+    if (headerEnd === -1) {
+      return null
+    }
+
+    const language = rawText.slice(headerStart, headerEnd).trim().toLowerCase()
+    const fenceEnd = rawText.indexOf('```', headerEnd + 1)
+
+    if (fenceEnd === -1) {
+      return null
+    }
+
+    if (language === 'json' || language === '') {
+      const candidate = rawText.slice(headerEnd + 1, fenceEnd).trim()
+
+      if (candidate.length > MAX_JSON_CANDIDATE_LENGTH) {
+        return {
+          ok: false,
+          reason: 'JSON-блок слишком длинный. Вставь только финальный JSON-блок lifequest.',
+        } as const
+      }
+
+      if (candidate.startsWith('{')) {
+        const jsonCandidate = {
+          ok: true,
+          candidate,
+        } as const
+
+        if (candidate.includes('"lifequest"')) {
+          return jsonCandidate
+        }
+
+        firstJsonCandidate ??= jsonCandidate
+      }
+    }
+
+    searchIndex = fenceEnd + 3
   }
 
   return null
 }
 
-function collectJsonCandidates(rawText: string) {
-  const candidates: string[] = []
+function extractPromptJsonCandidate(rawText: string) {
   const trimmed = rawText.trim()
 
+  const codeBlock = extractJsonCodeBlock(trimmed)
+
+  if (codeBlock) {
+    return codeBlock
+  }
+
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    candidates.push(trimmed)
-  }
-
-  const codeBlockPattern = /```(?:json)?\s*([\s\S]*?)```/gi
-  let codeBlockMatch: RegExpExecArray | null
-
-  while ((codeBlockMatch = codeBlockPattern.exec(rawText))) {
-    const candidate = codeBlockMatch[1]?.trim()
-
-    if (candidate?.startsWith('{')) {
-      candidates.push(candidate)
+    if (trimmed.length > MAX_JSON_CANDIDATE_LENGTH) {
+      return {
+        ok: false,
+        reason: 'JSON-блок слишком длинный. Вставь только финальный JSON-блок lifequest.',
+      } as const
     }
+
+    return {
+      ok: true,
+      candidate: trimmed,
+    } as const
   }
 
-  const lifequestMarkerIndex = rawText.lastIndexOf('"lifequest"')
+  const lifequestMarkerIndex = trimmed.lastIndexOf('"lifequest"')
   const preferredStart =
-    lifequestMarkerIndex === -1 ? -1 : rawText.lastIndexOf('{', lifequestMarkerIndex)
+    lifequestMarkerIndex === -1 ? -1 : trimmed.lastIndexOf('{', lifequestMarkerIndex)
 
-  if (preferredStart !== -1) {
-    const candidate = extractBalancedJson(rawText, preferredStart)
-
-    if (candidate) {
-      candidates.push(candidate)
-    }
+  if (preferredStart === -1) {
+    return {
+      ok: false,
+      reason: 'Не удалось разобрать ответ. Попробуй вставить только JSON-блок lifequest из ответа ChatGPT.',
+    } as const
   }
 
-  for (let index = rawText.lastIndexOf('{'); index >= 0; index = rawText.lastIndexOf('{', index - 1)) {
-    const candidate = extractBalancedJson(rawText, index)
-
-    if (candidate) {
-      candidates.push(candidate)
-    }
-  }
-
-  return Array.from(new Set(candidates))
+  return extractBalancedJson(trimmed, preferredStart)
 }
 
 export function parsePromptResponse(rawText: string): PromptParseResult {
-  const candidates = collectJsonCandidates(rawText)
+  const extracted = extractPromptJsonCandidate(rawText)
 
-  if (!candidates.length) {
+  if (!extracted.ok) {
     return {
       ok: false,
-      reason: 'Не удалось найти структурированный JSON-блок.',
+      reason: extracted.reason,
     }
   }
 
-  let sawBrokenJson = false
+  const parsed = tryParseJson(extracted.candidate)
 
-  for (const candidate of candidates) {
-    const parsed = tryParseJson(candidate)
-
-    if (!parsed) {
-      sawBrokenJson = true
-      continue
+  if (!parsed) {
+    return {
+      ok: false,
+      reason: 'JSON-блок найден, но его не удалось разобрать.',
     }
+  }
 
-    const validation = validateLifeQuestResponse(parsed)
+  const validation = validateLifeQuestResponse(parsed)
 
-    if (validation.ok) {
-      return {
-        ok: true,
-        data: validation.data,
-        rawJson: candidate,
-      }
-    }
-
+  if (!validation.ok) {
     return validation
   }
 
   return {
-    ok: false,
-    reason: sawBrokenJson ? 'JSON-блок найден, но его не удалось разобрать.' : 'JSON-блок не найден.',
+    ok: true,
+    data: validation.data,
+    rawJson: extracted.candidate,
   }
 }

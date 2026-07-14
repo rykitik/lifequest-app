@@ -653,10 +653,7 @@ export function PromptCenterSheet() {
                 {parseError ? (
                   <div className="mt-3 flex gap-2 rounded-2xl border border-warning/20 bg-warning/10 p-3 text-sm leading-5 text-white">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                    <p>
-                      Не удалось найти структурированный JSON-блок. Можно использовать текст как
-                      обычную рекомендацию.
-                    </p>
+                    <p>{parseError}</p>
                   </div>
                 ) : null}
 
