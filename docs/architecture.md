@@ -17,9 +17,10 @@ LifeQuest строится как `local-first now, multi-user ready later`.
 
 ### 2. Account mode
 
-- позже появятся `register/login/logout`;
-- у каждой сущности появится `userId`;
-- backend станет источником синхронизации;
+- минимальные `register/login/logout/refresh/me` уже есть;
+- первый sync-домен `settingsProfile` уже работает вручную;
+- для остальных сущностей позже появится `userId`;
+- backend позже станет источником общей синхронизации;
 - локальное хранилище останется cache/offline-слоем.
 
 ### 3. Migration
@@ -59,13 +60,17 @@ src/
     useProgressStore.ts
     useBodyStore.ts
     useMoneyStore.ts
+    useWeeklyReviewStore.ts
     useRescueStore.ts
     useCompanionStore.ts
     usePromptCenterStore.ts
     useSettingsStore.ts
   services/
     mockData.ts
+    contextBuilder.ts
     promptBuilder.ts
+    promptResponseParser.ts
+    moneyImport/
     lifequestReset.ts
     lifequestRuntime.ts
     lifequestBackup.ts
@@ -82,7 +87,10 @@ src/
 - `isBootstrapping`
 - `bootstrap()`
 - `switchToLocalMode()`
-- placeholder `login/register/logout`
+- `login()`
+- `register()`
+- `logout()`
+- access token живёт только в memory state, refresh token остаётся в `httpOnly` cookie backend
 
 ### useTodayStore
 
@@ -117,13 +125,25 @@ src/
 - `today`
 - `history`
 - `saveCheckin`
+- daily logs для недельного контекста тела
 
 ### useMoneyStore
 
-- `snapshot`
-- `dailyMoneyQuests`
-- `saveSnapshot`
-- `completeMoneyQuest`
+- `trackingStartDate`
+- `accounts`
+- `transactions`
+- `plannedPayments`
+- `debts`
+- `monthlyPlans`
+- `importPreview`
+- `lastImportAt`
+- `addAccount`, `updateAccount`, `archiveAccount`
+- `addTransaction`, `updateTransaction`, `deleteTransaction`
+- `completePlannedPayment`, `recordDebtPayment`
+- `setTrackingStartDate`, `setupMoneyBaseline`
+- `setImportPreview`, `importPreviewTransactions`
+- баланс считается из `openingBalance + income - expense +/- adjustment`
+- `credit_card` не увеличивает общий баланс, `creditDebt` считается отдельно
 
 ### useRescueStore
 
@@ -148,17 +168,30 @@ src/
 - `generatePrompt`
 - `copyPrompt`
 - `openChatGPT`
+- `parseImportedResponse`
+- `applyImportedResponse`
+- weekly review flow через внешний ChatGPT без OpenAI API
+
+### useWeeklyReviewStore
+
+- `summaries`
+- persist key `lifequest-weekly-reviews`
+- хранит до 12 подтверждённых недельных итогов
+- дедупликация по периоду недели
+- не сохраняет полный prompt, PDF/text выписки и полный список операций
 
 ### useSettingsStore
 
 - `userName`
 - `userRole`
 - `preferredTone`
+- профиль тела: рост, цель, темп, активность, ограничения
 - `lastBackupExportAt`
 - `resetDemoData`
 - `clearAllLocalData`
 - `checkPwaStatus`
 - `applyPwaUpdate`
+- ручная синхронизация `settingsProfile` в account mode
 
 ## Готовность доменных типов к multi-user
 
@@ -178,7 +211,7 @@ src/
 
 ## Sync protocol
 
-- sync payload-форматы и conflict policy зафиксированы в [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md)
+- sync payload-форматы и conflict policy зафиксированы в [sync-plan.md](./sync-plan.md)
 - до начала backend skeleton protocol должен считаться утверждённым
 - `src/shared/types/sync.ts` содержит sync-ready frontend типы, но пока не подключён к runtime
 - `src/services/deviceIdentity.ts` готовит `deviceId` для будущих push/pull/import flow
@@ -233,6 +266,6 @@ server/
 - `/api/companion`
 - `/api/settings`
 
-Подробный черновик backend-контрактов: [backend-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/backend-plan.md)
+Подробный черновик backend-контрактов: [backend-plan.md](./backend-plan.md)
 
-Подробный sync protocol, payloads и conflict rules: [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md)
+Подробный sync protocol, payloads и conflict rules: [sync-plan.md](./sync-plan.md)

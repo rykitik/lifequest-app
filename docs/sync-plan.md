@@ -8,8 +8,8 @@
 
 Связанные документы:
 
-- [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md)
-- [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md)
+- [client-sync-state-machine.md](./client-sync-state-machine.md)
+- [sync-retry-policy.md](./sync-retry-policy.md)
 
 ## Режимы
 
@@ -285,8 +285,8 @@ interface SyncConflict {
 
 ## Связь с клиентской state machine
 
-- состояния клиента и переходы описаны в [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md)
-- retry и pause/resume правила описаны в [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md)
+- состояния клиента и переходы описаны в [client-sync-state-machine.md](./client-sync-state-machine.md)
+- retry и pause/resume правила описаны в [sync-retry-policy.md](./sync-retry-policy.md)
 
 ## Ограничения до backend skeleton
 

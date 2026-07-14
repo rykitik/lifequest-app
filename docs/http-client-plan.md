@@ -12,10 +12,10 @@
 
 Связанные документы:
 
-- [auth-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/auth-plan.md)
-- [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md)
-- [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md)
-- [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md)
+- [auth-plan.md](./auth-plan.md)
+- [sync-plan.md](./sync-plan.md)
+- [client-sync-state-machine.md](./client-sync-state-machine.md)
+- [sync-retry-policy.md](./sync-retry-policy.md)
 
 ## Цели HTTP client layer
 

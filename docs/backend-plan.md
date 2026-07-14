@@ -25,10 +25,10 @@
 
 Это всё ещё не sync backend, но frontend auth integration и account-aware sync readiness уже подключены. Текущий шаг нужен как надёжная основа под account mode later.
 
-Backend skeleton должен начинаться только после утверждения sync protocol из [sync-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-plan.md).
-Клиентская sync state machine должна быть зафиксирована в [client-sync-state-machine.md](/C:/Users/user/Downloads/projects/lifequest/docs/client-sync-state-machine.md), а retry policy — в [sync-retry-policy.md](/C:/Users/user/Downloads/projects/lifequest/docs/sync-retry-policy.md).
-Auth strategy, state machine и token policy описаны в [auth-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/auth-plan.md).
-HTTP client contract, refresh policy и error model должны быть утверждены в [http-client-plan.md](/C:/Users/user/Downloads/projects/lifequest/docs/http-client-plan.md).
+Backend skeleton должен начинаться только после утверждения sync protocol из [sync-plan.md](./sync-plan.md).
+Клиентская sync state machine должна быть зафиксирована в [client-sync-state-machine.md](./client-sync-state-machine.md), а retry policy — в [sync-retry-policy.md](./sync-retry-policy.md).
+Auth strategy, state machine и token policy описаны в [auth-plan.md](./auth-plan.md).
+HTTP client contract, refresh policy и error model должны быть утверждены в [http-client-plan.md](./http-client-plan.md).
 Дополнительно перед backend skeleton должны быть зафиксированы `useSyncStore` contract, `syncQueue` helpers и auth plan.
 
 ## Режимы
