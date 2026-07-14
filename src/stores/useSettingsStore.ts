@@ -11,7 +11,12 @@ import {
 import { mockUser } from '@/services/mockData'
 import { normalizeApiError } from '@/services/httpClientContract'
 import { mergePersistedState } from '@/shared/lib/persist'
-import type { AccountSettingsProfile, SettingsProfile } from '@/shared/types'
+import type {
+  AccountSettingsProfile,
+  OnboardingState,
+  OnboardingStepId,
+  SettingsProfile,
+} from '@/shared/types'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useSyncStore } from '@/stores/useSyncStore'
 
@@ -34,7 +39,12 @@ interface SettingsState extends SettingsProfile {
   accountSyncedAt: string | null
   accountSyncVersion: number | null
   accountSyncUserId: string | null
+  onboarding: OnboardingState
   updateProfile: (profile: Partial<SettingsProfile>) => void
+  setOnboardingStep: (step: OnboardingStepId) => void
+  completeOnboarding: () => void
+  skipOnboarding: () => void
+  resetOnboarding: () => void
   resetDemoData: () => void
   clearAllLocalData: () => Promise<void>
   checkPwaStatus: (options?: { checkForUpdates?: boolean }) => Promise<void>
@@ -65,7 +75,18 @@ type SettingsPersistedState = Pick<
   | 'accountSyncedAt'
   | 'accountSyncVersion'
   | 'accountSyncUserId'
+  | 'onboarding'
 >
+
+const onboardingSteps: OnboardingStepId[] = ['welcome', 'profile', 'body', 'money', 'route']
+
+function createDefaultOnboardingState(): OnboardingState {
+  return {
+    completed: false,
+    skipped: false,
+    currentStep: 'welcome',
+  }
+}
 
 function createSettingsPersistedState(): SettingsPersistedState {
   return {
@@ -87,6 +108,7 @@ function createSettingsPersistedState(): SettingsPersistedState {
     accountSyncedAt: null,
     accountSyncVersion: null,
     accountSyncUserId: null,
+    onboarding: createDefaultOnboardingState(),
   }
 }
 
@@ -122,6 +144,30 @@ function normalizeOptionalNumber(value: number | undefined, options: { min: numb
   }
 
   return Number(value.toFixed(1))
+}
+
+function normalizeOnboardingState(value: unknown): OnboardingState {
+  const defaults = createDefaultOnboardingState()
+
+  if (!value || typeof value !== 'object') {
+    return defaults
+  }
+
+  const record = value as Record<string, unknown>
+  const completed = record.completed === true
+  const skipped = record.skipped === true
+  const currentStep =
+    typeof record.currentStep === 'string' && onboardingSteps.includes(record.currentStep as OnboardingStepId)
+      ? (record.currentStep as OnboardingStepId)
+      : defaults.currentStep
+
+  return {
+    completed,
+    skipped,
+    currentStep,
+    completedAt: typeof record.completedAt === 'string' ? record.completedAt : undefined,
+    skippedAt: typeof record.skippedAt === 'string' ? record.skippedAt : undefined,
+  }
 }
 
 function buildLocalProfileUpdate(
@@ -233,6 +279,47 @@ export const useSettingsStore = create<SettingsState>()(
           const nextState = buildLocalProfileUpdate(state, profile)
           return nextState ? { ...state, ...nextState } : state
         }),
+      setOnboardingStep: (step) =>
+        set((state) => {
+          if (state.onboarding.currentStep === step) {
+            return state
+          }
+
+          return {
+            ...state,
+            onboarding: {
+              ...state.onboarding,
+              currentStep: step,
+            },
+          }
+        }),
+      completeOnboarding: () =>
+        set((state) => ({
+          ...state,
+          onboarding: {
+            ...state.onboarding,
+            completed: true,
+            skipped: false,
+            currentStep: 'route',
+            completedAt: new Date().toISOString(),
+            skippedAt: undefined,
+          },
+        })),
+      skipOnboarding: () =>
+        set((state) => ({
+          ...state,
+          onboarding: {
+            ...state.onboarding,
+            completed: false,
+            skipped: true,
+            skippedAt: new Date().toISOString(),
+          },
+        })),
+      resetOnboarding: () =>
+        set((state) => ({
+          ...state,
+          onboarding: createDefaultOnboardingState(),
+        })),
       recordBackupExport: (exportedAt) =>
         set((state) => {
           if (state.lastBackupExportAt === exportedAt) {
@@ -415,12 +502,18 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'lifequest-settings',
-      version: 5,
-      migrate: (persistedState) =>
-        mergePersistedState(
+      version: 6,
+      migrate: (persistedState) => {
+        const merged = mergePersistedState(
           createSettingsPersistedState(),
           persistedState,
-        ) as SettingsPersistedState,
+        ) as SettingsPersistedState
+
+        return {
+          ...merged,
+          onboarding: normalizeOnboardingState(merged.onboarding),
+        }
+      },
       partialize: (state) => ({
         userId: state.userId,
         userName: state.userName,
@@ -440,6 +533,7 @@ export const useSettingsStore = create<SettingsState>()(
         accountSyncedAt: state.accountSyncedAt,
         accountSyncVersion: state.accountSyncVersion,
         accountSyncUserId: state.accountSyncUserId,
+        onboarding: state.onboarding,
       }),
     },
   ),

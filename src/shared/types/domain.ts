@@ -55,6 +55,16 @@ export interface AccountSettingsProfile extends SettingsProfile {
   updatedAt: string
 }
 
+export type OnboardingStepId = 'welcome' | 'profile' | 'body' | 'money' | 'route'
+
+export interface OnboardingState {
+  completed: boolean
+  skipped: boolean
+  currentStep: OnboardingStepId
+  completedAt?: string
+  skippedAt?: string
+}
+
 export interface TodayModeOption {
   key: ModeKey
   label: string

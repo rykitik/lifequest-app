@@ -459,6 +459,7 @@ export function SettingsScreen() {
   const hasActiveServiceWorker = useSettingsStore((state) => state.hasActiveServiceWorker)
   const hasWaitingServiceWorker = useSettingsStore((state) => state.hasWaitingServiceWorker)
   const updateProfile = useSettingsStore((state) => state.updateProfile)
+  const resetOnboarding = useSettingsStore((state) => state.resetOnboarding)
   const fetchAccountSettingsProfile = useSettingsStore((state) => state.fetchAccountSettingsProfile)
   const pushAccountSettingsProfile = useSettingsStore((state) => state.pushAccountSettingsProfile)
   const recordBackupExport = useSettingsStore((state) => state.recordBackupExport)
@@ -646,6 +647,11 @@ export function SettingsScreen() {
     await clearAllLocalData()
   }
 
+  const handleRestartOnboarding = () => {
+    resetOnboarding()
+    navigate('/onboarding')
+  }
+
   const handleExportBackup = () => {
     setBackupStatus(null)
     setIsExportingBackup(true)
@@ -807,6 +813,23 @@ export function SettingsScreen() {
             {profileFeedback}
           </p>
         ) : null}
+
+        <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Первичная настройка</p>
+          <p className="mt-2 text-sm leading-6 text-slate-200">
+            Можно заново пройти короткий маршрут: профиль, старт тела, старт денег и первый шаг на сегодня.
+          </p>
+          <div className="mt-4">
+            <PrimaryButton
+              fullWidth
+              tone="secondary"
+              icon={<Sparkles className="h-4 w-4" />}
+              onClick={handleRestartOnboarding}
+            >
+              Пройти первичную настройку заново
+            </PrimaryButton>
+          </div>
+        </div>
 
         <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-4">
           <p className="text-xs uppercase tracking-[0.18em] text-muted">Профиль в аккаунте</p>

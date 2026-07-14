@@ -31,8 +31,21 @@ class MemoryStorage implements Storage {
 }
 
 function installStorage() {
+  const storage = new MemoryStorage()
+
+  Object.defineProperty(globalThis, 'window', {
+    value: {
+      ...globalThis,
+      location: {
+        hostname: 'localhost',
+        origin: 'http://localhost',
+      },
+      localStorage: storage,
+    },
+    configurable: true,
+  })
   Object.defineProperty(globalThis, 'localStorage', {
-    value: new MemoryStorage(),
+    value: storage,
     configurable: true,
   })
 }
@@ -88,5 +101,82 @@ describe('useSettingsStore profile baseline', () => {
     expect(typeof useSettingsStore.getState().userName).toBe('string')
     expect(useSettingsStore.getState().heightCm).toBeUndefined()
     expect(useSettingsStore.getState().bodyGoal).toBe('not_set')
+    expect(useSettingsStore.getState().onboarding).toMatchObject({
+      completed: false,
+      skipped: false,
+      currentStep: 'welcome',
+    })
+  })
+
+  it('stores first-run onboarding lifecycle', async () => {
+    const { useSettingsStore } = await importSettingsStore()
+
+    expect(useSettingsStore.getState().onboarding.currentStep).toBe('welcome')
+
+    useSettingsStore.getState().setOnboardingStep('body')
+    expect(useSettingsStore.getState().onboarding).toMatchObject({
+      completed: false,
+      skipped: false,
+      currentStep: 'body',
+    })
+
+    useSettingsStore.getState().skipOnboarding()
+    expect(useSettingsStore.getState().onboarding.skipped).toBe(true)
+    expect(useSettingsStore.getState().onboarding.completed).toBe(false)
+    expect(useSettingsStore.getState().onboarding.skippedAt).toEqual(expect.any(String))
+
+    useSettingsStore.getState().resetOnboarding()
+    expect(useSettingsStore.getState().onboarding).toMatchObject({
+      completed: false,
+      skipped: false,
+      currentStep: 'welcome',
+    })
+
+    useSettingsStore.getState().completeOnboarding()
+    expect(useSettingsStore.getState().onboarding.completed).toBe(true)
+    expect(useSettingsStore.getState().onboarding.skipped).toBe(false)
+    expect(useSettingsStore.getState().onboarding.completedAt).toEqual(expect.any(String))
+  })
+
+  it('keeps onboarding step after store reload', async () => {
+    vi.resetModules()
+    installStorage()
+    const { useSettingsStore } = await import('@/stores/useSettingsStore')
+
+    useSettingsStore.getState().setOnboardingStep('money')
+    vi.resetModules()
+
+    const { useSettingsStore: reloadedSettingsStore } = await import('@/stores/useSettingsStore')
+
+    expect(reloadedSettingsStore.getState().onboarding.currentStep).toBe('money')
+  })
+
+  it('recovers invalid persisted onboarding state safely', async () => {
+    vi.resetModules()
+    installStorage()
+    localStorage.setItem(
+      'lifequest-settings',
+      JSON.stringify({
+        state: {
+          userName: 'Ivan',
+          userRole: 'Operator',
+          preferredTone: 'calm',
+          onboarding: {
+            completed: 'yes',
+            skipped: 1,
+            currentStep: 'unknown-step',
+          },
+        },
+        version: 5,
+      }),
+    )
+
+    const { useSettingsStore } = await import('@/stores/useSettingsStore')
+
+    expect(useSettingsStore.getState().onboarding).toMatchObject({
+      completed: false,
+      skipped: false,
+      currentStep: 'welcome',
+    })
   })
 })

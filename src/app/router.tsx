@@ -59,6 +59,14 @@ const AuthScreen = lazy(async () => {
   }
 })
 
+const OnboardingScreen = lazy(async () => {
+  const module = await import('@/features/onboarding/screens/OnboardingScreen')
+
+  return {
+    default: module.OnboardingScreen,
+  }
+})
+
 const router = createBrowserRouter([
   {
     path: '/',
@@ -96,6 +104,10 @@ const router = createBrowserRouter([
       {
         path: 'auth',
         element: <AuthScreen />,
+      },
+      {
+        path: 'onboarding',
+        element: <OnboardingScreen />,
       },
     ],
   },

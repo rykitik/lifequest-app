@@ -1,10 +1,11 @@
-import { Suspense, lazy } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Suspense, lazy, useEffect } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { BottomNav } from '@/shared/components/BottomNav'
 import { ScreenLoadingFallback } from '@/shared/components/ScreenLoadingFallback'
 import { useFeedbackStore } from '@/stores/useFeedbackStore'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import { useRescueStore } from '@/stores/useRescueStore'
+import { useSettingsStore } from '@/stores/useSettingsStore'
 
 const PromptCenterSheet = lazy(async () => {
   const module = await import('@/features/prompt-center/components/PromptCenterSheet')
@@ -34,6 +35,18 @@ export function AppShell() {
   const isPromptCenterOpen = usePromptCenterStore((state) => state.isOpen)
   const isRescueOpen = useRescueStore((state) => state.isOpen)
   const hasRewardToast = useFeedbackStore((state) => Boolean(state.rewardToast))
+  const onboarding = useSettingsStore((state) => state.onboarding)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const isOnboardingRoute = location.pathname === '/onboarding'
+
+  useEffect(() => {
+    if (onboarding.completed || onboarding.skipped || isOnboardingRoute || location.pathname === '/auth') {
+      return
+    }
+
+    navigate('/onboarding', { replace: true })
+  }, [isOnboardingRoute, location.pathname, navigate, onboarding.completed, onboarding.skipped])
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#030817]">
@@ -51,11 +64,13 @@ export function AppShell() {
         </main>
       </div>
 
-      <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 w-full max-w-[30rem] -translate-x-1/2 px-3.5 safe-bottom sm:px-4">
-        <div className="pointer-events-auto">
-          <BottomNav />
+      {!isOnboardingRoute ? (
+        <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 w-full max-w-[30rem] -translate-x-1/2 px-3.5 safe-bottom sm:px-4">
+          <div className="pointer-events-auto">
+            <BottomNav />
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {isRescueOpen ? (
         <Suspense fallback={null}>
