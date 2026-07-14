@@ -44,8 +44,28 @@
 
   button,
   input,
+  select,
   textarea {
     font: inherit;
+  }
+
+  select {
+    color-scheme: dark;
+  }
+
+  select option,
+  select optgroup {
+    background-color: #0f172a;
+    color: #f8fafc;
+  }
+
+  select option:checked {
+    background-color: #1e293b;
+    color: #ffffff;
+  }
+
+  select option:disabled {
+    color: #94a3b8;
   }
 
   #root {
