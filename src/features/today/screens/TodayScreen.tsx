@@ -2,22 +2,28 @@ import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { HeartPulse, LifeBuoy, MessageSquareText, Play, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { CompanionCoreWidget } from '@/features/companion/components/CompanionCoreWidget'
+import { getCreditDebt, getMonthlyPlanProjection, getTotalBalance } from '@/features/money/lib/money'
 import { ModeSelector } from '@/features/today/components/ModeSelector'
 import { QuestFocusCard } from '@/features/today/components/QuestFocusCard'
 import { SectorStrip } from '@/features/today/components/SectorStrip'
+import { TodayNextStepCard } from '@/features/today/components/TodayNextStepCard'
 import { routeLabels } from '@/services/questMeta'
 import { applyLifeQuestReward } from '@/services/gameplay'
+import { buildTodayNextStepRecommendation } from '@/services/todayNextStep'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useBodyStore } from '@/stores/useBodyStore'
 import { useCompanionStore } from '@/stores/useCompanionStore'
+import { useMoneyStore } from '@/stores/useMoneyStore'
 import { useProgressStore } from '@/stores/useProgressStore'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import { useQuestStore } from '@/stores/useQuestStore'
 import { useRescueStore } from '@/stores/useRescueStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTodayStore } from '@/stores/useTodayStore'
+import { useWeeklyReviewStore } from '@/stores/useWeeklyReviewStore'
 import type { QuestItem, SectorKey, TodayRouteKey } from '@/shared/types'
 
 const RoutePickerSheet = lazy(async () => {
@@ -49,6 +55,13 @@ export function TodayScreen() {
   const [pickerSlot, setPickerSlot] = useState<TodayRouteKey | null>(null)
   const user = useAuthStore((state) => state.user)
   const userName = useSettingsStore((state) => state.userName)
+  const profileHeightCm = useSettingsStore((state) => state.heightCm)
+  const profileBodyGoal = useSettingsStore((state) => state.bodyGoal)
+  const profileTargetWeightKg = useSettingsStore((state) => state.targetWeightKg)
+  const profileTargetPace = useSettingsStore((state) => state.targetPace)
+  const profileActivityLevel = useSettingsStore((state) => state.activityLevel)
+  const profileBodyLimitations = useSettingsStore((state) => state.bodyLimitations)
+  const onboardingState = useSettingsStore((state) => state.onboarding)
   const currentMode = useTodayStore((state) => state.currentMode)
   const modes = useTodayStore((state) => state.modes)
   const route = useTodayStore((state) => state.route)
@@ -76,10 +89,91 @@ export function TodayScreen() {
   const rescueCompleted = useRescueStore((state) => state.completed)
   const openRescue = useRescueStore((state) => state.openRescue)
   const openPromptCenter = usePromptCenterStore((state) => state.openPromptCenter)
+  const todayBodySnapshot = useBodyStore((state) => state.today)
+  const saveBodyCheckin = useBodyStore((state) => state.saveCheckin)
+  const moneyAccounts = useMoneyStore((state) => state.accounts)
+  const moneyTransactions = useMoneyStore((state) => state.transactions)
+  const plannedPayments = useMoneyStore((state) => state.plannedPayments)
+  const monthlyPlans = useMoneyStore((state) => state.monthlyPlans)
+  const debts = useMoneyStore((state) => state.debts)
+  const trackingStartDate = useMoneyStore((state) => state.trackingStartDate)
+  const importWarnings = useMoneyStore((state) => state.importWarnings)
+  const lastImportAt = useMoneyStore((state) => state.lastImportAt)
+  const weeklySummaries = useWeeklyReviewStore((state) => state.summaries)
 
   const allQuests = useMemo(() => [...active, ...inbox, ...parked], [active, inbox, parked])
   const stability = sectors.find((sector) => sector.key === 'stability')?.percent ?? 72
   const routeIsIncomplete = !route.mainQuest || !route.quickWin || !route.recoveryQuest
+  const nextStepRecommendation = useMemo(() => {
+    const projection = getMonthlyPlanProjection({
+      accounts: moneyAccounts,
+      transactions: moneyTransactions,
+      plannedPayments,
+      debts,
+      monthlyPlans,
+    })
+
+    return buildTodayNextStepRecommendation({
+      profile: {
+        heightCm: profileHeightCm,
+        bodyGoal: profileBodyGoal,
+        targetWeightKg: profileTargetWeightKg,
+        targetPace: profileTargetPace,
+        activityLevel: profileActivityLevel,
+        bodyLimitations: profileBodyLimitations,
+        onboarding: {
+          completed: onboardingState.completed,
+          skipped: onboardingState.skipped,
+        },
+      },
+      body: {
+        today: todayBodySnapshot,
+      },
+      money: {
+        trackingStartDate,
+        totalBalance: getTotalBalance(moneyAccounts, moneyTransactions),
+        safeToSpend: projection.safeToSpend,
+        creditDebt: getCreditDebt(moneyAccounts),
+        lastImportAt,
+        importWarnings: importWarnings.slice(0, 3),
+      },
+      weekly: {
+        latest: weeklySummaries[0],
+      },
+      today: {
+        currentMode,
+        mainQuest: route.mainQuest,
+        quickWin: route.quickWin,
+        recoveryQuest: route.recoveryQuest,
+      },
+      progress: {
+        level,
+      },
+    })
+  }, [
+    currentMode,
+    debts,
+    importWarnings,
+    lastImportAt,
+    level,
+    moneyAccounts,
+    moneyTransactions,
+    monthlyPlans,
+    onboardingState,
+    plannedPayments,
+    profileActivityLevel,
+    profileBodyGoal,
+    profileBodyLimitations,
+    profileHeightCm,
+    profileTargetPace,
+    profileTargetWeightKg,
+    route.mainQuest,
+    route.quickWin,
+    route.recoveryQuest,
+    todayBodySnapshot,
+    trackingStartDate,
+    weeklySummaries,
+  ])
   const strongestSector = useMemo(() => {
     const entries = Object.entries(dailySummary.sectorXp) as Array<[SectorKey, number]>
     const [sectorKey, value] = [...entries].sort((left, right) => right[1] - left[1])[0] ?? []
@@ -135,6 +229,63 @@ export function TodayScreen() {
     )
   }
 
+  const handleNextStepAction = () => {
+    if (nextStepRecommendation.id === 'body-water-low') {
+      const nextWaterLiters = Number((todayBodySnapshot.waterLiters + 0.5).toFixed(1))
+
+      saveBodyCheckin({
+        waterLiters: nextWaterLiters,
+      })
+      applyLifeQuestReward(
+        {
+          xp: nextStepRecommendation.xp ?? 5,
+          consistencyXp: 1,
+          sector: 'body',
+          sourceId: `today-next-step:water:${todayBodySnapshot.date}`,
+        },
+        `Вода отмечена: ${nextWaterLiters} л. База стала спокойнее.`,
+      )
+
+      return
+    }
+
+    if (nextStepRecommendation.domain === 'profile') {
+      navigate('/settings')
+      return
+    }
+
+    if (nextStepRecommendation.domain === 'body') {
+      navigate('/body')
+      return
+    }
+
+    if (nextStepRecommendation.domain === 'money') {
+      navigate('/money')
+      return
+    }
+
+    if (nextStepRecommendation.domain === 'weekly') {
+      openPromptCenter()
+      return
+    }
+
+    if (nextStepRecommendation.domain === 'recovery') {
+      openRescue()
+      return
+    }
+
+    setActiveMessage(`Ядро рекомендует один шаг: ${nextStepRecommendation.title}.`)
+  }
+
+  const handleNextStepFallback = () => {
+    if (nextStepRecommendation.domain === 'body') {
+      navigate('/body')
+      return
+    }
+
+    setActiveMessage(`Запасной вариант: ${nextStepRecommendation.fallbackLabel ?? 'вернуться к маршруту дня'}.`)
+  }
+
   const handleBuildRoute = () => {
     generateRouteFromAvailableQuests(allQuests)
     setActiveMessage('Маршрут дня собран из текущих задач. Теперь держим только три опорные линии.')
@@ -178,6 +329,12 @@ export function TodayScreen() {
         </div>
         <ModeSelector options={modes} activeMode={currentMode} onSelect={setMode} />
       </div>
+
+      <TodayNextStepCard
+        recommendation={nextStepRecommendation}
+        onAction={handleNextStepAction}
+        onFallback={nextStepRecommendation.fallbackLabel ? handleNextStepFallback : undefined}
+      />
 
       <GlassCard className="mt-4 overflow-hidden border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent !p-3.5">
         <div className="pointer-events-none -mx-3.5 -mt-3.5 mb-3 h-px bg-gradient-to-r from-transparent via-cyan/45 to-transparent" />
