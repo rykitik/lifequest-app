@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { buildFullLifeQuestContext, buildWeeklyReviewContext } from '@/services/contextBuilder'
+import { buildWeeklyReviewDetailModel } from '@/services/weeklyReviewDetail'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
@@ -71,6 +72,60 @@ function ActionMeta({ action }: { action: LifeQuestSuggestedAction }) {
   )
 }
 
+function WeeklyReviewDetailPanel({
+  summary,
+  onClose,
+}: {
+  summary: WeeklyReviewSummary
+  onClose: () => void
+}) {
+  const detail = buildWeeklyReviewDetailModel(summary)
+
+  return (
+    <div className="mt-3 rounded-[1.25rem] border border-primary/25 bg-primary/10 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-primary/80">Итог недели</p>
+          <h3 className="mt-1.5 font-display text-base font-semibold leading-tight text-white">
+            Полный сохранённый разбор
+          </h3>
+        </div>
+        <button
+          type="button"
+          className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted transition hover:text-white"
+          onClick={onClose}
+        >
+          Закрыть
+        </button>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <PreviewRow
+          label="Период"
+          value={`${formatReviewDate(detail.periodStart)} — ${formatReviewDate(detail.periodEnd)}`}
+        />
+        <PreviewRow label="Сохранено" value={formatReviewDate(detail.createdAt)} />
+        {detail.dataQuality ? (
+          <PreviewRow label="Качество данных" value={detail.dataQuality} />
+        ) : null}
+        <PreviewRow label="Действия" value={detail.actionsLabel} />
+      </div>
+
+      {detail.rows.length ? (
+        <div className="mt-2 grid gap-2">
+          {detail.rows.map((row) => (
+            <PreviewRow key={row.label} label={row.label} value={row.value} />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm leading-5 text-muted">
+          В этом сохранённом итоге нет подробных текстовых полей.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function WeeklyReviewSummaryPanel({
   summaries,
   message,
@@ -81,6 +136,7 @@ function WeeklyReviewSummaryPanel({
   onDelete: (id: string) => void
 }) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
   const visibleSummaries = showAll ? summaries : summaries.slice(0, 3)
 
@@ -110,14 +166,25 @@ function WeeklyReviewSummaryPanel({
                     {summary.dataQuality ? ` · Данные: ${dataQualityLabels[summary.dataQuality]}` : ''}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2 text-muted transition hover:text-white"
-                  aria-label="Удалить недельный итог"
-                  onClick={() => setPendingDeleteId(summary.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs text-primary transition hover:text-white"
+                    onClick={() =>
+                      setSelectedReviewId((current) => (current === summary.id ? null : summary.id))
+                    }
+                  >
+                    {selectedReviewId === summary.id ? 'Скрыть' : 'Открыть'}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-white/10 bg-white/5 p-2 text-muted transition hover:text-white"
+                    aria-label="Удалить недельный итог"
+                    onClick={() => setPendingDeleteId(summary.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="mt-3 grid gap-2">
@@ -131,6 +198,13 @@ function WeeklyReviewSummaryPanel({
                 Применено действий: {summary.appliedActionsCount} из {summary.suggestedActionsCount}
               </p>
 
+              {selectedReviewId === summary.id ? (
+                <WeeklyReviewDetailPanel
+                  summary={summary}
+                  onClose={() => setSelectedReviewId(null)}
+                />
+              ) : null}
+
               {pendingDeleteId === summary.id ? (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <PrimaryButton
@@ -139,6 +213,9 @@ function WeeklyReviewSummaryPanel({
                     className="px-2 text-xs"
                     onClick={() => {
                       onDelete(summary.id)
+                      if (selectedReviewId === summary.id) {
+                        setSelectedReviewId(null)
+                      }
                       setPendingDeleteId(null)
                     }}
                   >
