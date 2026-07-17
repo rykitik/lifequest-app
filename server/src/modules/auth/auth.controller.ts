@@ -49,7 +49,7 @@ export const refreshController = asyncHandler(async (request: Request, response:
 
 export const logoutController = asyncHandler(async (_request: Request, response: Response) => {
   clearRefreshTokenCookie(response)
-  response.json({ success: true })
+  response.json({ success: true, mode: 'local' })
 })
 
 export const meController = asyncHandler(async (request: Request, response: Response) => {
