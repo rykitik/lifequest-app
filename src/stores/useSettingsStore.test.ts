@@ -221,4 +221,34 @@ describe('useSettingsStore profile baseline', () => {
       currentStep: 'welcome',
     })
   })
+
+  it('account settings actions do not import or call API when auth is disabled', async () => {
+    const getSettingsProfile = vi.fn()
+    const updateSettingsProfile = vi.fn()
+    const normalizeApiError = vi.fn()
+
+    vi.resetModules()
+    vi.stubEnv('VITE_AUTH_ENABLED', 'false')
+    vi.stubEnv('VITE_API_URL', '')
+    installStorage()
+    vi.doMock('@/services/settingsApi', () => ({
+      getSettingsProfile,
+      updateSettingsProfile,
+    }))
+    vi.doMock('@/services/httpClientContract', () => ({
+      normalizeApiError,
+    }))
+
+    const { useSettingsStore } = await import('@/stores/useSettingsStore')
+
+    const fetchResult = await useSettingsStore.getState().fetchAccountSettingsProfile()
+    const pushResult = await useSettingsStore.getState().pushAccountSettingsProfile()
+
+    expect(fetchResult.success).toBe(false)
+    expect(pushResult.success).toBe(false)
+    expect(fetchResult.message).toContain('Аккаунты пока выключены')
+    expect(getSettingsProfile).not.toHaveBeenCalled()
+    expect(updateSettingsProfile).not.toHaveBeenCalled()
+    expect(normalizeApiError).not.toHaveBeenCalled()
+  })
 })

@@ -131,4 +131,29 @@ describe('local-first feature stores', () => {
     expect(useSyncStore.getState().status).toBe('local_only')
     expect(useSettingsStore.getState().userName).toBe('Иван')
   })
+
+  it('sync bootstrap stays local and does not call sync API when auth is disabled', async () => {
+    const bootstrapSync = vi.fn()
+    const normalizeApiError = vi.fn()
+
+    vi.resetModules()
+    vi.stubEnv('VITE_AUTH_ENABLED', 'false')
+    vi.stubEnv('VITE_API_URL', '')
+    installLocalFirstBrowser()
+    vi.doMock('@/services/syncApi', () => ({
+      bootstrapSync,
+    }))
+    vi.doMock('@/services/httpClientContract', () => ({
+      normalizeApiError,
+    }))
+
+    const { useSyncStore } = await import('@/stores/useSyncStore')
+    const result = await useSyncStore.getState().bootstrapAccountSync()
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('Аккаунты пока выключены')
+    expect(useSyncStore.getState().status).toBe('local_only')
+    expect(bootstrapSync).not.toHaveBeenCalled()
+    expect(normalizeApiError).not.toHaveBeenCalled()
+  })
 })

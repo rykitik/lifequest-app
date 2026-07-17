@@ -1,5 +1,5 @@
-const CACHE_NAME = 'lifequest-shell-v2'
-const STATIC_CACHE_NAME = 'lifequest-static-v2'
+const CACHE_NAME = 'lifequest-shell-v3'
+const STATIC_CACHE_NAME = 'lifequest-static-v3'
 const SHELL_ASSETS = [
   '/index.html',
   '/manifest.webmanifest',

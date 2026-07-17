@@ -7,7 +7,6 @@ import {
   getPwaStatusSnapshot,
 } from '@/services/lifequestRuntime'
 import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
-import { mockUser } from '@/services/mockData'
 import { mergePersistedState } from '@/shared/lib/persist'
 import type { LifeQuestBackupReason } from '@/services/lifequestBackup'
 import type {
@@ -86,6 +85,10 @@ type SettingsPersistedState = Pick<
 >
 
 const onboardingSteps: OnboardingStepId[] = ['welcome', 'profile', 'body', 'money', 'route']
+const defaultLocalUser = {
+  userId: 'user-captain',
+  name: 'Капитан',
+}
 
 function createDefaultOnboardingState(): OnboardingState {
   return {
@@ -97,8 +100,8 @@ function createDefaultOnboardingState(): OnboardingState {
 
 function createSettingsPersistedState(): SettingsPersistedState {
   return {
-    userId: mockUser.userId,
-    userName: mockUser.name,
+    userId: defaultLocalUser.userId,
+    userName: defaultLocalUser.name,
     userRole: 'Оператор системы',
     preferredTone: 'calm',
     heightCm: undefined,

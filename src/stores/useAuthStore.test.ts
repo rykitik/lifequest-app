@@ -56,6 +56,8 @@ async function importAuthStoreWithMockedApi() {
   const login = vi.fn()
   const register = vi.fn()
   const logout = vi.fn()
+  const setApiAccessToken = vi.fn()
+  const clearApiAccessToken = vi.fn()
 
   vi.resetModules()
   vi.doMock('@/services/authApi', () => ({
@@ -64,6 +66,10 @@ async function importAuthStoreWithMockedApi() {
     login,
     register,
     logout,
+  }))
+  vi.doMock('@/services/apiClient', () => ({
+    setApiAccessToken,
+    clearApiAccessToken,
   }))
 
   const module = await import('@/stores/useAuthStore')
@@ -76,6 +82,8 @@ async function importAuthStoreWithMockedApi() {
       login,
       register,
       logout,
+      setApiAccessToken,
+      clearApiAccessToken,
     },
   }
 }
@@ -92,6 +100,8 @@ describe('useAuthStore local-first runtime', () => {
 
     expect(authApi.refresh).not.toHaveBeenCalled()
     expect(authApi.me).not.toHaveBeenCalled()
+    expect(authApi.setApiAccessToken).not.toHaveBeenCalled()
+    expect(authApi.clearApiAccessToken).not.toHaveBeenCalled()
     expect(useAuthStore.getState()).toMatchObject({
       mode: 'local',
       status: 'local',
@@ -131,7 +141,7 @@ describe('useAuthStore local-first runtime', () => {
     })
   })
 
-  it('keeps explicit login and register local when auth is disabled', async () => {
+  it('keeps explicit login, register and logout local when auth is disabled', async () => {
     installBrowserStorage()
     vi.stubEnv('VITE_AUTH_ENABLED', 'false')
 
@@ -145,11 +155,16 @@ describe('useAuthStore local-first runtime', () => {
       password: 'password123',
       name: 'Иван',
     })
+    const logoutResult = await useAuthStore.getState().logout()
 
     expect(authApi.login).not.toHaveBeenCalled()
     expect(authApi.register).not.toHaveBeenCalled()
+    expect(authApi.logout).not.toHaveBeenCalled()
+    expect(authApi.setApiAccessToken).not.toHaveBeenCalled()
+    expect(authApi.clearApiAccessToken).not.toHaveBeenCalled()
     expect(loginResult.success).toBe(false)
     expect(registerResult.success).toBe(false)
+    expect(logoutResult.success).toBe(true)
     expect(loginResult.message).toContain('Аккаунты пока выключены')
     expect(useAuthStore.getState().mode).toBe('local')
   })
