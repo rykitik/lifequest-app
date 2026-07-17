@@ -14,6 +14,7 @@ interface CompanionEvolutionPreviewProps {
   mood: CompanionState
   evolutionLevel: number
   progressToNextForm: number
+  nextFormLabel?: string
 }
 
 function MiniCoreGlyph({
@@ -67,6 +68,7 @@ export function CompanionEvolutionPreview({
   mood,
   evolutionLevel,
   progressToNextForm,
+  nextFormLabel,
 }: CompanionEvolutionPreviewProps) {
   const reducedMotion = useReducedMotion() ?? false
   const model = buildCompanionEvolutionModel({
@@ -92,6 +94,9 @@ export function CompanionEvolutionPreview({
             Следующая форма
           </p>
           <p className="mt-1 text-sm font-semibold text-white">{model.nextLabel}</p>
+          {nextFormLabel ? (
+            <p className="mt-0.5 text-xs leading-4 text-muted">{nextFormLabel}</p>
+          ) : null}
         </div>
       </div>
 
