@@ -1,13 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getOrCreateDeviceId } from '@/services/deviceIdentity'
-import { normalizeApiError } from '@/services/httpClientContract'
 import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
-import * as syncApi from '@/services/syncApi'
 import { mergePersistedState } from '@/shared/lib/persist'
 import type { SyncConflict } from '@/shared/types/sync'
 import type { SyncQueueItem, SyncRetryPolicy, SyncStatus } from '@/shared/types/syncState'
-import { useAuthStore } from '@/stores/useAuthStore'
 
 interface SyncActionResult {
   success: boolean
@@ -352,6 +349,7 @@ export const useSyncStore = create<SyncState>()(
           }
         }
 
+        const { useAuthStore } = await import('@/stores/useAuthStore')
         const authState = useAuthStore.getState()
 
         if (authState.mode !== 'account' || !authState.isAuthenticated) {
@@ -394,6 +392,7 @@ export const useSyncStore = create<SyncState>()(
         }))
 
         try {
+          const syncApi = await import('@/services/syncApi')
           const response = await syncApi.bootstrapSync()
 
           set((state) => ({
@@ -412,6 +411,7 @@ export const useSyncStore = create<SyncState>()(
             message: 'Сервер доступен. Проверка синхронизации завершена.',
           }
         } catch (error) {
+          const { normalizeApiError } = await import('@/services/httpClientContract')
           const normalizedError = normalizeApiError(error)
           const networkOnline = getRuntimeNetworkOnline()
 

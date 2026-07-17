@@ -1,8 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import * as authApi from '@/services/authApi'
-import { clearApiAccessToken, setApiAccessToken } from '@/services/apiClient'
-import { normalizeApiError } from '@/services/httpClientContract'
 import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
 import { mergePersistedState } from '@/shared/lib/persist'
 import type {
@@ -37,6 +34,16 @@ interface AuthState {
 }
 
 type AuthPersistedState = Pick<AuthState, 'mode' | 'user'>
+
+async function clearApiToken() {
+  const { clearApiAccessToken } = await import('@/services/apiClient')
+  clearApiAccessToken()
+}
+
+async function setApiToken(accessToken: string) {
+  const { setApiAccessToken } = await import('@/services/apiClient')
+  setApiAccessToken(accessToken)
+}
 
 function createAuthPersistedState(): AuthPersistedState {
   return {
@@ -118,7 +125,6 @@ export const useAuthStore = create<AuthState>()(
       ...createAuthRuntimeState(),
       bootstrap: async () => {
         if (!isAuthEnabled()) {
-          clearApiAccessToken()
           set(() => ({
             ...buildLocalModeState(),
           }))
@@ -143,8 +149,9 @@ export const useAuthStore = create<AuthState>()(
         })
 
         try {
+          const authApi = await import('@/services/authApi')
           const refreshResponse = await authApi.refresh()
-          setApiAccessToken(refreshResponse.tokens.accessToken)
+          await setApiToken(refreshResponse.tokens.accessToken)
 
           const meResponse = await authApi.me(refreshResponse.tokens.accessToken)
 
@@ -156,7 +163,7 @@ export const useAuthStore = create<AuthState>()(
             }),
           }))
         } catch {
-          clearApiAccessToken()
+          await clearApiToken()
           set((state) => {
             const nextState = buildLocalModeState()
 
@@ -177,7 +184,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       switchToLocalMode: () => {
-        clearApiAccessToken()
+        void clearApiToken()
 
         set((state) => {
           const nextState = buildLocalModeState()
@@ -211,7 +218,6 @@ export const useAuthStore = create<AuthState>()(
         }),
       login: async (credentials) => {
         if (!isAuthEnabled()) {
-          clearApiAccessToken()
           set(() => ({
             ...buildLocalModeState(),
           }))
@@ -231,8 +237,9 @@ export const useAuthStore = create<AuthState>()(
         }))
 
         try {
+          const authApi = await import('@/services/authApi')
           const response = await authApi.login(credentials)
-          setApiAccessToken(response.tokens.accessToken)
+          await setApiToken(response.tokens.accessToken)
 
           set(() => ({
             ...buildAuthenticatedState(response),
@@ -243,6 +250,7 @@ export const useAuthStore = create<AuthState>()(
             message: 'Вход выполнен. Аккаунт подключён к этому устройству.',
           }
         } catch (error) {
+          const { normalizeApiError } = await import('@/services/httpClientContract')
           const normalizedError = normalizeApiError(error)
 
           set((state) => {
@@ -258,7 +266,7 @@ export const useAuthStore = create<AuthState>()(
               }
             }
 
-            clearApiAccessToken()
+            void clearApiToken()
 
             return {
               ...buildLocalModeState(),
@@ -275,7 +283,6 @@ export const useAuthStore = create<AuthState>()(
       },
       register: async (credentials) => {
         if (!isAuthEnabled()) {
-          clearApiAccessToken()
           set(() => ({
             ...buildLocalModeState(),
           }))
@@ -295,8 +302,9 @@ export const useAuthStore = create<AuthState>()(
         }))
 
         try {
+          const authApi = await import('@/services/authApi')
           const response = await authApi.register(credentials)
-          setApiAccessToken(response.tokens.accessToken)
+          await setApiToken(response.tokens.accessToken)
 
           set(() => ({
             ...buildAuthenticatedState(response),
@@ -307,6 +315,7 @@ export const useAuthStore = create<AuthState>()(
             message: 'Аккаунт создан. Можно продолжать день без сброса локальных данных.',
           }
         } catch (error) {
+          const { normalizeApiError } = await import('@/services/httpClientContract')
           const normalizedError = normalizeApiError(error)
 
           set((state) => {
@@ -322,7 +331,7 @@ export const useAuthStore = create<AuthState>()(
               }
             }
 
-            clearApiAccessToken()
+            void clearApiToken()
 
             return {
               ...buildLocalModeState(),
@@ -339,7 +348,6 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: async () => {
         if (!isAuthEnabled()) {
-          clearApiAccessToken()
           set(() => ({
             ...buildLocalModeState(),
           }))
@@ -357,12 +365,13 @@ export const useAuthStore = create<AuthState>()(
         }))
 
         try {
+          const authApi = await import('@/services/authApi')
           await authApi.logout()
         } catch {
           // Даже если backend logout не ответил, локальный UX должен безопасно вернуться в local mode.
         }
 
-        clearApiAccessToken()
+        await clearApiToken()
         set(() => ({
           ...buildLocalModeState(),
         }))
@@ -373,7 +382,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       resetDemoData: () => {
-        clearApiAccessToken()
+        void clearApiToken()
         set(() => ({
           ...createAuthPersistedState(),
           ...createAuthRuntimeState(),

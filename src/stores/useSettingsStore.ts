@@ -1,7 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import * as settingsApi from '@/services/settingsApi'
-import { resetLifeQuestDemoData } from '@/services/lifequestReset'
 import {
   applyWaitingServiceWorker,
   checkForPwaUpdate,
@@ -10,7 +8,6 @@ import {
 } from '@/services/lifequestRuntime'
 import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
 import { mockUser } from '@/services/mockData'
-import { normalizeApiError } from '@/services/httpClientContract'
 import { mergePersistedState } from '@/shared/lib/persist'
 import type { LifeQuestBackupReason } from '@/services/lifequestBackup'
 import type {
@@ -19,8 +16,6 @@ import type {
   OnboardingStepId,
   SettingsProfile,
 } from '@/shared/types'
-import { useAuthStore } from '@/stores/useAuthStore'
-import { useSyncStore } from '@/stores/useSyncStore'
 
 type SettingsAccountSyncStatus = 'idle' | 'loading' | 'saving' | 'error'
 
@@ -389,14 +384,16 @@ export const useSettingsStore = create<SettingsState>()(
           backupReminderSnoozedUntil: getBackupSnoozeUntil(dismissedAt),
         })),
       resetDemoData: () => {
-        resetLifeQuestDemoData(() =>
-          set((state) => ({
-            ...state,
-            ...createSettingsPersistedState(),
-            accountSyncStatus: 'idle',
-            accountSyncError: null,
-          })),
-        )
+        void import('@/services/lifequestReset').then(({ resetLifeQuestDemoData }) => {
+          resetLifeQuestDemoData(() =>
+            set((state) => ({
+              ...state,
+              ...createSettingsPersistedState(),
+              accountSyncStatus: 'idle',
+              accountSyncError: null,
+            })),
+          )
+        })
       },
       clearAllLocalData: async () => {
         await clearLifeQuestRuntimeData({
@@ -448,6 +445,11 @@ export const useSettingsStore = create<SettingsState>()(
           }
         }
 
+        const [{ useAuthStore }, settingsApi, { normalizeApiError }] = await Promise.all([
+          import('@/stores/useAuthStore'),
+          import('@/services/settingsApi'),
+          import('@/services/httpClientContract'),
+        ])
         const authState = useAuthStore.getState()
 
         if (authState.mode !== 'account' || !authState.isAuthenticated) {
@@ -498,6 +500,12 @@ export const useSettingsStore = create<SettingsState>()(
           }
         }
 
+        const [{ useAuthStore }, { useSyncStore }, settingsApi, { normalizeApiError }] = await Promise.all([
+          import('@/stores/useAuthStore'),
+          import('@/stores/useSyncStore'),
+          import('@/services/settingsApi'),
+          import('@/services/httpClientContract'),
+        ])
         const authState = useAuthStore.getState()
 
         if (authState.mode !== 'account' || !authState.isAuthenticated) {
