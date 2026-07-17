@@ -7,6 +7,7 @@ export const LIFEQUEST_DEMO_STORAGE_KEYS = [
   'lifequest-money',
   'lifequest-companion',
   'lifequest-prompt-center',
+  'lifequest-weekly-reviews',
   'lifequest-settings',
 ] as const
 

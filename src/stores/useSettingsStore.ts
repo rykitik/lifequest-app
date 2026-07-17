@@ -12,6 +12,7 @@ import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
 import { mockUser } from '@/services/mockData'
 import { normalizeApiError } from '@/services/httpClientContract'
 import { mergePersistedState } from '@/shared/lib/persist'
+import type { LifeQuestBackupReason } from '@/services/lifequestBackup'
 import type {
   AccountSettingsProfile,
   OnboardingState,
@@ -28,8 +29,12 @@ interface SettingsSyncActionResult {
   message: string
 }
 
-interface SettingsState extends SettingsProfile {
+export interface SettingsState extends SettingsProfile {
   lastBackupExportAt: string | null
+  lastBackupAt: string | null
+  lastBackupReminderDismissedAt: string | null
+  lastBackupReason: LifeQuestBackupReason | null
+  backupReminderSnoozedUntil: string | null
   appVersion: string
   isInstalledAsApp: boolean
   hasServiceWorkerSupport: boolean
@@ -51,6 +56,8 @@ interface SettingsState extends SettingsProfile {
   checkPwaStatus: (options?: { checkForUpdates?: boolean }) => Promise<void>
   applyPwaUpdate: () => Promise<void>
   recordBackupExport: (exportedAt: string) => void
+  markBackupRecommended: (reason: LifeQuestBackupReason) => void
+  snoozeBackupReminder: (dismissedAt?: string) => void
   fetchAccountSettingsProfile: () => Promise<SettingsSyncActionResult>
   pushAccountSettingsProfile: () => Promise<SettingsSyncActionResult>
   resetAccountSyncState: () => void
@@ -73,6 +80,10 @@ type SettingsPersistedState = Pick<
   | 'usualWakeTime'
   | 'bodyLimitations'
   | 'lastBackupExportAt'
+  | 'lastBackupAt'
+  | 'lastBackupReminderDismissedAt'
+  | 'lastBackupReason'
+  | 'backupReminderSnoozedUntil'
   | 'accountSyncedAt'
   | 'accountSyncVersion'
   | 'accountSyncUserId'
@@ -106,6 +117,10 @@ function createSettingsPersistedState(): SettingsPersistedState {
     usualWakeTime: undefined,
     bodyLimitations: undefined,
     lastBackupExportAt: null,
+    lastBackupAt: null,
+    lastBackupReminderDismissedAt: null,
+    lastBackupReason: null,
+    backupReminderSnoozedUntil: null,
     accountSyncedAt: null,
     accountSyncVersion: null,
     accountSyncUserId: null,
@@ -169,6 +184,26 @@ function normalizeOnboardingState(value: unknown): OnboardingState {
     completedAt: typeof record.completedAt === 'string' ? record.completedAt : undefined,
     skippedAt: typeof record.skippedAt === 'string' ? record.skippedAt : undefined,
   }
+}
+
+function normalizeBackupReason(value: unknown): LifeQuestBackupReason | null {
+  const allowedReasons: LifeQuestBackupReason[] = [
+    'never_created',
+    'useful_action',
+    'money_import_completed',
+    'weekly_review_saved',
+    'onboarding_completed',
+    'stale_backup',
+    'local_data_grew',
+  ]
+
+  return allowedReasons.includes(value as LifeQuestBackupReason)
+    ? (value as LifeQuestBackupReason)
+    : null
+}
+
+function getBackupSnoozeUntil(dismissedAt: string) {
+  return new Date(new Date(dismissedAt).getTime() + 24 * 60 * 60 * 1000).toISOString()
 }
 
 function buildLocalProfileUpdate(
@@ -305,6 +340,10 @@ export const useSettingsStore = create<SettingsState>()(
             completedAt: new Date().toISOString(),
             skippedAt: undefined,
           },
+          lastBackupReason:
+            state.lastBackupAt || state.lastBackupExportAt
+              ? state.lastBackupReason
+              : 'onboarding_completed',
         })),
       skipOnboarding: () =>
         set((state) => ({
@@ -323,15 +362,32 @@ export const useSettingsStore = create<SettingsState>()(
         })),
       recordBackupExport: (exportedAt) =>
         set((state) => {
-          if (state.lastBackupExportAt === exportedAt) {
+          if (
+            state.lastBackupExportAt === exportedAt &&
+            state.lastBackupAt === exportedAt &&
+            state.lastBackupReason === null &&
+            state.backupReminderSnoozedUntil === null
+          ) {
             return state
           }
 
           return {
             ...state,
             lastBackupExportAt: exportedAt,
+            lastBackupAt: exportedAt,
+            lastBackupReminderDismissedAt: exportedAt,
+            lastBackupReason: null,
+            backupReminderSnoozedUntil: null,
           }
         }),
+      markBackupRecommended: (reason) =>
+        set((state) => (state.lastBackupReason === reason ? state : { ...state, lastBackupReason: reason })),
+      snoozeBackupReminder: (dismissedAt = new Date().toISOString()) =>
+        set((state) => ({
+          ...state,
+          lastBackupReminderDismissedAt: dismissedAt,
+          backupReminderSnoozedUntil: getBackupSnoozeUntil(dismissedAt),
+        })),
       resetDemoData: () => {
         resetLifeQuestDemoData(() =>
           set((state) => ({
@@ -517,7 +573,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'lifequest-settings',
-      version: 6,
+      version: 7,
       migrate: (persistedState) => {
         const merged = mergePersistedState(
           createSettingsPersistedState(),
@@ -526,6 +582,8 @@ export const useSettingsStore = create<SettingsState>()(
 
         return {
           ...merged,
+          lastBackupAt: merged.lastBackupAt ?? merged.lastBackupExportAt ?? null,
+          lastBackupReason: normalizeBackupReason(merged.lastBackupReason),
           onboarding: normalizeOnboardingState(merged.onboarding),
         }
       },
@@ -545,6 +603,10 @@ export const useSettingsStore = create<SettingsState>()(
         usualWakeTime: state.usualWakeTime,
         bodyLimitations: state.bodyLimitations,
         lastBackupExportAt: state.lastBackupExportAt,
+        lastBackupAt: state.lastBackupAt,
+        lastBackupReminderDismissedAt: state.lastBackupReminderDismissedAt,
+        lastBackupReason: state.lastBackupReason,
+        backupReminderSnoozedUntil: state.backupReminderSnoozedUntil,
         accountSyncedAt: state.accountSyncedAt,
         accountSyncVersion: state.accountSyncVersion,
         accountSyncUserId: state.accountSyncUserId,

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { HeartPulse, LifeBuoy, MessageSquareText, Play, Sparkles } from 'lucide-react'
+import { Download, HeartPulse, LifeBuoy, MessageSquareText, Play, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { CompanionCoreWidget } from '@/features/companion/components/CompanionCoreWidget'
 import { getCreditDebt, getMonthlyPlanProjection, getTotalBalance } from '@/features/money/lib/money'
@@ -9,6 +9,12 @@ import { SectorStrip } from '@/features/today/components/SectorStrip'
 import { TodayNextStepCard } from '@/features/today/components/TodayNextStepCard'
 import { routeLabels } from '@/services/questMeta'
 import { applyLifeQuestReward, rewardFeedbackMessages } from '@/services/gameplay'
+import {
+  backupFeedbackMessages,
+  exportLifeQuestBackup,
+  getBackupReminderStatus,
+  getLifeQuestLocalDataSummary,
+} from '@/services/lifequestBackup'
 import { buildTodayNextStepRecommendation } from '@/services/todayNextStep'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
@@ -53,6 +59,7 @@ function getRouteReplaceMessage(routeKey: TodayRouteKey, quest: QuestItem) {
 export function TodayScreen() {
   const navigate = useNavigate()
   const [pickerSlot, setPickerSlot] = useState<TodayRouteKey | null>(null)
+  const [isExportingBackup, setIsExportingBackup] = useState(false)
   const user = useAuthStore((state) => state.user)
   const userName = useSettingsStore((state) => state.userName)
   const profileHeightCm = useSettingsStore((state) => state.heightCm)
@@ -62,6 +69,12 @@ export function TodayScreen() {
   const profileActivityLevel = useSettingsStore((state) => state.activityLevel)
   const profileBodyLimitations = useSettingsStore((state) => state.bodyLimitations)
   const onboardingState = useSettingsStore((state) => state.onboarding)
+  const lastBackupAt = useSettingsStore((state) => state.lastBackupAt)
+  const lastBackupExportAt = useSettingsStore((state) => state.lastBackupExportAt)
+  const lastBackupReason = useSettingsStore((state) => state.lastBackupReason)
+  const backupReminderSnoozedUntil = useSettingsStore((state) => state.backupReminderSnoozedUntil)
+  const recordBackupExport = useSettingsStore((state) => state.recordBackupExport)
+  const snoozeBackupReminder = useSettingsStore((state) => state.snoozeBackupReminder)
   const currentMode = useTodayStore((state) => state.currentMode)
   const modes = useTodayStore((state) => state.modes)
   const route = useTodayStore((state) => state.route)
@@ -201,6 +214,15 @@ export function TodayScreen() {
       return `${sector?.label ?? 'Сектор'} +${value}`
     })
   }, [dailySummary.sectorXp, sectors])
+  const localDataSummary = getLifeQuestLocalDataSummary()
+  const backupReminderStatus = getBackupReminderStatus({
+    lastBackupAt,
+    lastBackupExportAt,
+    lastBackupReason,
+    backupReminderSnoozedUntil,
+    localDataKeysCount: localDataSummary.keysCount,
+    hasValuableLocalData: localDataSummary.hasValuableLocalData,
+  })
 
   useEffect(() => {
     ensureDailySummaryCurrent()
@@ -311,6 +333,31 @@ export function TodayScreen() {
     setActiveMessage('Маршрут дня собран из текущих задач. Теперь держим только три опорные линии.')
   }
 
+  const handleBackupReminderExport = () => {
+    setIsExportingBackup(true)
+
+    try {
+      const result = exportLifeQuestBackup()
+
+      applyLifeQuestReward(
+        {
+          xp: 2,
+          recoveryXp: 1,
+          consistencyXp: 1,
+          sector: 'stability',
+          sourceId: `backup:${result.backup.exportedAt}`,
+        },
+        backupFeedbackMessages.protected,
+        rewardFeedbackMessages.backupCreated,
+      )
+      recordBackupExport(result.backup.exportedAt)
+    } catch {
+      setActiveMessage('Backup не создан. Можно повторить из Настроек, когда файл сохранения будет доступен.')
+    } finally {
+      setIsExportingBackup(false)
+    }
+  }
+
   const handleRouteReplace = (quest: QuestItem) => {
     if (!pickerSlot) {
       return
@@ -375,6 +422,40 @@ export function TodayScreen() {
         onAction={handleNextStepAction}
         onFallback={nextStepRecommendation.fallbackLabel ? handleNextStepFallback : undefined}
       />
+
+      {backupReminderStatus.active ? (
+        <GlassCard className="mt-3 border border-cyan/20 bg-cyan/5 !p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-cyan/80">
+                {backupReminderStatus.title}
+              </p>
+              <p className="mt-1.5 text-sm font-medium text-white">Локальная база стала ценной</p>
+              <p className="mt-1 text-xs leading-5 text-muted">{backupReminderStatus.message}</p>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <PrimaryButton
+              fullWidth
+              className="!min-h-10 !py-2"
+              disabled={isExportingBackup}
+              icon={<Download className="h-4 w-4" />}
+              onClick={handleBackupReminderExport}
+            >
+              {isExportingBackup ? 'Готовим…' : 'Скачать'}
+            </PrimaryButton>
+            <PrimaryButton
+              tone="secondary"
+              fullWidth
+              className="!min-h-10 !py-2"
+              disabled={isExportingBackup}
+              onClick={() => snoozeBackupReminder()}
+            >
+              Позже
+            </PrimaryButton>
+          </div>
+        </GlassCard>
+      ) : null}
 
       <GlassCard className="mt-4 overflow-hidden border-white/10 bg-gradient-to-br from-white/[0.06] via-white/[0.025] to-transparent !p-3.5">
         <div className="pointer-events-none -mx-3.5 -mt-3.5 mb-3 h-px bg-gradient-to-r from-transparent via-cyan/45 to-transparent" />

@@ -9,7 +9,14 @@ import {
   UserRound,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { exportLifeQuestBackup, importLifeQuestBackup } from '@/services/lifequestBackup'
+import {
+  backupFeedbackMessages,
+  exportLifeQuestBackup,
+  getBackupReminderStatus,
+  getLifeQuestLocalDataSummary,
+  importLifeQuestBackup,
+} from '@/services/lifequestBackup'
+import { applyLifeQuestReward, rewardFeedbackMessages } from '@/services/gameplay'
 import { isAuthEnabled } from '@/services/runtimeConfig'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
@@ -19,6 +26,7 @@ import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useSyncStore } from '@/stores/useSyncStore'
 import type { PreferredTone, SettingsProfile } from '@/shared/types'
 import type { SyncStatus } from '@/shared/types'
+import type { LifeQuestBackupPreview } from '@/services/lifequestBackup'
 
 type BodyGoal = NonNullable<SettingsProfile['bodyGoal']>
 type BodySex = NonNullable<SettingsProfile['sex']>
@@ -449,6 +457,9 @@ export function SettingsScreen() {
   const usualWakeTime = useSettingsStore((state) => state.usualWakeTime)
   const bodyLimitations = useSettingsStore((state) => state.bodyLimitations)
   const lastBackupExportAt = useSettingsStore((state) => state.lastBackupExportAt)
+  const lastBackupAt = useSettingsStore((state) => state.lastBackupAt)
+  const lastBackupReason = useSettingsStore((state) => state.lastBackupReason)
+  const backupReminderSnoozedUntil = useSettingsStore((state) => state.backupReminderSnoozedUntil)
   const accountSyncStatus = useSettingsStore((state) => state.accountSyncStatus)
   const accountSyncError = useSettingsStore((state) => state.accountSyncError)
   const accountSyncedAt = useSettingsStore((state) => state.accountSyncedAt)
@@ -468,6 +479,7 @@ export function SettingsScreen() {
   const clearAllLocalData = useSettingsStore((state) => state.clearAllLocalData)
   const checkPwaStatus = useSettingsStore((state) => state.checkPwaStatus)
   const applyPwaUpdate = useSettingsStore((state) => state.applyPwaUpdate)
+  const snoozeBackupReminder = useSettingsStore((state) => state.snoozeBackupReminder)
   const authMode = useAuthStore((state) => state.mode)
   const authStatus = useAuthStore((state) => state.status)
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -499,6 +511,9 @@ export function SettingsScreen() {
     tone: 'success' | 'error'
     message: string
   } | null>(null)
+  const [backupImportPreview, setBackupImportPreview] = useState<LifeQuestBackupPreview | null>(null)
+  const [pendingBackupImportFile, setPendingBackupImportFile] = useState<File | null>(null)
+  const [backupImportApplied, setBackupImportApplied] = useState(false)
 
   const profileFormKey = useMemo(
     () =>
@@ -567,7 +582,30 @@ export function SettingsScreen() {
       userRole,
     ],
   )
-  const lastBackupLabel = useMemo(() => formatBackupDate(lastBackupExportAt), [lastBackupExportAt])
+  const localDataSummary = useMemo(() => getLifeQuestLocalDataSummary(), [])
+  const backupReminderStatus = useMemo(
+    () =>
+      getBackupReminderStatus({
+        lastBackupAt,
+        lastBackupExportAt,
+        lastBackupReason,
+        backupReminderSnoozedUntil,
+        localDataKeysCount: localDataSummary.keysCount,
+        hasValuableLocalData: localDataSummary.hasValuableLocalData,
+      }),
+    [
+      backupReminderSnoozedUntil,
+      lastBackupAt,
+      lastBackupExportAt,
+      lastBackupReason,
+      localDataSummary.hasValuableLocalData,
+      localDataSummary.keysCount,
+    ],
+  )
+  const lastBackupLabel = useMemo(
+    () => formatBackupDate(lastBackupAt ?? lastBackupExportAt),
+    [lastBackupAt, lastBackupExportAt],
+  )
   const accountStatusLabel = useMemo(
     () => (authMode === 'account' && isAuthenticated ? 'Аккаунт подключён' : 'Локальный режим'),
     [authMode, isAuthenticated],
@@ -661,10 +699,24 @@ export function SettingsScreen() {
     try {
       const result = exportLifeQuestBackup()
 
+      applyLifeQuestReward(
+        {
+          xp: 2,
+          recoveryXp: 1,
+          consistencyXp: 1,
+          sector: 'stability',
+          sourceId: `backup:${result.backup.exportedAt}`,
+        },
+        backupFeedbackMessages.protected,
+        rewardFeedbackMessages.backupCreated,
+      )
       recordBackupExport(result.backup.exportedAt)
+      setBackupImportPreview(null)
+      setPendingBackupImportFile(null)
+      setBackupImportApplied(false)
       setBackupStatus({
         tone: 'success',
-        message: `Backup сохранён: ${result.fileName}`,
+        message: `Резервная копия создана: ${result.fileName}`,
       })
     } catch {
       setBackupStatus({
@@ -678,6 +730,9 @@ export function SettingsScreen() {
 
   const handleImportClick = () => {
     setBackupStatus(null)
+    setBackupImportPreview(null)
+    setPendingBackupImportFile(null)
+    setBackupImportApplied(false)
     importInputRef.current?.click()
   }
 
@@ -694,25 +749,13 @@ export function SettingsScreen() {
 
     try {
       const preview = await importLifeQuestBackup(file, { apply: false })
-      const exportDateLabel = formatBackupDate(preview.backup.exportedAt)
-      const shouldImport = window.confirm(
-        `Импортировать backup от ${exportDateLabel}? Это заменит текущие локальные данные LifeQuest на этом устройстве.`,
-      )
-
-      if (!shouldImport) {
-        return
-      }
-
-      const result = await importLifeQuestBackup(file)
-
+      setPendingBackupImportFile(file)
+      setBackupImportPreview(preview.preview)
+      setBackupImportApplied(false)
       setBackupStatus({
         tone: 'success',
-        message: `Backup импортирован. Восстановлено ключей: ${result.importedKeys.length}. Перезапускаем приложение…`,
+        message: 'Backup распознан. Проверь разделы перед импортом.',
       })
-
-      window.setTimeout(() => {
-        window.location.replace('/today')
-      }, 450)
     } catch (error) {
       setBackupStatus({
         tone: 'error',
@@ -722,6 +765,45 @@ export function SettingsScreen() {
     } finally {
       setIsImportingBackup(false)
     }
+  }
+
+  const handleConfirmBackupImport = async () => {
+    if (!pendingBackupImportFile) {
+      return
+    }
+
+    setIsImportingBackup(true)
+    setBackupStatus(null)
+
+    try {
+      const result = await importLifeQuestBackup(pendingBackupImportFile)
+
+      setBackupImportApplied(true)
+      setBackupImportPreview(result.preview)
+      setBackupStatus({
+        tone: 'success',
+        message: `Backup импортирован. Восстановлено разделов: ${result.preview.sections.length}. Перезагрузи приложение, чтобы применить состояние полностью.`,
+      })
+    } catch (error) {
+      setBackupStatus({
+        tone: 'error',
+        message:
+          error instanceof Error ? error.message : 'Не удалось импортировать backup.',
+      })
+    } finally {
+      setIsImportingBackup(false)
+    }
+  }
+
+  const handleCancelBackupImport = () => {
+    setBackupImportPreview(null)
+    setPendingBackupImportFile(null)
+    setBackupImportApplied(false)
+    setBackupStatus(null)
+  }
+
+  const handleReloadAfterImport = () => {
+    window.location.replace('/today')
   }
 
   const handleCheckUpdate = async () => {
@@ -1036,18 +1118,32 @@ export function SettingsScreen() {
       </GlassCard>
 
       <GlassCard className="mb-5 border border-warning/20 bg-warning/5">
-        <p className="text-xs uppercase tracking-[0.24em] text-warning/80">Локальные данные</p>
+        <p className="text-xs uppercase tracking-[0.24em] text-warning/80">Резервная копия</p>
         <p className="mt-3 text-sm leading-6 text-slate-200">
-          Всё хранится локально на этом устройстве. Можно вернуть demo-состояние, импортировать backup или полностью очистить локальный контур и загрузить приложение заново.
+          Данные живут на этом устройстве. Экспорт создаёт один JSON-файл для восстановления в PWA или будущей APK-сборке.
         </p>
         <p className="mt-3 text-sm leading-6 text-slate-200">
-          Backup нужен, пока приложение работает local-first без аккаунта и backend. Сохрани файл, чтобы не потерять прогресс.
+          {backupFeedbackMessages.settingsNote}
         </p>
 
         <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted">Последний экспорт</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Последний backup</p>
           <p className="mt-2 text-sm font-medium text-white">{lastBackupLabel}</p>
         </div>
+
+        {backupReminderStatus.active ? (
+          <div className="mt-4 rounded-3xl border border-cyan/20 bg-cyan/10 p-4">
+            <p className="text-sm font-medium text-white">Рекомендуется обновить резервную копию</p>
+            <p className="mt-2 text-sm leading-6 text-slate-200">{backupReminderStatus.message}</p>
+            <button
+              type="button"
+              className="mt-3 text-sm font-medium text-cyan transition hover:text-white"
+              onClick={() => snoozeBackupReminder()}
+            >
+              Напомнить позже
+            </button>
+          </div>
+        ) : null}
 
         {backupStatus ? (
           <div
@@ -1061,6 +1157,55 @@ export function SettingsScreen() {
           </div>
         ) : null}
 
+        {backupImportPreview ? (
+          <div className="mt-4 rounded-3xl border border-primary/20 bg-primary/10 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-primary/80">
+              Найдена резервная копия LifeQuest
+            </p>
+            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-200">
+              <p>
+                Дата: <span className="font-medium text-white">{backupImportPreview.exportedAtLabel}</span>
+              </p>
+              <p>
+                Версия: <span className="font-medium text-white">v{backupImportPreview.backup.backupVersion}</span>
+              </p>
+              <p>
+                Разделы:{' '}
+                <span className="font-medium text-white">
+                  {backupImportPreview.sections.join(', ')}
+                </span>
+              </p>
+              <p>Импорт заменит текущие локальные данные на этом устройстве.</p>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {backupImportApplied ? (
+                <PrimaryButton fullWidth icon={<RefreshCw className="h-4 w-4" />} onClick={handleReloadAfterImport}>
+                  Перезагрузить приложение
+                </PrimaryButton>
+              ) : (
+                <PrimaryButton
+                  fullWidth
+                  disabled={isImportingBackup}
+                  icon={<Upload className="h-4 w-4" />}
+                  onClick={() => {
+                    void handleConfirmBackupImport()
+                  }}
+                >
+                  {isImportingBackup ? 'Импортируем backup…' : 'Импортировать'}
+                </PrimaryButton>
+              )}
+              <PrimaryButton
+                tone="secondary"
+                fullWidth
+                disabled={isImportingBackup}
+                onClick={handleCancelBackupImport}
+              >
+                Отмена
+              </PrimaryButton>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-4 grid gap-3">
           <PrimaryButton
             tone="secondary"
@@ -1069,7 +1214,7 @@ export function SettingsScreen() {
             icon={<Download className="h-4 w-4" />}
             onClick={handleExportBackup}
           >
-            {isExportingBackup ? 'Готовим backup…' : 'Экспортировать backup'}
+            {isExportingBackup ? 'Готовим backup…' : 'Скачать backup'}
           </PrimaryButton>
           <PrimaryButton
             tone="secondary"
@@ -1078,7 +1223,7 @@ export function SettingsScreen() {
             icon={<Upload className="h-4 w-4" />}
             onClick={handleImportClick}
           >
-            {isImportingBackup ? 'Импортируем backup…' : 'Импортировать backup'}
+            {isImportingBackup ? 'Проверяем backup…' : 'Импортировать backup'}
           </PrimaryButton>
           <PrimaryButton
             tone="secondary"

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { getBackupReminderStatus } from '@/services/lifequestBackup'
 
 vi.setConfig({ testTimeout: 15_000 })
 
@@ -149,6 +150,47 @@ describe('useSettingsStore profile baseline', () => {
     const { useSettingsStore: reloadedSettingsStore } = await import('@/stores/useSettingsStore')
 
     expect(reloadedSettingsStore.getState().onboarding.currentStep).toBe('money')
+  })
+
+  it('после export обновляет lastBackupAt и очищает backup reminder', async () => {
+    const { useSettingsStore } = await importSettingsStore()
+
+    useSettingsStore.getState().markBackupRecommended('money_import_completed')
+    useSettingsStore.getState().recordBackupExport('2026-07-17T10:00:00.000Z')
+
+    expect(useSettingsStore.getState()).toMatchObject({
+      lastBackupExportAt: '2026-07-17T10:00:00.000Z',
+      lastBackupAt: '2026-07-17T10:00:00.000Z',
+      lastBackupReason: null,
+      backupReminderSnoozedUntil: null,
+    })
+  })
+
+  it('snooze скрывает reminder на 24 часа', async () => {
+    const { useSettingsStore } = await importSettingsStore()
+
+    useSettingsStore.getState().markBackupRecommended('weekly_review_saved')
+    useSettingsStore.getState().snoozeBackupReminder('2026-07-17T10:00:00.000Z')
+
+    expect(
+      getBackupReminderStatus({
+        lastBackupAt: useSettingsStore.getState().lastBackupAt,
+        lastBackupReason: useSettingsStore.getState().lastBackupReason,
+        backupReminderSnoozedUntil: useSettingsStore.getState().backupReminderSnoozedUntil,
+        now: new Date('2026-07-17T12:00:00.000Z'),
+        hasValuableLocalData: true,
+      }).active,
+    ).toBe(false)
+  })
+
+  it('money import и weekly review могут пометить backup как recommended', async () => {
+    const { useSettingsStore } = await importSettingsStore()
+
+    useSettingsStore.getState().markBackupRecommended('money_import_completed')
+    expect(useSettingsStore.getState().lastBackupReason).toBe('money_import_completed')
+
+    useSettingsStore.getState().markBackupRecommended('weekly_review_saved')
+    expect(useSettingsStore.getState().lastBackupReason).toBe('weekly_review_saved')
   })
 
   it('recovers invalid persisted onboarding state safely', async () => {

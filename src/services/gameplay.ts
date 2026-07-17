@@ -4,6 +4,7 @@ import { useFeedbackStore } from '@/stores/useFeedbackStore'
 import { useProgressStore } from '@/stores/useProgressStore'
 import { useRescueStore } from '@/stores/useRescueStore'
 import { useTodayStore } from '@/stores/useTodayStore'
+import type { LifeQuestBackupReason } from '@/services/lifequestBackup'
 
 export const companionProgressSignals = [
   'Шаг принят.',
@@ -21,6 +22,7 @@ export const rewardFeedbackMessages = {
   weeklyReviewSaved: 'Недельный итог сохранён · риск недели зафиксирован',
   promptActionsApplied: 'Рекомендации применены · маршрут обновлён',
   onboardingCompleted: 'Настройка завершена · система готова к первому шагу',
+  backupCreated: 'Резервная копия создана.',
 } as const
 
 function getCompanionProgressSignal(reward: ProgressReward) {
@@ -41,6 +43,34 @@ function getCompanionProgressSignal(reward: ProgressReward) {
   }
 
   return 'Шаг принят.'
+}
+
+function getBackupReasonForReward(reward: ProgressReward): LifeQuestBackupReason {
+  const sourceId = reward.sourceId ?? ''
+
+  if (sourceId.startsWith('money:import')) {
+    return 'money_import_completed'
+  }
+
+  if (sourceId.startsWith('weekly-review:')) {
+    return 'weekly_review_saved'
+  }
+
+  if (sourceId.startsWith('onboarding:')) {
+    return 'onboarding_completed'
+  }
+
+  return 'useful_action'
+}
+
+function markBackupRecommended(reason: LifeQuestBackupReason) {
+  void import('@/stores/useSettingsStore')
+    .then(({ useSettingsStore }) => {
+      useSettingsStore.getState().markBackupRecommended(reason)
+    })
+    .catch(() => {
+      // Backup reminder is supportive UI; reward feedback should never fail because of it.
+    })
 }
 
 export function applyLifeQuestReward(
@@ -68,6 +98,7 @@ export function applyLifeQuestReward(
 
   useCompanionStore.getState().triggerProgressReaction(signal)
   useFeedbackStore.getState().showRewardToast(reward, feedbackMessage, signal)
+  markBackupRecommended(getBackupReasonForReward(reward))
 
   return true
 }

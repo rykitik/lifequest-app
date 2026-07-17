@@ -116,7 +116,7 @@ describe('applyLifeQuestReward', () => {
     const { companionState, feedbackState } = await applyReward({
       xp: 10,
       sector: 'money',
-      sourceId: 'money-import:test',
+      sourceId: 'money:import:test',
       feedbackMessage: 'Операции учтены · финансовый сигнал обновлён',
     })
 
@@ -126,6 +126,20 @@ describe('applyLifeQuestReward', () => {
       signal: 'Сигнал усилен.',
     })
     expect(companionState.reaction?.message).toBe('Сигнал усилен.')
+  })
+
+  it('money import completed помечает backup как recommended', async () => {
+    const { gameplay } = await importGameplay()
+    const settings = await import('@/stores/useSettingsStore')
+
+    expect(gameplay.applyLifeQuestReward(
+      { xp: 10, sector: 'money', sourceId: 'money:import:test' },
+      'Операции учтены.',
+      'Операции учтены · финансовый сигнал обновлён',
+    )).toBe(true)
+    await vi.waitFor(() => {
+      expect(settings.useSettingsStore.getState().lastBackupReason).toBe('money_import_completed')
+    })
   })
 
   it('weekly review saved даёт stability feedback', async () => {
@@ -143,6 +157,20 @@ describe('applyLifeQuestReward', () => {
       message: 'Недельный итог сохранён · риск недели зафиксирован',
     })
     expect(companionState.reaction?.message).toBe('База стала стабильнее.')
+  })
+
+  it('weekly review saved помечает backup как recommended', async () => {
+    const { gameplay } = await importGameplay()
+    const settings = await import('@/stores/useSettingsStore')
+
+    expect(gameplay.applyLifeQuestReward(
+      { xp: 14, recoveryXp: 4, sector: 'stability', sourceId: 'weekly-review:test' },
+      'Недельный итог сохранён.',
+      'Недельный итог сохранён · риск недели зафиксирован',
+    )).toBe(true)
+    await vi.waitFor(() => {
+      expect(settings.useSettingsStore.getState().lastBackupReason).toBe('weekly_review_saved')
+    })
   })
 
   it('prompt actions applied даёт route feedback без приватного persist feedback-store', async () => {

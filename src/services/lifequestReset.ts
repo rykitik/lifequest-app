@@ -8,6 +8,7 @@ import { useRescueStore } from '@/stores/useRescueStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useSyncStore } from '@/stores/useSyncStore'
 import { useTodayStore } from '@/stores/useTodayStore'
+import { useWeeklyReviewStore } from '@/stores/useWeeklyReviewStore'
 
 export function resetLifeQuestDemoData(resetSettings: () => void) {
   useAuthStore.getState().resetDemoData()
@@ -19,6 +20,7 @@ export function resetLifeQuestDemoData(resetSettings: () => void) {
   useMoneyStore.getState().resetDemoData()
   useCompanionStore.getState().resetDemoData()
   usePromptCenterStore.getState().resetDemoData()
+  useWeeklyReviewStore.getState().resetWeeklyReviews()
   useRescueStore.getState().resetRescueState()
   resetSettings()
 }
