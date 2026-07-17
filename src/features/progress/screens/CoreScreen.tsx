@@ -1,6 +1,8 @@
 import { Settings2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { CompanionEvolutionPreview } from '@/features/companion/components/CompanionEvolutionPreview'
+import { getCompanionMoodLabel } from '@/features/companion/lib/evolution'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
@@ -9,25 +11,6 @@ import { formatCompact, formatPercent } from '@/shared/lib/format'
 import { useCompanionStore } from '@/stores/useCompanionStore'
 import { useProgressStore } from '@/stores/useProgressStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
-import type { CompanionState } from '@/shared/types'
-
-const evolutionMilestones = [
-  { label: 'Спокоен', caption: 'База стабильна' },
-  { label: 'Сфокусирован', caption: 'Сигнал собран' },
-  { label: 'Мало энергии', caption: 'Режим бережности' },
-  { label: 'Перегружен', caption: 'Нужна разгрузка' },
-  { label: 'Восстанавливается', caption: 'Возврат в систему' },
-  { label: 'Эволюционирует', caption: 'Новый виток роста' },
-]
-
-const moodLabels: Record<CompanionState, string> = {
-  idle: 'Спокоен',
-  focused: 'Сфокусирован',
-  low_energy: 'Мало энергии',
-  overloaded: 'Перегружен',
-  recovering: 'Восстанавливается',
-  evolving: 'Эволюционирует',
-}
 
 export function CoreScreen() {
   const navigate = useNavigate()
@@ -46,7 +29,6 @@ export function CoreScreen() {
   const resetDemoData = useSettingsStore((state) => state.resetDemoData)
 
   const progressPercent = (currentLevelXp / nextLevelXp) * 100
-  const activeEvolutionIndex = evolutionLevel % evolutionMilestones.length
 
   const handleResetDemoData = () => {
     const shouldReset = window.confirm(
@@ -87,7 +69,7 @@ export function CoreScreen() {
           >
             <div className="text-center">
               <p className="text-xs uppercase tracking-[0.18em] text-muted">Состояние</p>
-              <p className="mt-1 text-sm font-medium text-white">{moodLabels[mood]}</p>
+              <p className="mt-1 text-sm font-medium text-white">{getCompanionMoodLabel(mood)}</p>
             </div>
           </motion.div>
         </div>
@@ -144,27 +126,11 @@ export function CoreScreen() {
       </GlassCard>
 
       <GlassCard className="mb-5">
-        <p className="text-xs uppercase tracking-[0.24em] text-muted">Эволюция спутника</p>
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          {evolutionMilestones.map((milestone, index) => {
-            const active = index === activeEvolutionIndex
-
-            return (
-              <div
-                key={milestone.label}
-                className="rounded-2xl border p-3 text-center"
-                style={{
-                  borderColor: active ? 'rgba(99, 102, 241, 0.45)' : 'rgba(148, 163, 184, 0.12)',
-                  background: active ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                }}
-              >
-                <div className="mx-auto mb-3 h-10 w-10 rounded-full border border-white/10 bg-gradient-to-br from-primary/30 to-cyan/20" />
-                <p className="text-sm font-medium text-white">{milestone.label}</p>
-                <p className="mt-1 text-xs text-muted">{milestone.caption}</p>
-              </div>
-            )
-          })}
-        </div>
+        <CompanionEvolutionPreview
+          mood={mood}
+          evolutionLevel={evolutionLevel}
+          progressToNextForm={progressPercent}
+        />
       </GlassCard>
 
       <GlassCard>
