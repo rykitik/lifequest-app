@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getOrCreateDeviceId } from '@/services/deviceIdentity'
 import { normalizeApiError } from '@/services/httpClientContract'
+import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
 import * as syncApi from '@/services/syncApi'
 import { mergePersistedState } from '@/shared/lib/persist'
 import type { SyncConflict } from '@/shared/types/sync'
@@ -342,6 +343,15 @@ export const useSyncStore = create<SyncState>()(
         })
       },
       bootstrapAccountSync: async () => {
+        if (!isAuthEnabled()) {
+          get().bootstrapLocalSync()
+
+          return {
+            success: false,
+            message: getAuthDisabledMessage(),
+          }
+        }
+
         const authState = useAuthStore.getState()
 
         if (authState.mode !== 'account' || !authState.isAuthenticated) {

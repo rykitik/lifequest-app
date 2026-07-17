@@ -1,6 +1,12 @@
 const CACHE_NAME = 'lifequest-shell-v2'
 const STATIC_CACHE_NAME = 'lifequest-static-v2'
-const SHELL_ASSETS = ['/index.html', '/manifest.webmanifest', '/lifequest-icon.svg']
+const SHELL_ASSETS = [
+  '/index.html',
+  '/manifest.webmanifest',
+  '/lifequest-icon.svg',
+  '/lifequest-icon-192.png',
+  '/lifequest-icon-512.png',
+]
 
 function isSuccessfulResponse(response) {
   return response && response.ok
@@ -109,7 +115,12 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (url.pathname === '/manifest.webmanifest' || url.pathname === '/lifequest-icon.svg') {
+  if (
+    url.pathname === '/manifest.webmanifest' ||
+    url.pathname === '/lifequest-icon.svg' ||
+    url.pathname === '/lifequest-icon-192.png' ||
+    url.pathname === '/lifequest-icon-512.png'
+  ) {
     event.respondWith(staleWhileRevalidate(request))
     return
   }

@@ -3,7 +3,9 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 ARG VITE_API_URL=
+ARG VITE_AUTH_ENABLED=false
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_AUTH_ENABLED=$VITE_AUTH_ENABLED
 
 COPY package.json package-lock.json* ./
 

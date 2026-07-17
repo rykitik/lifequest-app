@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: /api
+        VITE_AUTH_ENABLED: "true"
     container_name: lifequest-frontend
     ports:
       - "3000:80"

@@ -14,14 +14,38 @@ LifeQuest строится как `local-first now, multi-user ready later`.
 - backup/export-import заменяет облачное сохранение;
 - UI доступен без входа;
 - устройство считается главным местом хранения.
+- это режим по умолчанию для static production deploy на `ry-kit.ru`.
 
 ### 2. Account mode
 
-- минимальные `register/login/logout/refresh/me` уже есть;
-- первый sync-домен `settingsProfile` уже работает вручную;
+- минимальные `register/login/logout/refresh/me` уже есть в backend-коде;
+- frontend включает account/auth runtime только при `VITE_AUTH_ENABLED=true`;
+- static production deploy собирается с `VITE_AUTH_ENABLED=false` и не делает auth refresh на старте;
+- первый sync-домен `settingsProfile` работает только вручную и только в account-enabled сборке;
 - для остальных сущностей позже появится `userId`;
 - backend позже станет источником общей синхронизации;
 - локальное хранилище останется cache/offline-слоем.
+
+### 2.1 Runtime deploy modes
+
+Current static PWA mode:
+
+- GitHub Actions собирает frontend `dist`;
+- VPS системный `nginx` отдаёт `/var/www/lifequest/current`;
+- Docker не используется;
+- backend/API не запущен;
+- `VITE_AUTH_ENABLED=false`;
+- `VITE_API_URL=` пустой;
+- Today, Body, Money, Prompt Center, Weekly Review и Onboarding работают без backend.
+
+Future full Docker mode:
+
+- `docker-compose.full.yml`;
+- frontend nginx container проксирует `/api/` в backend container;
+- backend + MongoDB запущены;
+- `VITE_AUTH_ENABLED=true`;
+- `VITE_API_URL=/api`;
+- auth/sync можно включать без удаления local-first режима.
 
 ### 3. Migration
 

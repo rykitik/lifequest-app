@@ -8,6 +8,7 @@ import {
   clearLifeQuestRuntimeData,
   getPwaStatusSnapshot,
 } from '@/services/lifequestRuntime'
+import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
 import { mockUser } from '@/services/mockData'
 import { normalizeApiError } from '@/services/httpClientContract'
 import { mergePersistedState } from '@/shared/lib/persist'
@@ -384,6 +385,13 @@ export const useSettingsStore = create<SettingsState>()(
         await get().checkPwaStatus({ checkForUpdates: true })
       },
       fetchAccountSettingsProfile: async () => {
+        if (!isAuthEnabled()) {
+          return {
+            success: false,
+            message: getAuthDisabledMessage(),
+          }
+        }
+
         const authState = useAuthStore.getState()
 
         if (authState.mode !== 'account' || !authState.isAuthenticated) {
@@ -427,6 +435,13 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
       pushAccountSettingsProfile: async () => {
+        if (!isAuthEnabled()) {
+          return {
+            success: false,
+            message: getAuthDisabledMessage(),
+          }
+        }
+
         const authState = useAuthStore.getState()
 
         if (authState.mode !== 'account' || !authState.isAuthenticated) {

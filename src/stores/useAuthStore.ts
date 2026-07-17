@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import * as authApi from '@/services/authApi'
 import { clearApiAccessToken, setApiAccessToken } from '@/services/apiClient'
 import { normalizeApiError } from '@/services/httpClientContract'
+import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
 import { mergePersistedState } from '@/shared/lib/persist'
 import type {
   AuthMode,
@@ -116,6 +117,14 @@ export const useAuthStore = create<AuthState>()(
       ...createAuthPersistedState(),
       ...createAuthRuntimeState(),
       bootstrap: async () => {
+        if (!isAuthEnabled()) {
+          clearApiAccessToken()
+          set(() => ({
+            ...buildLocalModeState(),
+          }))
+          return
+        }
+
         if (get().isBootstrapping) {
           return
         }
@@ -201,6 +210,18 @@ export const useAuthStore = create<AuthState>()(
           }
         }),
       login: async (credentials) => {
+        if (!isAuthEnabled()) {
+          clearApiAccessToken()
+          set(() => ({
+            ...buildLocalModeState(),
+          }))
+
+          return {
+            success: false,
+            message: getAuthDisabledMessage(),
+          }
+        }
+
         const previousState = get()
 
         set((state) => ({
@@ -253,6 +274,18 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       register: async (credentials) => {
+        if (!isAuthEnabled()) {
+          clearApiAccessToken()
+          set(() => ({
+            ...buildLocalModeState(),
+          }))
+
+          return {
+            success: false,
+            message: getAuthDisabledMessage(),
+          }
+        }
+
         const previousState = get()
 
         set((state) => ({
@@ -305,6 +338,18 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       logout: async () => {
+        if (!isAuthEnabled()) {
+          clearApiAccessToken()
+          set(() => ({
+            ...buildLocalModeState(),
+          }))
+
+          return {
+            success: true,
+            message: 'Локальный режим активен. Данные на устройстве сохранены.',
+          }
+        }
+
         set((state) => ({
           ...state,
           status: 'logging_out',

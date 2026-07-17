@@ -18,6 +18,8 @@ jobs:
       DEPLOY_BASE: /var/www/lifequest
       RELEASE_ID: ${{ github.run_id }}-${{ github.sha }}
       ARCHIVE_NAME: lifequest-release-${{ github.run_id }}-${{ github.sha }}.tar.gz
+      VITE_AUTH_ENABLED: "false"
+      VITE_API_URL: ""
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

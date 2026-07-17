@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
+import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 
@@ -42,6 +43,7 @@ export function AuthScreen() {
     isBootstrapping || status === 'authenticating' || status === 'refreshing' || status === 'logging_out'
   const errorMessage = formError || lastError
   const isAccountConnected = mode === 'account' && isAuthenticated && Boolean(user)
+  const authRuntimeEnabled = isAuthEnabled()
   const primaryButtonLabel = activeTab === 'login' ? 'Войти' : 'Зарегистрироваться'
   const helperTitle = useMemo(
     () =>
@@ -126,6 +128,43 @@ export function AuthScreen() {
   const handleLogout = async () => {
     await logout()
     navigate('/today')
+  }
+
+  if (!authRuntimeEnabled) {
+    return (
+      <section className="pb-6">
+        <ScreenHeader
+          title="Аккаунт позже"
+          subtitle="LifeQuest сейчас работает локально на этом устройстве. Вход и синхронизация будут включены отдельным этапом."
+        />
+
+        <GlassCard tone="strong" className="mb-5">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-3 text-primary">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.24em] text-primary/80">Локальный режим</p>
+              <h2 className="mt-2 font-display text-xl font-semibold text-white">
+                {getAuthDisabledMessage()}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-muted">
+                Сегодня, Тело, Деньги, Центр промптов, недельные итоги и backup доступны без сервера. Сохраняй прогресс через backup в Настройках.
+              </p>
+            </div>
+          </div>
+        </GlassCard>
+
+        <div className="grid gap-3">
+          <PrimaryButton fullWidth icon={<ArrowRight className="h-4 w-4" />} onClick={() => navigate('/today')}>
+            Продолжить локально
+          </PrimaryButton>
+          <PrimaryButton tone="secondary" fullWidth onClick={() => navigate('/settings')}>
+            Открыть Настройки
+          </PrimaryButton>
+        </div>
+      </section>
+    )
   }
 
   if (isAccountConnected && user) {

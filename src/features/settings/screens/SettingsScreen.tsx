@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { exportLifeQuestBackup, importLifeQuestBackup } from '@/services/lifequestBackup'
+import { isAuthEnabled } from '@/services/runtimeConfig'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { ScreenHeader } from '@/shared/components/ScreenHeader'
@@ -472,6 +473,7 @@ export function SettingsScreen() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const authUser = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
+  const authRuntimeEnabled = isAuthEnabled()
   const syncStatus = useSyncStore((state) => state.status)
   const syncDeviceId = useSyncStore((state) => state.deviceId)
   const syncLastSyncAt = useSyncStore((state) => state.lastSyncAt)
@@ -837,7 +839,9 @@ export function SettingsScreen() {
           <p className="mt-2 text-sm leading-6 text-slate-200">
             {isAuthenticated
               ? 'Этот блок синхронизирует только userName, userRole и preferredTone. Остальные данные LifeQuest пока остаются только локальными.'
-              : 'Сейчас профиль сохраняется только локально. Чтобы синхронизировать имя, роль и тон с аккаунтом, сначала войди в аккаунт.'}
+              : authRuntimeEnabled
+                ? 'Сейчас профиль сохраняется только локально. Чтобы синхронизировать имя, роль и тон с аккаунтом, сначала войди в аккаунт.'
+                : 'Сейчас профиль сохраняется только локально. Аккаунты и синхронизация выключены в этой production-сборке.'}
           </p>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
@@ -906,7 +910,9 @@ export function SettingsScreen() {
           <p className="mt-2 text-sm leading-6 text-slate-200">
             {isAuthenticated
               ? 'Сессия активна. Сама синхронизация будет добавлена позже, поэтому данные всё ещё хранятся локально на этом устройстве.'
-              : 'Сейчас LifeQuest по-прежнему полностью доступен локально на этом устройстве. Backup остаётся рекомендуемым способом сохранить данные до появления синхронизации.'}
+              : authRuntimeEnabled
+                ? 'Сейчас LifeQuest по-прежнему полностью доступен локально на этом устройстве. Backup остаётся рекомендуемым способом сохранить данные до появления синхронизации.'
+                : 'Аккаунты выключены в этой сборке. LifeQuest полностью доступен локально, а backup остаётся главным способом сохранить данные.'}
           </p>
         </div>
 
@@ -1012,7 +1018,7 @@ export function SettingsScreen() {
             >
               {isLoggingOut ? 'Отключаем аккаунт…' : 'Выйти'}
             </PrimaryButton>
-          ) : (
+          ) : authRuntimeEnabled ? (
             <PrimaryButton
               tone="secondary"
               fullWidth
@@ -1021,6 +1027,10 @@ export function SettingsScreen() {
             >
               Войти / создать аккаунт
             </PrimaryButton>
+          ) : (
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm leading-6 text-muted">
+              Вход появится позже. Сейчас приложение работает локально без сервера.
+            </div>
           )}
         </div>
       </GlassCard>
