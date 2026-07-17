@@ -8,7 +8,7 @@ import { QuestFocusCard } from '@/features/today/components/QuestFocusCard'
 import { SectorStrip } from '@/features/today/components/SectorStrip'
 import { TodayNextStepCard } from '@/features/today/components/TodayNextStepCard'
 import { routeLabels } from '@/services/questMeta'
-import { applyLifeQuestReward } from '@/services/gameplay'
+import { applyLifeQuestReward, rewardFeedbackMessages } from '@/services/gameplay'
 import { buildTodayNextStepRecommendation } from '@/services/todayNextStep'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
@@ -184,6 +184,23 @@ export function TodayScreen() {
 
     return sectors.find((sector) => sector.key === sectorKey)?.label ?? 'Пока без акцента'
   }, [dailySummary.sectorXp, sectors])
+  const levelProgressPercent = Math.round((currentLevelXp / nextLevelXp) * 100)
+  const todaySectorHighlights = useMemo(() => {
+    const sectorXpEntries = (Object.entries(dailySummary.sectorXp) as Array<[SectorKey, number]>)
+      .filter(([, value]) => value > 0)
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 3)
+
+    if (!sectorXpEntries.length) {
+      return sectors.slice(0, 3).map((sector) => `${sector.label} +0`)
+    }
+
+    return sectorXpEntries.map(([sectorKey, value]) => {
+      const sector = sectors.find((item) => item.key === sectorKey)
+
+      return `${sector?.label ?? 'Сектор'} +${value}`
+    })
+  }, [dailySummary.sectorXp, sectors])
 
   useEffect(() => {
     ensureDailySummaryCurrent()
@@ -215,6 +232,7 @@ export function TodayScreen() {
         sourceId: `quest:${quest.id}:complete`,
       },
       getRouteCompletionMessage(routeKey, quest),
+      routeKey === 'quickWin' ? rewardFeedbackMessages.quickWinDone : 'Квест закрыт · прогресс зафиксирован',
     )
   }
 
@@ -226,6 +244,7 @@ export function TodayScreen() {
         sector: 'focus',
       },
       'Окно фокуса на 2 минуты готово. Открой поверхность и сделай один спокойный шаг.',
+      'Фокус запущен · система держит окно',
     )
   }
 
@@ -244,6 +263,7 @@ export function TodayScreen() {
           sourceId: `today-next-step:water:${todayBodySnapshot.date}`,
         },
         `Вода отмечена: ${nextWaterLiters} л. База стала спокойнее.`,
+        rewardFeedbackMessages.waterAdded,
       )
 
       return
@@ -317,6 +337,26 @@ export function TodayScreen() {
         nextLevelXp={nextLevelXp}
         variant="hero"
       />
+
+      <GlassCard className="mt-3 border border-cyan/15 bg-cyan/5 !p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-cyan/80">
+              Прогресс системы
+            </p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              Уровень {level} · {levelProgressPercent}%
+            </p>
+          </div>
+          <div className="h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-primary via-cyan to-violet-300"
+              style={{ width: `${Math.min(100, Math.max(0, levelProgressPercent))}%` }}
+            />
+          </div>
+        </div>
+        <p className="mt-2 truncate text-xs text-muted">{todaySectorHighlights.join(' · ')}</p>
+      </GlassCard>
 
       <div className="mt-4">
         <div className="mb-2 flex items-center justify-between">

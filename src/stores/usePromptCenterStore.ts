@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getMockPromptCards } from '@/services/mockData'
 import { buildWeeklyReviewContext } from '@/services/contextBuilder'
+import { applyLifeQuestReward, rewardFeedbackMessages } from '@/services/gameplay'
 import { buildPrompt } from '@/services/promptBuilder'
 import { parsePromptResponse } from '@/services/promptResponseParser'
 import { getLocalDateKey } from '@/shared/lib/date'
@@ -374,6 +375,17 @@ export const usePromptCenterStore = create<PromptCenterState>()(
             : null,
           weeklyReviewSaveMessage: null,
         })
+
+        applyLifeQuestReward(
+          {
+            xp: Math.max(6, Math.min(18, selectedActions.reduce((sum, action) => sum + action.xp, 0))),
+            consistencyXp: addedTaskCount,
+            sector: shouldOfferWeeklyReviewSave ? 'stability' : 'focus',
+            sourceId: `prompt-actions:${get().selectedCardId ?? 'prompt'}:${selectedIndexes.size}:${parsedResponse.suggestedActions.length}:${coreMessageUpdated ? 'core' : 'route'}`,
+          },
+          'Рекомендации применены. Ядро обновило маршрут без автоматических решений.',
+          rewardFeedbackMessages.promptActionsApplied,
+        )
       },
       toggleSuggestedAction: (index) =>
         set((state) => {
@@ -455,6 +467,20 @@ export const usePromptCenterStore = create<PromptCenterState>()(
             ? 'Недельный итог сохранён.'
             : 'Этот недельный итог уже сохранён.',
         })
+
+        if (result.ok) {
+          applyLifeQuestReward(
+            {
+              xp: 14,
+              recoveryXp: 4,
+              consistencyXp: 2,
+              sector: 'stability',
+              sourceId: `weekly-review:${pending.periodStart}:${pending.periodEnd}`,
+            },
+            'Недельный итог сохранён. Риск недели зафиксирован и доступен для следующего шага.',
+            rewardFeedbackMessages.weeklyReviewSaved,
+          )
+        }
       },
       dismissPendingWeeklyReviewSummary: () =>
         set({

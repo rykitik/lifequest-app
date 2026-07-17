@@ -13,12 +13,12 @@ export function ScreenLoadingFallback() {
         </p>
 
         <div className="mt-5 grid grid-cols-3 gap-3">
-          <div className="h-20 rounded-3xl border border-white/10 bg-white/5 animate-pulse" />
-          <div className="h-20 rounded-3xl border border-white/10 bg-white/5 animate-pulse [animation-delay:120ms]" />
-          <div className="h-20 rounded-3xl border border-white/10 bg-white/5 animate-pulse [animation-delay:240ms]" />
+          <div className="h-20 rounded-3xl border border-white/10 bg-white/5 animate-pulse motion-reduce:animate-none" />
+          <div className="h-20 rounded-3xl border border-white/10 bg-white/5 animate-pulse [animation-delay:120ms] motion-reduce:animate-none" />
+          <div className="h-20 rounded-3xl border border-white/10 bg-white/5 animate-pulse [animation-delay:240ms] motion-reduce:animate-none" />
         </div>
 
-        <div className="mt-5 h-24 rounded-[1.75rem] border border-primary/15 bg-gradient-to-r from-primary/10 via-cyan/5 to-transparent animate-pulse" />
+        <div className="mt-5 h-24 rounded-[1.75rem] border border-primary/15 bg-gradient-to-r from-primary/10 via-cyan/5 to-transparent animate-pulse motion-reduce:animate-none" />
       </GlassCard>
     </section>
   )

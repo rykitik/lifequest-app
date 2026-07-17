@@ -1,10 +1,11 @@
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ShieldCheck, Sparkles, Zap } from 'lucide-react'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
 import { cn } from '@/shared/lib/cn'
 import { formatPercent } from '@/shared/lib/format'
 import type { CompanionState } from '@/shared/types'
+import { useCompanionStore } from '@/stores/useCompanionStore'
 
 type CompanionCoreVariant = 'compact' | 'hero' | 'coreScreen'
 
@@ -143,9 +144,13 @@ const variantCardClasses: Record<CompanionCoreVariant, string> = {
 function CompanionCoreVisual({
   mood,
   variant,
+  reactionId,
+  reducedMotion,
 }: {
   mood: CompanionState
   variant: CompanionCoreVariant
+  reactionId?: number
+  reducedMotion: boolean
 }) {
   const meta = moodMeta[mood]
   const size = variantSizes[variant]
@@ -158,18 +163,28 @@ function CompanionCoreVisual({
   return (
     <motion.div
       className="relative isolate flex shrink-0 items-center justify-center"
-      animate={isUnstable ? { x: [0, 1, -1, 0], y: [0, -1, 1, 0] } : { x: 0, y: 0 }}
-      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+      animate={
+        reducedMotion
+          ? { x: 0, y: 0 }
+          : isUnstable
+            ? { x: [0, 1, -1, 0], y: [0, -1, 1, 0] }
+            : { x: 0, y: 0 }
+      }
+      transition={{ duration: 2.4, repeat: reducedMotion ? 0 : Infinity, ease: 'easeInOut' }}
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
       <motion.div
         className="absolute inset-[-18%] rounded-full blur-3xl"
-        animate={{
-          opacity: [meta.auraOpacity * 0.55, meta.auraOpacity, meta.auraOpacity * 0.55],
-          scale: [0.92, 1.07, 0.92],
-        }}
-        transition={{ duration: meta.pulseSpeed, ease: 'easeInOut', repeat: Infinity }}
+        animate={
+          reducedMotion
+            ? { opacity: meta.auraOpacity * 0.72, scale: 1 }
+            : {
+                opacity: [meta.auraOpacity * 0.55, meta.auraOpacity, meta.auraOpacity * 0.55],
+                scale: [0.92, 1.07, 0.92],
+              }
+        }
+        transition={{ duration: meta.pulseSpeed, ease: 'easeInOut', repeat: reducedMotion ? 0 : Infinity }}
         style={{
           background: `radial-gradient(circle, ${meta.glow}70 0%, ${meta.secondaryGlow}30 36%, transparent 70%)`,
         }}
@@ -184,8 +199,8 @@ function CompanionCoreVisual({
 
       <motion.div
         className="absolute rounded-full border"
-        animate={{ rotate: 360 }}
-        transition={{ duration: meta.scanSpeed * 1.7, ease: 'linear', repeat: Infinity }}
+        animate={reducedMotion ? { rotate: 0 } : { rotate: 360 }}
+        transition={{ duration: meta.scanSpeed * 1.7, ease: 'linear', repeat: reducedMotion ? 0 : Infinity }}
         style={{
           inset: size * 0.04,
           borderColor: `${meta.glow}${Math.round(meta.ringOpacity * 120).toString(16)}`,
@@ -195,8 +210,8 @@ function CompanionCoreVisual({
 
       <motion.div
         className="absolute rounded-full border border-dashed"
-        animate={{ rotate: -360 }}
-        transition={{ duration: meta.scanSpeed * 1.15, ease: 'linear', repeat: Infinity }}
+        animate={reducedMotion ? { rotate: 0 } : { rotate: -360 }}
+        transition={{ duration: meta.scanSpeed * 1.15, ease: 'linear', repeat: reducedMotion ? 0 : Infinity }}
         style={{
           inset: size * 0.14,
           borderColor: `${meta.secondaryGlow}${Math.round(meta.ringOpacity * 96).toString(16)}`,
@@ -206,8 +221,8 @@ function CompanionCoreVisual({
       {!isCompact ? (
         <motion.div
           className="absolute rounded-full border"
-          animate={{ rotate: 360, scale: [1, 1.03, 1] }}
-          transition={{ duration: meta.scanSpeed * 0.85, ease: 'linear', repeat: Infinity }}
+          animate={reducedMotion ? { rotate: 0, scale: 1 } : { rotate: 360, scale: [1, 1.03, 1] }}
+          transition={{ duration: meta.scanSpeed * 0.85, ease: 'linear', repeat: reducedMotion ? 0 : Infinity }}
           style={{
             inset: size * 0.25,
             borderColor: `${meta.glow}30`,
@@ -217,8 +232,8 @@ function CompanionCoreVisual({
 
       <motion.div
         className="absolute rounded-full"
-        animate={{ rotate: 360 }}
-        transition={{ duration: meta.scanSpeed, ease: 'linear', repeat: Infinity }}
+        animate={reducedMotion ? { rotate: 0 } : { rotate: 360 }}
+        transition={{ duration: meta.scanSpeed, ease: 'linear', repeat: reducedMotion ? 0 : Infinity }}
         style={{
           inset: size * 0.09,
           background: `conic-gradient(from 20deg, transparent 0deg, transparent 34deg, ${meta.glow} 48deg, transparent 68deg, transparent 190deg, ${meta.secondaryGlow}90 212deg, transparent 230deg, transparent 360deg)`,
@@ -231,8 +246,8 @@ function CompanionCoreVisual({
 
       <motion.div
         className="absolute rounded-full"
-        animate={{ rotate: -360 }}
-        transition={{ duration: meta.scanSpeed * 1.35, ease: 'linear', repeat: Infinity }}
+        animate={reducedMotion ? { rotate: 0 } : { rotate: -360 }}
+        transition={{ duration: meta.scanSpeed * 1.35, ease: 'linear', repeat: reducedMotion ? 0 : Infinity }}
         style={{
           inset: size * 0.19,
           background: `conic-gradient(from 120deg, transparent 0deg, ${meta.secondaryGlow}00 78deg, ${meta.secondaryGlow} 92deg, transparent 112deg, transparent 360deg)`,
@@ -245,10 +260,10 @@ function CompanionCoreVisual({
 
       <motion.div
         className="absolute rounded-full border"
-        animate={{ scale: [0.28, 1.02], opacity: [0, 0.5, 0] }}
+        animate={reducedMotion ? { scale: 0.96, opacity: 0.24 } : { scale: [0.28, 1.02], opacity: [0, 0.5, 0] }}
         transition={{
           duration: meta.pulseSpeed * 0.72,
-          repeat: Infinity,
+          repeat: reducedMotion ? 0 : Infinity,
           repeatDelay: isUnstable ? 0.5 : 1.2,
           ease: 'easeOut',
         }}
@@ -262,8 +277,8 @@ function CompanionCoreVisual({
 
       <motion.div
         className="absolute inset-0 rounded-full"
-        animate={{ rotate: meta.signalMode === 'steady' ? 360 : -360 }}
-        transition={{ duration: meta.scanSpeed * 2.1, ease: 'linear', repeat: Infinity }}
+        animate={reducedMotion ? { rotate: 0 } : { rotate: meta.signalMode === 'steady' ? 360 : -360 }}
+        transition={{ duration: meta.scanSpeed * 2.1, ease: 'linear', repeat: reducedMotion ? 0 : Infinity }}
       >
         {nodes.map((node) => {
           const angle = (Math.PI * 2 * node) / nodes.length - Math.PI / 2
@@ -275,14 +290,18 @@ function CompanionCoreVisual({
             <motion.span
               key={node}
               className="absolute rounded-full"
-              animate={{
-                opacity: isUnstable ? [0.25, 0.9, 0.2, 0.65] : [0.35, 1, 0.35],
-                scale: meta.signalMode === 'dim' ? [0.75, 0.95, 0.75] : [0.85, 1.2, 0.85],
-              }}
+              animate={
+                reducedMotion
+                  ? { opacity: 0.72, scale: 1 }
+                  : {
+                      opacity: isUnstable ? [0.25, 0.9, 0.2, 0.65] : [0.35, 1, 0.35],
+                      scale: meta.signalMode === 'dim' ? [0.75, 0.95, 0.75] : [0.85, 1.2, 0.85],
+                    }
+              }
               transition={{
                 duration: meta.pulseSpeed * 0.8,
                 delay: node * 0.22,
-                repeat: Infinity,
+                repeat: reducedMotion ? 0 : Infinity,
                 ease: 'easeInOut',
               }}
               style={{
@@ -300,15 +319,22 @@ function CompanionCoreVisual({
 
       <motion.div
         className="relative rounded-full border border-white/15"
-        animate={{
-          scale: [0.97, 1.04, 0.97],
-          boxShadow: [
-            `0 0 ${size * 0.12}px ${meta.glow}55, inset 0 0 ${size * 0.08}px ${meta.secondaryGlow}25`,
-            `0 0 ${size * 0.26}px ${meta.glow}aa, inset 0 0 ${size * 0.16}px ${meta.secondaryGlow}45`,
-            `0 0 ${size * 0.12}px ${meta.glow}55, inset 0 0 ${size * 0.08}px ${meta.secondaryGlow}25`,
-          ],
-        }}
-        transition={{ duration: meta.pulseSpeed, repeat: Infinity, ease: 'easeInOut' }}
+        animate={
+          reducedMotion
+            ? {
+                scale: 1,
+                boxShadow: `0 0 ${size * 0.2}px ${meta.glow}77, inset 0 0 ${size * 0.1}px ${meta.secondaryGlow}30`,
+              }
+            : {
+                scale: [0.97, 1.04, 0.97],
+                boxShadow: [
+                  `0 0 ${size * 0.12}px ${meta.glow}55, inset 0 0 ${size * 0.08}px ${meta.secondaryGlow}25`,
+                  `0 0 ${size * 0.26}px ${meta.glow}aa, inset 0 0 ${size * 0.16}px ${meta.secondaryGlow}45`,
+                  `0 0 ${size * 0.12}px ${meta.glow}55, inset 0 0 ${size * 0.08}px ${meta.secondaryGlow}25`,
+                ],
+              }
+        }
+        transition={{ duration: meta.pulseSpeed, repeat: reducedMotion ? 0 : Infinity, ease: 'easeInOut' }}
         style={{
           width: coreSize,
           height: coreSize,
@@ -323,8 +349,8 @@ function CompanionCoreVisual({
         />
         <motion.div
           className="absolute left-1/2 top-1/2 rounded-full"
-          animate={{ opacity: [0.75, 1, 0.75], scale: [0.9, 1.25, 0.9] }}
-          transition={{ duration: meta.pulseSpeed * 0.64, repeat: Infinity, ease: 'easeInOut' }}
+          animate={reducedMotion ? { opacity: 0.9, scale: 1 } : { opacity: [0.75, 1, 0.75], scale: [0.9, 1.25, 0.9] }}
+          transition={{ duration: meta.pulseSpeed * 0.64, repeat: reducedMotion ? 0 : Infinity, ease: 'easeInOut' }}
           style={{
             width: Math.max(7, size * 0.07),
             height: Math.max(7, size * 0.07),
@@ -335,6 +361,25 @@ function CompanionCoreVisual({
           }}
         />
       </motion.div>
+
+      <AnimatePresence>
+        {reactionId ? (
+          <motion.div
+            key={reactionId}
+            className="absolute rounded-full border"
+            initial={{ opacity: 0.56, scale: 0.72 }}
+            animate={{ opacity: 0, scale: reducedMotion ? 0.9 : 1.28 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reducedMotion ? 0.18 : 0.72, ease: 'easeOut' }}
+            style={{
+              width: size * 0.94,
+              height: size * 0.94,
+              borderColor: `${meta.glow}88`,
+              boxShadow: `0 0 ${size * 0.24}px ${meta.glow}44`,
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
     </motion.div>
   )
 }
@@ -351,6 +396,8 @@ export function CompanionCoreWidget({
   const meta = moodMeta[mood]
   const xpPercent = (currentXp / nextLevelXp) * 100
   const isCompact = variant === 'compact'
+  const reducedMotion = useReducedMotion() ?? false
+  const reaction = useCompanionStore((state) => state.reaction)
 
   return (
     <GlassCard
@@ -390,10 +437,21 @@ export function CompanionCoreWidget({
 
       <div className={cn('grid items-center gap-3', isCompact ? 'grid-cols-[auto_1fr]' : 'grid-cols-1')}>
         <div className="mx-auto">
-          <CompanionCoreVisual mood={mood} variant={variant} />
+          <CompanionCoreVisual
+            mood={mood}
+            reactionId={reaction?.id}
+            reducedMotion={reducedMotion}
+            variant={variant}
+          />
         </div>
 
         <div className="min-w-0 space-y-2.5">
+          {reaction ? (
+            <div className="rounded-2xl border border-cyan/20 bg-cyan/10 px-3 py-2 text-xs font-medium text-cyan">
+              {reaction.message}
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-3 gap-1.5">
             <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <div className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-[0.1em] text-muted">

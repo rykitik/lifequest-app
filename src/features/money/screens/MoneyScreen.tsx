@@ -49,6 +49,7 @@ import type {
   PlannedPayment,
   PlannedPaymentType,
 } from '@/shared/types'
+import { applyLifeQuestReward, rewardFeedbackMessages } from '@/services/gameplay'
 import { parseSberStatementText } from '@/services/moneyImport/sberStatementParser'
 import { useMoneyStore } from '@/stores/useMoneyStore'
 
@@ -1357,6 +1358,12 @@ export function MoneyScreen() {
   }
 
   const handleImportPreview = () => {
+    const preview = state.importPreview
+    const importFingerprint = preview?.transactions
+      .map((transaction) => transaction.importFingerprint ?? transaction.importHash)
+      .filter(Boolean)
+      .slice(0, 6)
+      .join('|')
     const result = state.importPreviewTransactions()
 
     showStatus(result.reason ?? 'Импорт завершён')
@@ -1365,6 +1372,19 @@ export function MoneyScreen() {
         ? `Новые операции: ${result.imported ?? 0}. Дубли: ${result.duplicates ?? 0}.`
         : result.reason ?? 'Импорт не выполнен.',
     )
+
+    if (result.ok && (result.imported ?? 0) > 0) {
+      applyLifeQuestReward(
+        {
+          xp: 10,
+          consistencyXp: 2,
+          sector: 'money',
+          sourceId: `money:import:${importFingerprint || `${preview?.source ?? 'unknown'}:${result.imported}`}`,
+        },
+        'Операции учтены. Финансовый сигнал обновлён без лишнего шума.',
+        rewardFeedbackMessages.moneyImportCompleted,
+      )
+    }
   }
 
   const handleClearImport = () => {

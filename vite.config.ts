@@ -13,6 +13,33 @@ export default defineConfig({
     },
   },
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('pdfjs-dist')) {
+            return 'pdfjs'
+          }
+
+          if (id.includes('framer-motion')) {
+            return 'motion'
+          }
+
+          if (id.includes('lucide-react')) {
+            return 'icons'
+          }
+
+          if (
+            id.includes('node_modules/react') ||
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/react-router-dom')
+          ) {
+            return 'react-vendor'
+          }
+        },
+      },
+    },
+  },
   server: {
     host: true,
   },

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Sparkles } from 'lucide-react'
+import { Activity } from 'lucide-react'
 import { useFeedbackStore } from '@/stores/useFeedbackStore'
 
 const sectorLabels = {
@@ -37,19 +37,16 @@ export function RewardToast() {
           exit={{ opacity: 0, y: 12, scale: 0.98 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="w-full max-w-[26rem] rounded-3xl border border-primary/30 bg-slate-950/88 px-4 py-3 shadow-glow backdrop-blur-xl">
+          <div className="w-full max-w-[26rem] rounded-3xl border border-cyan/25 bg-slate-950/90 px-4 py-3 shadow-glow backdrop-blur-xl">
             <div className="flex items-center gap-3">
-              <div className="rounded-2xl border border-primary/25 bg-primary/15 p-2 text-primary">
-                <Sparkles className="h-4 w-4" />
+              <div className="rounded-2xl border border-cyan/25 bg-cyan/10 p-2 text-cyan">
+                <Activity className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-white">
-                  +{rewardToast.xp} XP в сектор «{sectorLabels[rewardToast.sector]}»
-                </p>
-                <p className="text-xs text-muted">
-                  {rewardToast.recoveryXp > 0
-                    ? `Возврат тоже засчитан: +${rewardToast.recoveryXp} Recovery XP`
-                    : 'Шаг записан в систему и усиливает базу.'}
+                <p className="text-sm font-semibold text-white">{rewardToast.message}</p>
+                <p className="text-xs leading-5 text-muted">
+                  {rewardToast.signal} · Сектор «{sectorLabels[rewardToast.sector]}» · +{rewardToast.xp} XP
+                  {rewardToast.recoveryXp > 0 ? ` · Восстановление +${rewardToast.recoveryXp} XP` : ''}
                 </p>
               </div>
             </div>

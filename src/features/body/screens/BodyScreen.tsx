@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { applyLifeQuestReward } from '@/services/gameplay'
+import { applyLifeQuestReward, rewardFeedbackMessages } from '@/services/gameplay'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { MiniSparkline } from '@/shared/components/MiniSparkline'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
@@ -100,6 +100,19 @@ export function BodyScreen() {
     window.setTimeout(() => setSavedLabel(''), 1600)
   }
 
+  const markBodyCheckinProgress = () => {
+    applyLifeQuestReward(
+      {
+        xp: 8,
+        consistencyXp: 1,
+        sector: 'body',
+        sourceId: `body:checkin:${today.date}`,
+      },
+      'Чек-ин тела сохранён. Ядро получило базовый сигнал на сегодня.',
+      rewardFeedbackMessages.bodyCheckinSaved,
+    )
+  }
+
   const handleSaveWeight = () => {
     const weightInput = weightInputRef.current?.value ?? String(today.weightKg)
     const nextWeight = Number(weightInput.replace(',', '.'))
@@ -119,6 +132,7 @@ export function BodyScreen() {
     }
 
     markSaved('Вес сохранён')
+    markBodyCheckinProgress()
   }
 
   const handleSaveSteps = (steps?: number) => {
@@ -140,6 +154,7 @@ export function BodyScreen() {
     }
 
     markSaved('Шаги сохранены')
+    markBodyCheckinProgress()
   }
 
   const handleAddSteps = (amount: number) => {
@@ -147,13 +162,21 @@ export function BodyScreen() {
   }
 
   const handleAddWater = (liters: number) => {
+    const nextWaterLiters = Number((today.waterLiters + liters).toFixed(2))
+
     saveCheckin({
-      waterLiters: Number((today.waterLiters + liters).toFixed(2)),
+      waterLiters: nextWaterLiters,
     })
     markSaved('Вода сохранена')
     applyLifeQuestReward(
-      { xp: 6, sector: 'body' },
-      'Контур тела обновлён. Ещё один спокойный базовый шаг закреплён.',
+      {
+        xp: 5,
+        consistencyXp: 1,
+        sector: 'body',
+        sourceId: `body:water:${today.date}:${nextWaterLiters}`,
+      },
+      'Вода добавлена. Контур тела стал спокойнее.',
+      rewardFeedbackMessages.waterAdded,
     )
   }
 
@@ -163,6 +186,7 @@ export function BodyScreen() {
       foodDiscipline: nutritionScore[nutritionStatus],
     })
     markSaved('Питание сохранено')
+    markBodyCheckinProgress()
   }
 
   const handleMovementSelect = (movementType: BodyMovementType) => {
@@ -174,6 +198,7 @@ export function BodyScreen() {
       workoutDone,
     })
     markSaved('Движение сохранено')
+    markBodyCheckinProgress()
   }
 
   const handleWorkoutDone = () => {
@@ -193,8 +218,9 @@ export function BodyScreen() {
     })
     markSaved('Тренировка сохранена')
     applyLifeQuestReward(
-      { xp: 18, sector: 'body', consistencyXp: 2 },
+      { xp: 18, sector: 'body', consistencyXp: 2, sourceId: `body:workout:${today.date}` },
       'Тренировка записана. Сектор тела становится устойчивее.',
+      'Тренировка отмечена · сектор тела усилен',
     )
   }
 

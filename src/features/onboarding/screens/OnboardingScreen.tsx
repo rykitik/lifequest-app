@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Check, MessageSquareText, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { applyLifeQuestReward, rewardFeedbackMessages } from '@/services/gameplay'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { getLocalDateKey } from '@/shared/lib/date'
@@ -250,11 +251,31 @@ export function OnboardingScreen() {
 
   const finishToToday = () => {
     completeOnboarding()
+    applyLifeQuestReward(
+      {
+        xp: 12,
+        consistencyXp: 2,
+        sector: 'stability',
+        sourceId: 'onboarding:completed',
+      },
+      'Настройка завершена. Система готова держать один следующий шаг.',
+      rewardFeedbackMessages.onboardingCompleted,
+    )
     navigate('/today', { replace: true })
   }
 
   const finishToPromptCenter = () => {
     completeOnboarding()
+    applyLifeQuestReward(
+      {
+        xp: 12,
+        consistencyXp: 2,
+        sector: 'stability',
+        sourceId: 'onboarding:completed',
+      },
+      'Настройка завершена. Центр промптов получит уже собранный контекст.',
+      rewardFeedbackMessages.onboardingCompleted,
+    )
     navigate('/today', { replace: true })
     window.setTimeout(() => openPromptCenter(), 0)
   }
