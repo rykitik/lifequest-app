@@ -1,5 +1,6 @@
 import {
   Activity,
+  ArrowRight,
   BadgeCheck,
   Brain,
   CircleDollarSign,
@@ -7,13 +8,19 @@ import {
   Radio,
   ShieldCheck,
 } from 'lucide-react'
+import { PrimaryButton } from '@/shared/components/PrimaryButton'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
 import { formatPercent } from '@/shared/lib/format'
-import type { LifeQuestSkillModule, LifeQuestSkillModuleId } from '@/features/profile/lib/skillTree'
+import type {
+  LifeQuestModuleSuggestion,
+  LifeQuestSkillModule,
+  LifeQuestSkillModuleId,
+} from '@/features/profile/lib/skillTree'
 
 interface SkillTreePanelProps {
   modules: LifeQuestSkillModule[]
+  onSuggestionAction?: (suggestion: LifeQuestModuleSuggestion, module: LifeQuestSkillModule) => void
 }
 
 const moduleIcons: Record<LifeQuestSkillModuleId, typeof Activity> = {
@@ -59,7 +66,19 @@ function getStateTone(module: LifeQuestSkillModule) {
   return 'border-cyan/25 bg-cyan/10 text-cyan'
 }
 
-export function SkillTreePanel({ modules }: SkillTreePanelProps) {
+function getSuggestionTone(suggestion: LifeQuestModuleSuggestion) {
+  if (suggestion.priority === 'high') {
+    return 'border-cyan/20 bg-cyan/10'
+  }
+
+  if (suggestion.priority === 'normal') {
+    return 'border-primary/20 bg-primary/8'
+  }
+
+  return 'border-white/10 bg-black/18'
+}
+
+export function SkillTreePanel({ modules, onSuggestionAction }: SkillTreePanelProps) {
   return (
     <GlassCard className="mb-5 overflow-hidden">
       <div className="pointer-events-none -mx-5 -mt-5 mb-4 h-px bg-gradient-to-r from-transparent via-cyan/45 to-transparent" />
@@ -128,6 +147,43 @@ export function SkillTreePanel({ modules }: SkillTreePanelProps) {
                   {module.nextSignal}
                 </p>
               </div>
+
+              {module.suggestion ? (
+                <div
+                  className={`mt-2 rounded-2xl border p-2.5 ${getSuggestionTone(module.suggestion)}`}
+                  data-testid={`module-suggestion-${module.id}`}
+                >
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-cyan/80">
+                      Сигнал модуля
+                    </p>
+                    {module.suggestion.linkedDailyQuest ? (
+                      <span className="rounded-full border border-cyan/20 bg-cyan/10 px-2 py-0.5 text-[10px] text-cyan">
+                        {module.suggestion.linkedDailyQuest === 'completed' ? 'Квест дня выполнен' : 'Квест дня'}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 break-words text-xs font-semibold leading-4 text-white">
+                    {module.suggestion.title}
+                  </p>
+                  <p className="mt-1 break-words text-[11px] leading-4 text-muted">
+                    {module.suggestion.caption}
+                  </p>
+                  {module.suggestion.actionType !== 'none' ? (
+                    <PrimaryButton
+                      className="mt-2 min-h-9 rounded-xl px-3 py-2 text-xs"
+                      data-testid={`module-suggestion-action-${module.id}`}
+                      fullWidth
+                      icon={<ArrowRight className="h-3.5 w-3.5" />}
+                      onClick={() => onSuggestionAction?.(module.suggestion as LifeQuestModuleSuggestion, module)}
+                      tone="secondary"
+                      type="button"
+                    >
+                      {module.suggestion.actionLabel}
+                    </PrimaryButton>
+                  ) : null}
+                </div>
+              ) : null}
 
               {module.linkedQuest ? (
                 <div className="mt-2 rounded-2xl border border-cyan/15 bg-cyan/8 p-2.5">

@@ -28,6 +28,27 @@ export type LifeQuestSkillModuleId =
 
 export type LifeQuestSkillModuleState = 'locked' | 'forming' | 'active' | 'stable' | 'evolving'
 
+export type LifeQuestModuleSuggestionActionType =
+  | 'open_body'
+  | 'add_water'
+  | 'open_money'
+  | 'open_today'
+  | 'open_backup'
+  | 'open_companion_customization'
+  | 'open_recovery'
+  | 'none'
+
+export interface LifeQuestModuleSuggestion {
+  id: string
+  title: string
+  caption: string
+  actionLabel: string
+  actionType: LifeQuestModuleSuggestionActionType
+  priority: 'low' | 'normal' | 'high'
+  safeDomain: LifeQuestSkillModuleId
+  linkedDailyQuest?: 'waiting' | 'completed'
+}
+
 export interface LifeQuestSkillModule {
   id: LifeQuestSkillModuleId
   label: string
@@ -45,6 +66,7 @@ export interface LifeQuestSkillModule {
     title: string
     status: 'waiting' | 'completed'
   }
+  suggestion?: LifeQuestModuleSuggestion
 }
 
 interface SkillTreeSettingsInput {
@@ -54,6 +76,8 @@ interface SkillTreeSettingsInput {
   }
   lastBackupAt?: string | null
   lastBackupExportAt?: string | null
+  lastBackupReason?: string | null
+  backupReminderSnoozedUntil?: string | null
   userName?: string
   userRole?: string
   heightCm?: number
@@ -245,6 +269,302 @@ function getLinkedQuest(moduleId: LifeQuestSkillModuleId, input: SkillTreeInput)
   } satisfies LifeQuestSkillModule['linkedQuest']
 }
 
+function isDailyQuestCompleted(input: SkillTreeInput) {
+  return input.today.dailyQuest?.completedAt || input.today.dailyQuestCompletion?.date === getLocalDateKey()
+}
+
+function getDailyQuestStatus(input: SkillTreeInput) {
+  return isDailyQuestCompleted(input) ? 'completed' : 'waiting'
+}
+
+function isDailyQuestForModule(input: SkillTreeInput, moduleId: LifeQuestSkillModuleId) {
+  return input.today.dailyQuest?.domain === moduleId
+}
+
+function hasBodyCheckinToday(input: SkillTreeInput) {
+  return hasBodySignal({
+    today: input.body.today,
+    dailyLogs: [],
+  })
+}
+
+function isProfileIncomplete(input: SkillTreeInput) {
+  return [
+    input.settings.userName,
+    input.settings.userRole,
+    input.settings.heightCm,
+    input.settings.bodyGoal && input.settings.bodyGoal !== 'not_set' ? input.settings.bodyGoal : undefined,
+    input.settings.targetWeightKg,
+    input.settings.activityLevel,
+    input.settings.usualSleepTime,
+    input.settings.usualWakeTime,
+  ].filter(Boolean).length < 5
+}
+
+function hasBackupReminder(input: SkillTreeInput) {
+  return Boolean(input.settings.lastBackupReason && !input.settings.backupReminderSnoozedUntil)
+}
+
+function buildSuggestion(input: SkillTreeInput, moduleId: LifeQuestSkillModuleId): LifeQuestModuleSuggestion {
+  if (moduleId === 'body') {
+    if (!hasBodyCheckinToday(input)) {
+      return {
+        id: 'body-checkin',
+        title: 'Сделать чек-ин тела',
+        caption: '30 секунд дадут системе первый телесный сигнал.',
+        actionLabel: 'Открыть тело',
+        actionType: 'open_body',
+        priority: 'high',
+        safeDomain: 'body',
+        linkedDailyQuest: isDailyQuestForModule(input, 'body') ? getDailyQuestStatus(input) : undefined,
+      }
+    }
+
+    if (input.body.today.waterLiters < 1) {
+      return {
+        id: 'body-water',
+        title: 'Добавить воду',
+        caption: '+500 мл укрепят телесную базу.',
+        actionLabel: 'Добавить воду',
+        actionType: 'add_water',
+        priority: 'normal',
+        safeDomain: 'body',
+        linkedDailyQuest: isDailyQuestForModule(input, 'body') ? getDailyQuestStatus(input) : undefined,
+      }
+    }
+
+    if (input.body.today.steps < 3000) {
+      return {
+        id: 'body-walk',
+        title: 'Короткая прогулка',
+        caption: 'Пять минут движения дадут мягкий сигнал телу.',
+        actionLabel: 'Открыть тело',
+        actionType: 'open_body',
+        priority: 'normal',
+        safeDomain: 'body',
+      }
+    }
+
+    return {
+      id: 'body-support',
+      title: 'Поддержать телесную базу',
+      caption: 'Один спокойный чек-ин сохранит контур тела точным.',
+      actionLabel: 'Открыть тело',
+      actionType: 'open_body',
+      priority: 'low',
+      safeDomain: 'body',
+    }
+  }
+
+  if (moduleId === 'money') {
+    if (!input.money.trackingStartDate) {
+      return {
+        id: 'money-baseline',
+        title: 'Создать финансовую базу',
+        caption: 'После этого LifeQuest сможет считать безопасный остаток.',
+        actionLabel: 'Открыть деньги',
+        actionType: 'open_money',
+        priority: 'high',
+        safeDomain: 'money',
+        linkedDailyQuest: isDailyQuestForModule(input, 'money') ? getDailyQuestStatus(input) : undefined,
+      }
+    }
+
+    if (!input.money.lastImportAt && input.money.transactions.length === 0) {
+      return {
+        id: 'money-import',
+        title: 'Обновить импорт',
+        caption: 'Свежие операции сделают финансовый сигнал точнее.',
+        actionLabel: 'Открыть деньги',
+        actionType: 'open_money',
+        priority: 'normal',
+        safeDomain: 'money',
+      }
+    }
+
+    if (input.money.importWarnings.length > 0) {
+      return {
+        id: 'money-review',
+        title: 'Проверить финансовую базу',
+        caption: 'Достаточно спокойно сверить денежный контур.',
+        actionLabel: 'Открыть деньги',
+        actionType: 'open_money',
+        priority: 'normal',
+        safeDomain: 'money',
+        linkedDailyQuest: isDailyQuestForModule(input, 'money') ? getDailyQuestStatus(input) : undefined,
+      }
+    }
+
+    return {
+      id: 'money-refresh',
+      title: 'Обновить контроль денег',
+      caption: 'Короткая сверка сохранит финансовый сигнал точным.',
+      actionLabel: 'Открыть деньги',
+      actionType: 'open_money',
+      priority: 'low',
+      safeDomain: 'money',
+    }
+  }
+
+  if (moduleId === 'focus') {
+    if (input.today.dailyQuest && !isDailyQuestCompleted(input)) {
+      return {
+        id: 'focus-daily-quest',
+        title: 'Закрыть главный квест',
+        caption: 'Один завершённый шаг усилит маршрут дня.',
+        actionLabel: 'Открыть сегодня',
+        actionType: 'open_today',
+        priority: 'high',
+        safeDomain: 'focus',
+        linkedDailyQuest: 'waiting',
+      }
+    }
+
+    if (input.today.route.quickWin && input.today.route.quickWin.status !== 'complete') {
+      return {
+        id: 'focus-quick-win',
+        title: 'Закрыть один быстрый шаг',
+        caption: 'Короткое завершение укрепит фокус без лишнего списка.',
+        actionLabel: 'Открыть сегодня',
+        actionType: 'open_today',
+        priority: 'normal',
+        safeDomain: 'focus',
+      }
+    }
+
+    return {
+      id: 'focus-one-step',
+      title: 'Выбрать один фокус на день',
+      caption: 'Один сигнал уже достаточно важен для маршрута.',
+      actionLabel: 'Открыть сегодня',
+      actionType: 'open_today',
+      priority: 'low',
+      safeDomain: 'focus',
+      linkedDailyQuest: input.today.dailyQuest ? 'completed' : undefined,
+    }
+  }
+
+  if (moduleId === 'recovery') {
+    if (input.today.currentMode === 'low' || input.today.currentMode === 'drifted') {
+      return {
+        id: 'recovery-overload',
+        title: 'Снизить перегруз',
+        caption: 'Короткая пауза стабилизирует Core.',
+        actionLabel: 'Открыть сегодня',
+        actionType: 'open_recovery',
+        priority: 'high',
+        safeDomain: 'recovery',
+        linkedDailyQuest: isDailyQuestForModule(input, 'recovery') ? getDailyQuestStatus(input) : undefined,
+      }
+    }
+
+    if (input.weekly.summaries.length > 0 && input.progress.recoveryXp <= 0) {
+      return {
+        id: 'recovery-soft-mode',
+        title: 'Запустить мягкое восстановление',
+        caption: 'Небольшой запасной маршрут удержит устойчивый темп.',
+        actionLabel: 'Открыть сегодня',
+        actionType: 'open_recovery',
+        priority: 'normal',
+        safeDomain: 'recovery',
+      }
+    }
+
+    return {
+      id: 'recovery-pace',
+      title: 'Сохранить устойчивый темп',
+      caption: 'Мягкий шаг помогает системе не уходить в перегруз.',
+      actionLabel: 'Открыть сегодня',
+      actionType: 'open_recovery',
+      priority: 'low',
+      safeDomain: 'recovery',
+    }
+  }
+
+  if (moduleId === 'system') {
+    if (hasBackupReminder(input)) {
+      return {
+        id: 'system-backup',
+        title: 'Сделать backup',
+        caption: 'Локальная база уже содержит ценные данные.',
+        actionLabel: 'Открыть настройки',
+        actionType: 'open_backup',
+        priority: 'high',
+        safeDomain: 'system',
+        linkedDailyQuest: isDailyQuestForModule(input, 'system') ? getDailyQuestStatus(input) : undefined,
+      }
+    }
+
+    if (isProfileIncomplete(input)) {
+      return {
+        id: 'system-profile',
+        title: 'Заполнить профиль',
+        caption: 'Базовый контекст сделает сигналы LifeQuest точнее.',
+        actionLabel: 'Открыть настройки',
+        actionType: 'open_backup',
+        priority: 'normal',
+        safeDomain: 'system',
+      }
+    }
+
+    if (!input.settings.onboarding?.completed && !input.settings.onboarding?.skipped) {
+      return {
+        id: 'system-onboarding',
+        title: 'Завершить настройку',
+        caption: 'Первичная настройка укрепит основу локальной системы.',
+        actionLabel: 'Открыть настройки',
+        actionType: 'open_backup',
+        priority: 'normal',
+        safeDomain: 'system',
+      }
+    }
+
+    return {
+      id: 'system-settings',
+      title: 'Проверить настройки системы',
+      caption: 'Короткая сверка сохраняет локальную базу управляемой.',
+      actionLabel: 'Открыть настройки',
+      actionType: 'open_backup',
+      priority: 'low',
+      safeDomain: 'system',
+    }
+  }
+
+  if (!hasCompanionCustomization(input.companion)) {
+    return {
+      id: 'companion-customization',
+      title: 'Настроить Core',
+      caption: 'Имя, цвет и оболочка усилят связь с Companion.',
+      actionLabel: 'Настроить',
+      actionType: 'open_companion_customization',
+      priority: 'high',
+      safeDomain: 'companion',
+    }
+  }
+
+  if (input.companion.evolutionLevel < 7) {
+    return {
+      id: 'companion-evolution',
+      title: 'Усилить сигналы для следующей формы',
+      caption: 'Устойчивые действия помогают Core готовить новый виток.',
+      actionLabel: 'Открыть сегодня',
+      actionType: 'open_today',
+      priority: 'normal',
+      safeDomain: 'companion',
+    }
+  }
+
+  return {
+    id: 'companion-state',
+    title: 'Проверить состояние Core',
+    caption: 'Ядро принимает сигналы и держит контур системы.',
+    actionLabel: 'Остаться здесь',
+    actionType: 'none',
+    priority: 'low',
+    safeDomain: 'companion',
+  }
+}
+
 function buildModule(input: {
   id: LifeQuestSkillModuleId
   label: string
@@ -271,6 +591,7 @@ function buildModule(input: {
       title: compactTitle(milestone.title, 'Веха зафиксирована'),
     })),
     linkedQuest: getLinkedQuest(input.id, input.source),
+    suggestion: buildSuggestion(input.source, input.id),
   }
 }
 

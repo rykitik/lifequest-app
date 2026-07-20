@@ -1,10 +1,13 @@
 import { Archive, Database, Settings2, Target } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CompanionCustomizationPanel } from '@/features/companion/components/CompanionCustomizationPanel'
 import { CompanionCoreWidget } from '@/features/companion/components/CompanionCoreWidget'
 import { CompanionEvolutionPreview } from '@/features/companion/components/CompanionEvolutionPreview'
-import { buildLifeQuestSkillTree } from '@/features/profile/lib/skillTree'
+import {
+  buildLifeQuestSkillTree,
+  type LifeQuestModuleSuggestion,
+} from '@/features/profile/lib/skillTree'
 import { buildSystemProfileViewModel } from '@/features/profile/lib/systemProfile'
 import { MilestonesPanel } from '@/features/progress/components/MilestonesPanel'
 import { SkillTreePanel } from '@/features/progress/components/SkillTreePanel'
@@ -26,6 +29,7 @@ import { useWeeklyReviewStore } from '@/stores/useWeeklyReviewStore'
 
 export function CoreScreen() {
   const navigate = useNavigate()
+  const companionCustomizationRef = useRef<HTMLDivElement>(null)
   const companionMood = useCompanionStore((state) => state.mood)
   const companionEvolutionLevel = useCompanionStore((state) => state.evolutionLevel)
   const companionActiveMessage = useCompanionStore((state) => state.activeMessage)
@@ -48,6 +52,8 @@ export function CoreScreen() {
   const usualWakeTime = useSettingsStore((state) => state.usualWakeTime)
   const lastBackupAt = useSettingsStore((state) => state.lastBackupAt)
   const lastBackupExportAt = useSettingsStore((state) => state.lastBackupExportAt)
+  const lastBackupReason = useSettingsStore((state) => state.lastBackupReason)
+  const backupReminderSnoozedUntil = useSettingsStore((state) => state.backupReminderSnoozedUntil)
   const onboarding = useSettingsStore((state) => state.onboarding)
   const resetDemoData = useSettingsStore((state) => state.resetDemoData)
   const bodyToday = useBodyStore((state) => state.today)
@@ -119,6 +125,8 @@ export function CoreScreen() {
       usualWakeTime,
       lastBackupAt,
       lastBackupExportAt,
+      lastBackupReason,
+      backupReminderSnoozedUntil,
       onboarding,
     }),
     [
@@ -127,7 +135,9 @@ export function CoreScreen() {
       heightCm,
       lastBackupAt,
       lastBackupExportAt,
+      lastBackupReason,
       onboarding,
+      backupReminderSnoozedUntil,
       targetWeightKg,
       userName,
       userRole,
@@ -219,6 +229,37 @@ export function CoreScreen() {
     resetDemoData()
   }
 
+  const handleModuleSuggestionAction = (suggestion: LifeQuestModuleSuggestion) => {
+    if (suggestion.actionType === 'open_body' || suggestion.actionType === 'add_water') {
+      navigate('/body')
+      return
+    }
+
+    if (suggestion.actionType === 'open_money') {
+      navigate('/money')
+      return
+    }
+
+    if (suggestion.actionType === 'open_today' || suggestion.actionType === 'open_recovery') {
+      navigate('/today')
+      return
+    }
+
+    if (suggestion.actionType === 'open_backup') {
+      navigate('/settings')
+      return
+    }
+
+    if (suggestion.actionType === 'open_companion_customization') {
+      const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? true
+
+      companionCustomizationRef.current?.scrollIntoView({
+        block: 'start',
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      })
+    }
+  }
+
   return (
     <section className="pb-6">
       <ScreenHeader title="Профиль системы" subtitle="Локальная база · Companion активен" />
@@ -285,16 +326,18 @@ export function CoreScreen() {
         />
       </div>
 
-      <CompanionCustomizationPanel
-        key={`${companionCustomization.displayName}:${companionCustomization.accent}:${companionCustomization.shell}:${companionCustomization.updatedAt ?? 'default'}`}
-        customization={companionCustomization}
-        mood={companion.mood}
-        message={profile.companionMessage}
-        level={profile.systemLevel}
-        stabilityScore={companion.stabilityScore}
-        currentXp={progress.currentLevelXp}
-        nextLevelXp={progress.nextLevelXp}
-      />
+      <div ref={companionCustomizationRef} className="scroll-mt-4">
+        <CompanionCustomizationPanel
+          key={`${companionCustomization.displayName}:${companionCustomization.accent}:${companionCustomization.shell}:${companionCustomization.updatedAt ?? 'default'}`}
+          customization={companionCustomization}
+          mood={companion.mood}
+          message={profile.companionMessage}
+          level={profile.systemLevel}
+          stabilityScore={companion.stabilityScore}
+          currentXp={progress.currentLevelXp}
+          nextLevelXp={progress.nextLevelXp}
+        />
+      </div>
 
       <GlassCard className="mb-4 overflow-hidden border-cyan/20 bg-gradient-to-br from-cyan/12 via-primary/8 to-transparent !p-3.5">
         <div className="pointer-events-none -mx-3.5 -mt-3.5 mb-3 h-px bg-gradient-to-r from-transparent via-cyan/50 to-transparent" />
@@ -342,7 +385,7 @@ export function CoreScreen() {
         </div>
       </div>
 
-      <SkillTreePanel modules={skillModules} />
+      <SkillTreePanel modules={skillModules} onSuggestionAction={handleModuleSuggestionAction} />
 
       <GlassCard className="mb-5">
         <CompanionEvolutionPreview

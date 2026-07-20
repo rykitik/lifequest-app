@@ -237,7 +237,122 @@ describe('skill tree view model', () => {
       'companion',
     ])
     expect(modules.every((module) => module.levelLabel.length > 0)).toBe(true)
+    expect(modules.every((module) => module.suggestion)).toBe(true)
     expect(moduleById(modules, 'body').levelLabel).toBe('Нужны первые сигналы')
+  })
+
+  it('body suggestion chooses check-in when no body data', () => {
+    const body = moduleById(buildLifeQuestSkillTree(emptyInput), 'body')
+
+    expect(body.suggestion).toMatchObject({
+      id: 'body-checkin',
+      title: 'Сделать чек-ин тела',
+      actionType: 'open_body',
+      safeDomain: 'body',
+    })
+  })
+
+  it('body suggestion chooses water when water is low', () => {
+    const body = moduleById(
+      buildLifeQuestSkillTree(
+        buildInput({
+          body: {
+            ...emptyInput.body,
+            today: {
+              ...emptyInput.body.today,
+              steps: 800,
+              waterLiters: 0,
+            },
+          },
+        }),
+      ),
+      'body',
+    )
+
+    expect(body.suggestion).toMatchObject({
+      id: 'body-water',
+      title: 'Добавить воду',
+      actionType: 'add_water',
+    })
+  })
+
+  it('money suggestion chooses baseline when no baseline exists', () => {
+    const money = moduleById(buildLifeQuestSkillTree(emptyInput), 'money')
+
+    expect(money.suggestion).toMatchObject({
+      id: 'money-baseline',
+      title: 'Создать финансовую базу',
+      actionType: 'open_money',
+      safeDomain: 'money',
+    })
+  })
+
+  it('focus suggestion links to daily quest when waiting', () => {
+    const focus = moduleById(
+      buildLifeQuestSkillTree(
+        buildInput({
+          today: {
+            ...emptyInput.today,
+            dailyQuest: privateFocusQuest(),
+            route: {
+              ...emptyInput.today.route,
+              mainQuest: routeQuest(),
+            },
+          },
+        }),
+      ),
+      'focus',
+    )
+
+    expect(focus.suggestion).toMatchObject({
+      id: 'focus-daily-quest',
+      title: 'Закрыть главный квест',
+      actionType: 'open_today',
+      linkedDailyQuest: 'waiting',
+    })
+    expect(JSON.stringify(focus.suggestion)).not.toContain('Позвонить врачу')
+  })
+
+  it('system suggestion chooses backup when backup reminder is active', () => {
+    const system = moduleById(
+      buildLifeQuestSkillTree(
+        buildInput({
+          settings: {
+            onboarding: {
+              completed: true,
+              skipped: false,
+            },
+            lastBackupReason: 'money_import_completed',
+            userName: 'Оператор',
+            userRole: 'Система',
+            heightCm: 180,
+            bodyGoal: 'energy',
+            targetWeightKg: 80,
+            activityLevel: 'medium',
+            usualSleepTime: '23:00',
+            usualWakeTime: '07:00',
+          },
+        }),
+      ),
+      'system',
+    )
+
+    expect(system.suggestion).toMatchObject({
+      id: 'system-backup',
+      title: 'Сделать backup',
+      actionType: 'open_backup',
+    })
+  })
+
+  it('companion suggestion chooses customization when core is default', () => {
+    const companion = moduleById(buildLifeQuestSkillTree(emptyInput), 'companion')
+
+    expect(companion.suggestion).toMatchObject({
+      id: 'companion-customization',
+      title: 'Настроить Core',
+      actionType: 'open_companion_customization',
+      safeDomain: 'companion',
+    })
   })
 
   it('clamps progress values 0-100 from sectors', () => {
@@ -330,6 +445,29 @@ describe('skill tree view model', () => {
     expect(output).not.toContain('raw private')
   })
 
+  it('suggestions do not include private money details', () => {
+    const money = moduleById(
+      buildLifeQuestSkillTree(
+        buildInput({
+          money: {
+            ...emptyInput.money,
+            trackingStartDate: '2026-07-01',
+            accounts: [account({ last4: '1234' })],
+            transactions: [transaction()],
+            importWarnings: ['Есть денежный сигнал без raw details.'],
+          },
+        }),
+      ),
+      'money',
+    )
+    const output = JSON.stringify(money.suggestion)
+
+    expect(output).not.toContain('Аптека')
+    expect(output).not.toContain('1234')
+    expect(output).not.toContain('приватная')
+    expect(output).not.toContain('raw private')
+  })
+
   it('focus module links to daily quest with safe fallback title', () => {
     const modules = buildLifeQuestSkillTree(
       buildInput({
@@ -367,6 +505,7 @@ describe('skill tree view model', () => {
     expect(recovery.state).not.toBe('locked')
     expect(copy).not.toMatch(/провал|стыд|штраф|виноват|серия потер/)
     expect(copy).toContain('снизить нагрузку')
+    expect(recovery.suggestion?.caption.toLowerCase()).not.toMatch(/провал|стыд|штраф|виноват|серия потер/)
   })
 
   it('system module reacts to backup and onboarding', () => {
