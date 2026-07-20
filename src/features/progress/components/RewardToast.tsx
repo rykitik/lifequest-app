@@ -45,8 +45,11 @@ export function RewardToast() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-white">{rewardToast.message}</p>
                 <p className="text-xs leading-5 text-muted">
-                  {rewardToast.signal} · Сектор «{sectorLabels[rewardToast.sector]}» · +{rewardToast.xp} XP
-                  {rewardToast.recoveryXp > 0 ? ` · Восстановление +${rewardToast.recoveryXp} XP` : ''}
+                  {rewardToast.type === 'reward'
+                    ? `${rewardToast.signal} · Сектор «${sectorLabels[rewardToast.sector]}» · +${rewardToast.xp} XP${
+                        rewardToast.recoveryXp > 0 ? ` · Восстановление +${rewardToast.recoveryXp} XP` : ''
+                      }`
+                    : rewardToast.signal}
                 </p>
               </div>
             </div>

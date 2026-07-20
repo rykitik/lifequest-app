@@ -1,8 +1,17 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import {
+  defaultCompanionCustomization,
+  normalizeCompanionCustomization,
+} from '@/features/companion/lib/customization'
 import { companionMessages } from '@/services/mockData'
 import { mergePersistedState } from '@/shared/lib/persist'
-import type { CompanionContext, CompanionProfile, CompanionState } from '@/shared/types'
+import type {
+  CompanionContext,
+  CompanionCustomization,
+  CompanionProfile,
+  CompanionState,
+} from '@/shared/types'
 
 interface CompanionReaction {
   id: number
@@ -14,6 +23,7 @@ interface CompanionStateStore extends CompanionProfile {
   setActiveMessage: (message: string) => void
   triggerProgressReaction: (message: string) => void
   updateMoodFromContext: (context: CompanionContext) => void
+  updateCustomization: (customization: Partial<CompanionCustomization>) => CompanionCustomization
   resetDemoData: () => void
 }
 
@@ -25,6 +35,7 @@ function createCompanionPersistedState(): CompanionPersistedState {
     evolutionLevel: 7,
     activeMessage: companionMessages.idle,
     stabilityScore: 72,
+    customization: defaultCompanionCustomization,
   }
 }
 
@@ -80,6 +91,19 @@ export const useCompanionStore = create<CompanionStateStore>()(
             currentState.mood === mood ? currentState.activeMessage : companionMessages[mood],
         })
       },
+      updateCustomization: (customization) => {
+        const nextCustomization = normalizeCompanionCustomization({
+          ...get().customization,
+          ...customization,
+          updatedAt: new Date().toISOString(),
+        })
+
+        set({
+          customization: nextCustomization,
+        })
+
+        return nextCustomization
+      },
       resetDemoData: () =>
         set({
           ...createCompanionPersistedState(),
@@ -88,17 +112,24 @@ export const useCompanionStore = create<CompanionStateStore>()(
     }),
     {
       name: 'lifequest-companion',
-      version: 3,
-      migrate: (persistedState) =>
-        mergePersistedState(
+      version: 4,
+      migrate: (persistedState) => {
+        const merged = mergePersistedState(
           createCompanionPersistedState(),
           persistedState,
-        ) as CompanionPersistedState,
+        ) as CompanionPersistedState
+
+        return {
+          ...merged,
+          customization: normalizeCompanionCustomization(merged.customization),
+        }
+      },
       partialize: (state) => ({
         mood: state.mood,
         evolutionLevel: state.evolutionLevel,
         activeMessage: state.activeMessage,
         stabilityScore: state.stabilityScore,
+        customization: state.customization,
       }),
     },
   ),

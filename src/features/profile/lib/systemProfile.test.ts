@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SystemProfileInput } from './systemProfile'
 import { buildSystemProfileViewModel, clampSystemPercent } from './systemProfile'
+import { defaultCompanionCustomization } from '@/features/companion/lib/customization'
 import { getLocalDateKey } from '@/shared/lib/date'
 import type { DailyQuest } from '@/shared/types'
 
@@ -40,6 +41,7 @@ const emptyInput: SystemProfileInput = {
     evolutionLevel: 1,
     activeMessage: '',
     stabilityScore: 0,
+    customization: defaultCompanionCustomization,
   },
   body: {
     today: {

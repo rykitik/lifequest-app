@@ -8,6 +8,15 @@ export type CompanionState =
   | 'overloaded'
   | 'recovering'
   | 'evolving'
+export type CompanionAccent = 'cyan' | 'violet' | 'emerald' | 'amber' | 'rose' | 'ice'
+export type CompanionShell = 'system' | 'deepSpace' | 'neonFocus' | 'calmSignal'
+
+export interface CompanionCustomization {
+  displayName: string
+  accent: CompanionAccent
+  shell: CompanionShell
+  updatedAt?: string
+}
 
 export type QuestStatus = 'ready' | 'active' | 'complete' | 'parked'
 export type QuestClassification =
@@ -467,6 +476,7 @@ export interface CompanionProfile extends UserScopedEntity {
   evolutionLevel: number
   activeMessage: string
   stabilityScore: number
+  customization: CompanionCustomization
 }
 
 export interface CompanionContext {

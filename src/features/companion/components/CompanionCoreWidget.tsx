@@ -1,10 +1,14 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ShieldCheck, Sparkles, Zap } from 'lucide-react'
+import {
+  getCompanionAccentPreset,
+  getCompanionShellPreset,
+} from '@/features/companion/lib/customization'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
 import { cn } from '@/shared/lib/cn'
 import { formatPercent } from '@/shared/lib/format'
-import type { CompanionState } from '@/shared/types'
+import type { CompanionCustomization, CompanionState } from '@/shared/types'
 import { useCompanionStore } from '@/stores/useCompanionStore'
 
 type CompanionCoreVariant = 'compact' | 'hero' | 'coreScreen'
@@ -17,6 +21,8 @@ interface CompanionCoreWidgetProps {
   currentXp: number
   nextLevelXp: number
   variant?: CompanionCoreVariant
+  customization?: CompanionCustomization
+  surface?: 'card' | 'inline'
 }
 
 const moodMeta: Record<
@@ -129,6 +135,8 @@ const moodMeta: Record<
   },
 }
 
+type CompanionCoreVisualMeta = (typeof moodMeta)[CompanionState]
+
 const variantSizes: Record<CompanionCoreVariant, number> = {
   compact: 88,
   hero: 132,
@@ -142,17 +150,17 @@ const variantCardClasses: Record<CompanionCoreVariant, string> = {
 }
 
 function CompanionCoreVisual({
-  mood,
   variant,
   reactionId,
   reducedMotion,
+  visualMeta,
 }: {
-  mood: CompanionState
   variant: CompanionCoreVariant
   reactionId?: number
   reducedMotion: boolean
+  visualMeta: CompanionCoreVisualMeta
 }) {
-  const meta = moodMeta[mood]
+  const meta = visualMeta
   const size = variantSizes[variant]
   const coreSize = Math.round(size * 0.5)
   const nodeRadius = size * 0.42
@@ -392,30 +400,41 @@ export function CompanionCoreWidget({
   currentXp,
   nextLevelXp,
   variant = 'compact',
+  customization,
+  surface = 'card',
 }: CompanionCoreWidgetProps) {
-  const meta = moodMeta[mood]
+  const storedCustomization = useCompanionStore((state) => state.customization)
+  const resolvedCustomization = customization ?? storedCustomization
+  const accentPreset = getCompanionAccentPreset(resolvedCustomization.accent)
+  const shellPreset = getCompanionShellPreset(resolvedCustomization.shell)
+  const moodDefaults = moodMeta[mood]
+  const meta = {
+    ...moodDefaults,
+    glow: accentPreset.glow,
+    secondaryGlow: accentPreset.secondaryGlow,
+    textClassName: accentPreset.textClassName,
+    auraOpacity: Math.min(0.82, moodDefaults.auraOpacity * shellPreset.auraMultiplier),
+    ringOpacity: Math.min(0.82, moodDefaults.ringOpacity * shellPreset.ringMultiplier),
+    scanSpeed: moodDefaults.scanSpeed * shellPreset.scanMultiplier,
+    pulseSpeed: moodDefaults.pulseSpeed * shellPreset.pulseMultiplier,
+    nodeCount: Math.max(3, Math.min(7, moodDefaults.nodeCount + shellPreset.nodeOffset)),
+  }
   const xpPercent = (currentXp / nextLevelXp) * 100
   const isCompact = variant === 'compact'
   const reducedMotion = useReducedMotion() ?? false
   const reaction = useCompanionStore((state) => state.reaction)
 
-  return (
-    <GlassCard
-      tone="strong"
-      className={cn('relative overflow-hidden border-white/10', variantCardClasses[variant])}
-      style={{
-        background: `linear-gradient(180deg, rgba(11,16,32,0.92) 0%, rgba(15,23,42,0.76) 100%), radial-gradient(circle at 50% 38%, ${meta.glow}1c 0%, transparent 46%)`,
-      }}
-    >
+  const content = (
+    <>
       <div
         className="pointer-events-none absolute inset-x-5 top-0 h-px"
         style={{ background: `linear-gradient(90deg, transparent, ${meta.glow}80, transparent)` }}
       />
 
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-primary/80">
-            Ядро-компаньон
+        <div className="min-w-0">
+          <p className="break-words font-mono text-[9px] uppercase tracking-[0.2em] text-primary/80">
+            {resolvedCustomization.displayName}
           </p>
           <h2 className="mt-1.5 font-display text-lg font-bold leading-tight text-white text-glow">
             {meta.headline}
@@ -438,10 +457,10 @@ export function CompanionCoreWidget({
       <div className={cn('grid items-center gap-3', isCompact ? 'grid-cols-[auto_1fr]' : 'grid-cols-1')}>
         <div className="mx-auto">
           <CompanionCoreVisual
-            mood={mood}
             reactionId={reaction?.id}
             reducedMotion={reducedMotion}
             variant={variant}
+            visualMeta={meta}
           />
         </div>
 
@@ -494,6 +513,24 @@ export function CompanionCoreWidget({
           </div>
         </div>
       </div>
+    </>
+  )
+  const surfaceStyle = {
+    background: `linear-gradient(180deg, rgba(11,16,32,0.92) 0%, rgba(15,23,42,0.76) 100%), radial-gradient(circle at 50% 38%, ${meta.glow}24 0%, transparent 46%)`,
+  }
+  const surfaceClassName = cn('relative overflow-hidden', shellPreset.borderClassName, variantCardClasses[variant])
+
+  if (surface === 'inline') {
+    return (
+      <div className={cn(surfaceClassName, 'rounded-3xl border')} style={surfaceStyle}>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <GlassCard tone="strong" className={surfaceClassName} style={surfaceStyle}>
+      {content}
     </GlassCard>
   )
 }

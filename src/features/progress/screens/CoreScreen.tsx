@@ -1,6 +1,7 @@
 import { Archive, CheckCircle2, Database, Settings2, ShieldCheck, Target } from 'lucide-react'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { CompanionCustomizationPanel } from '@/features/companion/components/CompanionCustomizationPanel'
 import { CompanionCoreWidget } from '@/features/companion/components/CompanionCoreWidget'
 import { CompanionEvolutionPreview } from '@/features/companion/components/CompanionEvolutionPreview'
 import { buildSystemProfileViewModel } from '@/features/profile/lib/systemProfile'
@@ -32,6 +33,7 @@ export function CoreScreen() {
   const companionEvolutionLevel = useCompanionStore((state) => state.evolutionLevel)
   const companionActiveMessage = useCompanionStore((state) => state.activeMessage)
   const companionStabilityScore = useCompanionStore((state) => state.stabilityScore)
+  const companionCustomization = useCompanionStore((state) => state.customization)
   const progressLevel = useProgressStore((state) => state.level)
   const progressTotalXp = useProgressStore((state) => state.totalXp)
   const progressCurrentLevelXp = useProgressStore((state) => state.currentLevelXp)
@@ -69,8 +71,15 @@ export function CoreScreen() {
       evolutionLevel: companionEvolutionLevel,
       activeMessage: companionActiveMessage,
       stabilityScore: companionStabilityScore,
+      customization: companionCustomization,
     }),
-    [companionActiveMessage, companionEvolutionLevel, companionMood, companionStabilityScore],
+    [
+      companionActiveMessage,
+      companionCustomization,
+      companionEvolutionLevel,
+      companionMood,
+      companionStabilityScore,
+    ],
   )
   const progress = useMemo(
     () => ({
@@ -230,6 +239,17 @@ export function CoreScreen() {
           variant="hero"
         />
       </div>
+
+      <CompanionCustomizationPanel
+        key={`${companionCustomization.displayName}:${companionCustomization.accent}:${companionCustomization.shell}:${companionCustomization.updatedAt ?? 'default'}`}
+        customization={companionCustomization}
+        mood={companion.mood}
+        message={profile.companionMessage}
+        level={profile.systemLevel}
+        stabilityScore={companion.stabilityScore}
+        currentXp={progress.currentLevelXp}
+        nextLevelXp={progress.nextLevelXp}
+      />
 
       <GlassCard className="mb-4 overflow-hidden border-cyan/20 bg-gradient-to-br from-cyan/12 via-primary/8 to-transparent !p-3.5">
         <div className="pointer-events-none -mx-3.5 -mt-3.5 mb-3 h-px bg-gradient-to-r from-transparent via-cyan/50 to-transparent" />
