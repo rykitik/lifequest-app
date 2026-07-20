@@ -1,25 +1,21 @@
-import { GlassCard } from '@/shared/components/GlassCard'
-
 export function ScreenLoadingFallback() {
   return (
-    <section className="pb-6 pt-3">
-      <GlassCard tone="strong" className="overflow-hidden">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary/80">Загрузка экрана</p>
-        <h2 className="mt-3 font-display text-xl font-semibold text-white">
-          Система мягко поднимает следующий модуль
-        </h2>
-        <p className="mt-2 max-w-xs text-sm leading-6 text-muted">
-          Ещё секунду. Маршрут и состояние уже на месте, остаётся только открыть интерфейс.
-        </p>
-
-        <div className="mt-5 grid grid-cols-3 gap-3">
-          <div className="h-20 rounded-3xl border border-white/10 bg-white/5 animate-pulse motion-reduce:animate-none" />
-          <div className="h-20 rounded-3xl border border-white/10 bg-white/5 animate-pulse [animation-delay:120ms] motion-reduce:animate-none" />
-          <div className="h-20 rounded-3xl border border-white/10 bg-white/5 animate-pulse [animation-delay:240ms] motion-reduce:animate-none" />
+    <section className="flex min-h-[calc(100vh-2rem)] items-center pb-6 pt-3">
+      <div className="w-full rounded-3xl border border-cyan/15 bg-[#08101f]/82 p-5 shadow-[0_24px_70px_rgba(2,6,23,0.62)]">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-cyan/25 bg-cyan/10 shadow-[0_0_34px_rgba(34,211,238,0.16)]">
+          <div className="h-9 w-9 rounded-full bg-[radial-gradient(circle_at_35%_30%,#e5eef8_0%,#22d3ee_18%,#6366f1_52%,rgba(11,16,32,0.9)_100%)] shadow-[0_0_26px_rgba(34,211,238,0.45)] animate-pulse motion-reduce:animate-none" />
         </div>
 
-        <div className="mt-5 h-24 rounded-[1.75rem] border border-primary/15 bg-gradient-to-r from-primary/10 via-cyan/5 to-transparent animate-pulse motion-reduce:animate-none" />
-      </GlassCard>
+        <p className="mt-5 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-cyan/80">
+          LifeQuest
+        </p>
+        <h2 className="mt-2 text-center font-display text-xl font-semibold leading-tight text-white">
+          Запускаю локальную систему
+        </h2>
+        <p className="mx-auto mt-2 max-w-[17rem] text-center text-sm leading-6 text-muted">
+          Собираю базу. Companion Core активируется.
+        </p>
+      </div>
     </section>
   )
 }

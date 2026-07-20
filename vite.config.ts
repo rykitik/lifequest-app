@@ -17,25 +17,22 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/zustand')) {
-            return 'state-vendor'
-          }
-
-          if (id.includes('framer-motion')) {
-            return 'motion'
-          }
-
-          if (id.includes('lucide-react')) {
-            return 'icons'
-          }
+          const normalizedId = id.replace(/\\/g, '/')
 
           if (
-            id.includes('node_modules/react') ||
-            id.includes('node_modules/react-dom') ||
-            id.includes('node_modules/react-router-dom')
+            normalizedId.includes('node_modules/react') ||
+            normalizedId.includes('node_modules/react-dom') ||
+            normalizedId.includes('node_modules/react-router') ||
+            normalizedId.includes('node_modules/react-router-dom') ||
+            normalizedId.includes('react/jsx')
           ) {
             return 'react-vendor'
           }
+
+          if (normalizedId.includes('node_modules/zustand')) {
+            return 'state-vendor'
+          }
+
         },
       },
     },

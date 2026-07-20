@@ -1,52 +1,50 @@
-import { Suspense, lazy, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BottomNav } from '@/shared/components/BottomNav'
 import { ScreenLoadingFallback } from '@/shared/components/ScreenLoadingFallback'
-import { useFeedbackStore } from '@/stores/useFeedbackStore'
-import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
-import { useRescueStore } from '@/stores/useRescueStore'
+import { scheduleAfterFirstPaint } from '@/shared/lib/startup'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 
-const PromptCenterSheet = lazy(async () => {
-  const module = await import('@/features/prompt-center/components/PromptCenterSheet')
+const BottomNav = lazy(async () => {
+  const module = await import('@/shared/components/BottomNav')
 
   return {
-    default: module.PromptCenterSheet,
+    default: module.BottomNav,
   }
 })
 
-const RescueModal = lazy(async () => {
-  const module = await import('@/features/rescue/components/RescueModal')
+const AppOverlays = lazy(async () => {
+  const module = await import('@/shared/components/AppOverlays')
 
   return {
-    default: module.RescueModal,
-  }
-})
-
-const RewardToast = lazy(async () => {
-  const module = await import('@/features/progress/components/RewardToast')
-
-  return {
-    default: module.RewardToast,
+    default: module.AppOverlays,
   }
 })
 
 export function AppShell() {
-  const isPromptCenterOpen = usePromptCenterStore((state) => state.isOpen)
-  const isRescueOpen = useRescueStore((state) => state.isOpen)
-  const hasRewardToast = useFeedbackStore((state) => Boolean(state.rewardToast))
   const onboarding = useSettingsStore((state) => state.onboarding)
   const location = useLocation()
   const navigate = useNavigate()
   const isOnboardingRoute = location.pathname === '/onboarding'
+  const shouldRedirectToOnboarding =
+    !onboarding.completed && !onboarding.skipped && !isOnboardingRoute && location.pathname !== '/auth'
+  const [canLoadRuntimeChrome, setCanLoadRuntimeChrome] = useState(false)
+  const shouldShowRuntimeChrome = canLoadRuntimeChrome && !isOnboardingRoute
 
   useEffect(() => {
-    if (onboarding.completed || onboarding.skipped || isOnboardingRoute || location.pathname === '/auth') {
+    if (!shouldRedirectToOnboarding) {
       return
     }
 
     navigate('/onboarding', { replace: true })
-  }, [isOnboardingRoute, location.pathname, navigate, onboarding.completed, onboarding.skipped])
+  }, [navigate, shouldRedirectToOnboarding])
+
+  useEffect(() => {
+    if (isOnboardingRoute) {
+      return
+    }
+
+    return scheduleAfterFirstPaint(() => setCanLoadRuntimeChrome(true), 900)
+  }, [isOnboardingRoute])
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#030817]">
@@ -59,7 +57,7 @@ export function AppShell() {
       <div className="relative mx-auto flex min-h-screen max-w-[30rem] flex-col px-3.5 safe-top sm:px-4">
         <main className="relative z-10 flex-1 pb-mobile-dock">
           <Suspense fallback={<ScreenLoadingFallback />}>
-            <Outlet />
+            {shouldRedirectToOnboarding ? <ScreenLoadingFallback /> : <Outlet />}
           </Suspense>
         </main>
       </div>
@@ -67,26 +65,18 @@ export function AppShell() {
       {!isOnboardingRoute ? (
         <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 w-full max-w-[30rem] -translate-x-1/2 px-3.5 safe-bottom sm:px-4">
           <div className="pointer-events-auto">
-            <BottomNav />
+            {shouldShowRuntimeChrome ? (
+              <Suspense fallback={null}>
+                <BottomNav />
+              </Suspense>
+            ) : null}
           </div>
         </div>
       ) : null}
 
-      {isRescueOpen ? (
+      {shouldShowRuntimeChrome ? (
         <Suspense fallback={null}>
-          <RescueModal />
-        </Suspense>
-      ) : null}
-
-      {isPromptCenterOpen ? (
-        <Suspense fallback={null}>
-          <PromptCenterSheet />
-        </Suspense>
-      ) : null}
-
-      {hasRewardToast ? (
-        <Suspense fallback={null}>
-          <RewardToast />
+          <AppOverlays />
         </Suspense>
       ) : null}
     </div>

@@ -15,7 +15,6 @@ import type {
 } from '@/shared/types'
 import { useBodyStore } from '@/stores/useBodyStore'
 import { useMoneyStore } from '@/stores/useMoneyStore'
-import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTodayStore } from '@/stores/useTodayStore'
 
@@ -127,7 +126,6 @@ export function OnboardingScreen() {
   const moneyAccounts = useMoneyStore((state) => state.accounts)
   const storedTrackingStartDate = useMoneyStore((state) => state.trackingStartDate)
   const setupMoneyBaseline = useMoneyStore((state) => state.setupMoneyBaseline)
-  const openPromptCenter = usePromptCenterStore((state) => state.openPromptCenter)
   const route = useTodayStore((state) => state.route)
   const debitAccount = useMemo(
     () => findBaselineAccount(moneyAccounts, 'debit_card', 'Основная'),
@@ -277,7 +275,11 @@ export function OnboardingScreen() {
       rewardFeedbackMessages.onboardingCompleted,
     )
     navigate('/today', { replace: true })
-    window.setTimeout(() => openPromptCenter(), 0)
+    window.setTimeout(() => {
+      void import('@/stores/usePromptCenterStore').then(({ usePromptCenterStore }) => {
+        usePromptCenterStore.getState().openPromptCenter()
+      })
+    }, 0)
   }
 
   return (

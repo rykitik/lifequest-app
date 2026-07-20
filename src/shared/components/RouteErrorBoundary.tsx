@@ -1,6 +1,4 @@
-import { AlertTriangle, RefreshCcw, RotateCcw } from 'lucide-react'
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom'
-import { clearLifeQuestRuntimeData } from '@/services/lifequestRuntime'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
 
@@ -35,7 +33,7 @@ export function RouteErrorBoundary() {
       <div className="relative mx-auto flex min-h-screen max-w-[30rem] items-center">
         <GlassCard tone="strong" className="w-full p-6">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-danger/20 bg-danger/10 text-danger">
-            <AlertTriangle className="h-6 w-6" />
+            <span className="h-5 w-5 rounded-full border border-danger/60 bg-danger/25 shadow-[0_0_18px_rgba(239,68,68,0.32)]" />
           </div>
 
           <p className="mt-5 text-center text-xs uppercase tracking-[0.24em] text-danger/80">
@@ -54,7 +52,6 @@ export function RouteErrorBoundary() {
           <div className="mt-5 grid gap-3">
             <PrimaryButton
               fullWidth
-              icon={<RefreshCcw className="h-4 w-4" />}
               onClick={() => window.location.reload()}
             >
               Обновить приложение
@@ -64,16 +61,19 @@ export function RouteErrorBoundary() {
               <PrimaryButton
                 tone="warning"
                 fullWidth
-                icon={<RotateCcw className="h-4 w-4" />}
                 onClick={() => {
-                  void clearLifeQuestRuntimeData({
-                    clearAllLocalStorage: true,
-                    clearSessionStorage: true,
-                    clearCaches: true,
-                    unregisterServiceWorkers: true,
-                  }).then(() => {
-                    window.location.reload()
-                  })
+                  void import('@/services/lifequestRuntime')
+                    .then(({ clearLifeQuestRuntimeData }) =>
+                      clearLifeQuestRuntimeData({
+                        clearAllLocalStorage: true,
+                        clearSessionStorage: true,
+                        clearCaches: true,
+                        unregisterServiceWorkers: true,
+                      }),
+                    )
+                    .then(() => {
+                      window.location.reload()
+                    })
                 }}
               >
                 Сбросить локальные данные

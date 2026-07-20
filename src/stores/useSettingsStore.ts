@@ -1,11 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import {
-  applyWaitingServiceWorker,
-  checkForPwaUpdate,
-  clearLifeQuestRuntimeData,
-  getPwaStatusSnapshot,
-} from '@/services/lifequestRuntime'
 import { getAuthDisabledMessage, isAuthEnabled } from '@/services/runtimeConfig'
 import { mergePersistedState } from '@/shared/lib/persist'
 import type { LifeQuestBackupReason } from '@/services/lifequestBackup'
@@ -399,6 +393,8 @@ export const useSettingsStore = create<SettingsState>()(
         })
       },
       clearAllLocalData: async () => {
+        const { clearLifeQuestRuntimeData } = await import('@/services/lifequestRuntime')
+
         await clearLifeQuestRuntimeData({
           clearAllLocalStorage: true,
           clearSessionStorage: true,
@@ -408,6 +404,7 @@ export const useSettingsStore = create<SettingsState>()(
         window.location.replace('/today')
       },
       checkPwaStatus: async (options) => {
+        const { checkForPwaUpdate, getPwaStatusSnapshot } = await import('@/services/lifequestRuntime')
         const snapshot = options?.checkForUpdates
           ? await checkForPwaUpdate()
           : await getPwaStatusSnapshot()
@@ -432,6 +429,7 @@ export const useSettingsStore = create<SettingsState>()(
         })
       },
       applyPwaUpdate: async () => {
+        const { applyWaitingServiceWorker } = await import('@/services/lifequestRuntime')
         const hasTriggeredUpdate = await applyWaitingServiceWorker()
 
         if (hasTriggeredUpdate) {
