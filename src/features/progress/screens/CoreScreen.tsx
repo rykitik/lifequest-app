@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { CompanionCoreWidget } from '@/features/companion/components/CompanionCoreWidget'
 import { CompanionEvolutionPreview } from '@/features/companion/components/CompanionEvolutionPreview'
 import { buildSystemProfileViewModel } from '@/features/profile/lib/systemProfile'
+import { buildDailyQuest } from '@/services/dailyQuest'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
 import { PrimaryButton } from '@/shared/components/PrimaryButton'
@@ -54,9 +55,14 @@ export function CoreScreen() {
   const moneyImportWarnings = useMoneyStore((state) => state.importWarnings)
   const todayCurrentMode = useTodayStore((state) => state.currentMode)
   const todayRoute = useTodayStore((state) => state.route)
+  const todayDailyQuestCompletion = useTodayStore((state) => state.dailyQuestCompletion)
   const weeklySummaries = useWeeklyReviewStore((state) => state.summaries)
 
   const nextStep = buildTodayNextStepRecommendation()
+  const dailyQuest = useMemo(
+    () => buildDailyQuest(nextStep, todayDailyQuestCompletion),
+    [nextStep, todayDailyQuestCompletion],
+  )
   const companion = useMemo(
     () => ({
       mood: companionMood,
@@ -125,8 +131,10 @@ export function CoreScreen() {
     () => ({
       currentMode: todayCurrentMode,
       route: todayRoute,
+      dailyQuest,
+      dailyQuestCompletion: todayDailyQuestCompletion,
     }),
-    [todayCurrentMode, todayRoute],
+    [dailyQuest, todayCurrentMode, todayDailyQuestCompletion, todayRoute],
   )
   const profile = useMemo(
     () =>
@@ -222,6 +230,31 @@ export function CoreScreen() {
           variant="hero"
         />
       </div>
+
+      <GlassCard className="mb-4 overflow-hidden border-cyan/20 bg-gradient-to-br from-cyan/12 via-primary/8 to-transparent !p-3.5">
+        <div className="pointer-events-none -mx-3.5 -mt-3.5 mb-3 h-px bg-gradient-to-r from-transparent via-cyan/50 to-transparent" />
+        <div className="flex items-start gap-3">
+          <div className="rounded-2xl border border-cyan/20 bg-cyan/10 p-2 text-cyan">
+            <Target className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-cyan/80">
+                Сегодняшний маршрут
+              </p>
+              <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] text-muted">
+                {profile.dailyRoute.status === 'completed' ? 'Выполнен' : 'Ждёт действия'}
+              </span>
+            </div>
+            <h2 className="mt-1.5 break-words font-display text-base font-semibold leading-tight text-white">
+              Главный квест: {profile.dailyRoute.title}
+            </h2>
+            <p className="mt-1.5 break-words text-[13px] leading-5 text-muted">
+              {profile.dailyRoute.caption} · {profile.dailyRoute.rewardSignal}
+            </p>
+          </div>
+        </div>
+      </GlassCard>
 
       <div className="mb-4 grid grid-cols-3 gap-2.5">
         <div className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.045] p-3">

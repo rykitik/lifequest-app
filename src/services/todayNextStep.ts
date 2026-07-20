@@ -121,6 +121,10 @@ function hasMoneyRisk(money: TodayNextStepContext['money']) {
   )
 }
 
+function needsMoneyBaseline(money: TodayNextStepContext['money']) {
+  return !money.trackingStartDate && money.totalBalance === 0 && !money.lastImportAt
+}
+
 function getFallbackQuest(today: TodayNextStepContext['today']) {
   return today.quickWin && today.quickWin.status !== 'complete'
     ? today.quickWin
@@ -263,6 +267,21 @@ export function buildTodayNextStepRecommendation(
       actionLabel: 'Открыть деньги',
       confidence: 'medium',
       sourceLabels: ['Деньги'],
+    }
+  }
+
+  if (needsMoneyBaseline(context.money)) {
+    return {
+      id: 'money-baseline-missing',
+      title: 'Проверить финансовую базу',
+      reason: 'Денежный контур пока пустой. Достаточно открыть базу и отметить старт учёта.',
+      domain: 'money',
+      difficulty: 'easy',
+      minutes: 3,
+      xp: 7,
+      actionLabel: 'Открыть деньги',
+      confidence: 'medium',
+      sourceLabels: ['Деньги', 'База'],
     }
   }
 

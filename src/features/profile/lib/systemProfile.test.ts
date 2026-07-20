@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SystemProfileInput } from './systemProfile'
 import { buildSystemProfileViewModel, clampSystemPercent } from './systemProfile'
+import { getLocalDateKey } from '@/shared/lib/date'
+import type { DailyQuest } from '@/shared/types'
 
 const emptyInput: SystemProfileInput = {
   settings: {
@@ -253,6 +255,83 @@ describe('system profile view model', () => {
     )
     expect(profile.recentMilestones.map((milestone) => milestone.label)).toContain(
       'Чек-ин тела выполнен',
+    )
+  })
+
+  it('includes daily route without private details', () => {
+    const dailyQuest: DailyQuest = {
+      id: '2026-07-17:focus-private-task',
+      title: 'Закрыть один быстрый шаг',
+      caption: 'Система получит сигнал фокуса.',
+      domain: 'focus',
+      difficulty: 'tiny',
+      rewardSignal: 'Фокус +8',
+      companionReaction: 'Маршрут укреплён.',
+      actionType: 'focus_step',
+      actionLabel: 'Выполнить',
+      xp: 8,
+      sector: 'focus',
+    }
+    const profile = buildSystemProfileViewModel(
+      buildInput({
+        today: {
+          ...emptyInput.today,
+          dailyQuest,
+        },
+      }),
+    )
+
+    expect(profile.dailyRoute).toMatchObject({
+      title: 'Закрыть один быстрый шаг',
+      status: 'waiting',
+      rewardSignal: 'Фокус +8',
+    })
+    expect(JSON.stringify(profile.dailyRoute)).not.toContain('private-task')
+  })
+
+  it('shows completed daily quest as a safe milestone', () => {
+    const todayKey = getLocalDateKey()
+    const dailyQuest: DailyQuest = {
+      id: `${todayKey}:body-water-low`,
+      title: 'Восстановить водный баланс',
+      caption: '+500 мл воды укрепят телесную базу.',
+      domain: 'body',
+      difficulty: 'tiny',
+      rewardSignal: 'Тело +5',
+      companionReaction: 'Ядро стало стабильнее.',
+      actionType: 'add_water',
+      actionLabel: 'Добавить воду',
+      xp: 5,
+      sector: 'body',
+      completedAt: `${todayKey}T10:00:00.000Z`,
+    }
+    const profile = buildSystemProfileViewModel(
+      buildInput({
+        today: {
+          ...emptyInput.today,
+          dailyQuest,
+          dailyQuestCompletion: {
+            date: todayKey,
+            questId: dailyQuest.id,
+            completedAt: `${todayKey}T10:00:00.000Z`,
+            rewardSourceId: `daily-quest:${todayKey}:body-water-low`,
+            title: dailyQuest.title,
+            domain: dailyQuest.domain,
+            rewardSignal: dailyQuest.rewardSignal,
+          },
+        },
+      }),
+    )
+
+    expect(profile.dailyRoute.status).toBe('completed')
+    expect(profile.recentMilestones).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'daily-quest-completed',
+          label: 'Главный квест дня выполнен',
+          caption: 'Тело +5',
+        }),
+      ]),
     )
   })
 })

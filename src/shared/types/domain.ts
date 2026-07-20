@@ -122,6 +122,43 @@ export interface DailyProgressSummary {
   sectorXp: Record<SectorKey, number>
 }
 
+export type DailyQuestDomain = 'body' | 'money' | 'focus' | 'recovery' | 'system'
+export type DailyQuestDifficulty = 'tiny' | 'normal'
+export type DailyQuestActionType =
+  | 'body_checkin'
+  | 'add_water'
+  | 'open_body'
+  | 'open_money'
+  | 'focus_step'
+  | 'open_recovery'
+  | 'open_prompt_center'
+  | 'open_settings'
+
+export interface DailyQuest {
+  id: string
+  title: string
+  caption: string
+  domain: DailyQuestDomain
+  difficulty: DailyQuestDifficulty
+  rewardSignal: string
+  companionReaction: string
+  actionType: DailyQuestActionType
+  actionLabel: string
+  xp: number
+  sector: SectorKey
+  completedAt?: string
+}
+
+export interface DailyQuestCompletion {
+  date: string
+  questId: string
+  completedAt: string
+  rewardSourceId: string
+  title: string
+  domain: DailyQuestDomain
+  rewardSignal: string
+}
+
 export interface ProgressProfile extends UserScopedEntity {
   level: number
   totalXp: number

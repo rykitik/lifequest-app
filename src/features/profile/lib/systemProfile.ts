@@ -4,6 +4,8 @@ import type {
   BodyDailyLog,
   BodySnapshot,
   CompanionProfile,
+  DailyQuest,
+  DailyQuestCompletion,
   DailyProgressSummary,
   ModeKey,
   MoneyAccount,
@@ -50,6 +52,12 @@ export interface SystemProfileViewModel {
     label: string
     caption?: string
     actionLabel?: string
+  }
+  dailyRoute: {
+    title: string
+    status: 'waiting' | 'completed'
+    rewardSignal: string
+    caption: string
   }
   xpSignals: {
     totalXp: number
@@ -103,6 +111,8 @@ interface SystemProfileWeeklyInput {
 interface SystemProfileTodayInput {
   currentMode: ModeKey
   route: TodayRoute
+  dailyQuest?: DailyQuest
+  dailyQuestCompletion?: DailyQuestCompletion | null
 }
 
 export interface SystemProfileInput {
@@ -274,6 +284,16 @@ function buildMilestones(input: SystemProfileInput): SystemProfileMilestone[] {
   const todayKey = getLocalDateKey()
   const milestones: SystemProfileMilestone[] = []
   const lastBackupAt = input.settings.lastBackupAt ?? input.settings.lastBackupExportAt
+  const dailyQuestCompletion = input.today.dailyQuestCompletion
+
+  if (dailyQuestCompletion?.date === todayKey) {
+    milestones.push({
+      id: 'daily-quest-completed',
+      label: 'Главный квест дня выполнен',
+      caption: dailyQuestCompletion.rewardSignal,
+      createdAt: dailyQuestCompletion.completedAt,
+    })
+  }
 
   if (lastBackupAt) {
     milestones.push({
@@ -357,6 +377,8 @@ export function buildSystemProfileViewModel(input: SystemProfileInput): SystemPr
   const companionForm = getCompanionForm(input.progress.level)
   const userName = compactText(input.settings.userName, 36) || 'Оператор'
   const title = compactText(input.settings.userRole, 48) || 'Оператор системы'
+  const dailyQuest = input.today.dailyQuest
+  const dailyRouteStatus = dailyQuest?.completedAt ? 'completed' : 'waiting'
 
   return {
     userName,
@@ -381,6 +403,15 @@ export function buildSystemProfileViewModel(input: SystemProfileInput): SystemPr
         compactText(input.nextStep?.reason, 120) ||
         'Companion Core активен, но ждёт первых данных.',
       actionLabel: input.nextStep?.actionLabel,
+    },
+    dailyRoute: {
+      title: compactText(dailyQuest?.title, 72) || 'Собрать первый сигнал',
+      status: dailyRouteStatus,
+      rewardSignal: compactText(dailyQuest?.rewardSignal, 48) || 'Система +5',
+      caption:
+        dailyRouteStatus === 'completed'
+          ? 'Сигнал дня уже принят.'
+          : 'Система ждёт один простой шаг.',
     },
     xpSignals: {
       totalXp: Math.max(0, Math.round(input.progress.totalXp)),

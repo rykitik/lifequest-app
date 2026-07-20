@@ -3,11 +3,12 @@ import { Download, HeartPulse, LifeBuoy, MessageSquareText, Play, Sparkles } fro
 import { useNavigate } from 'react-router-dom'
 import { CompanionCoreWidget } from '@/features/companion/components/CompanionCoreWidget'
 import { getCreditDebt, getMonthlyPlanProjection, getTotalBalance } from '@/features/money/lib/money'
+import { DailyQuestCard } from '@/features/today/components/DailyQuestCard'
 import { ModeSelector } from '@/features/today/components/ModeSelector'
 import { QuestFocusCard } from '@/features/today/components/QuestFocusCard'
 import { SectorStrip } from '@/features/today/components/SectorStrip'
-import { TodayNextStepCard } from '@/features/today/components/TodayNextStepCard'
 import { routeLabels } from '@/services/questMeta'
+import { buildDailyQuest, completeDailyQuestReward } from '@/services/dailyQuest'
 import { applyLifeQuestReward, rewardFeedbackMessages } from '@/services/gameplay'
 import {
   backupFeedbackMessages,
@@ -78,9 +79,11 @@ export function TodayScreen() {
   const currentMode = useTodayStore((state) => state.currentMode)
   const modes = useTodayStore((state) => state.modes)
   const route = useTodayStore((state) => state.route)
+  const dailyQuestCompletion = useTodayStore((state) => state.dailyQuestCompletion)
   const setMode = useTodayStore((state) => state.setMode)
   const setRouteQuest = useTodayStore((state) => state.setRouteQuest)
   const completeRouteItem = useTodayStore((state) => state.completeRouteItem)
+  const ensureDailyQuestCurrent = useTodayStore((state) => state.ensureDailyQuestCurrent)
   const generateRouteFromAvailableQuests = useTodayStore(
     (state) => state.generateRouteFromAvailableQuests,
   )
@@ -112,6 +115,7 @@ export function TodayScreen() {
   const trackingStartDate = useMoneyStore((state) => state.trackingStartDate)
   const importWarnings = useMoneyStore((state) => state.importWarnings)
   const lastImportAt = useMoneyStore((state) => state.lastImportAt)
+  const markBalanceChecked = useMoneyStore((state) => state.markBalanceChecked)
   const weeklySummaries = useWeeklyReviewStore((state) => state.summaries)
 
   const allQuests = useMemo(() => [...active, ...inbox, ...parked], [active, inbox, parked])
@@ -197,6 +201,10 @@ export function TodayScreen() {
 
     return sectors.find((sector) => sector.key === sectorKey)?.label ?? 'Пока без акцента'
   }, [dailySummary.sectorXp, sectors])
+  const dailyQuest = useMemo(
+    () => buildDailyQuest(nextStepRecommendation, dailyQuestCompletion),
+    [dailyQuestCompletion, nextStepRecommendation],
+  )
   const levelProgressPercent = Math.round((currentLevelXp / nextLevelXp) * 100)
   const todaySectorHighlights = useMemo(() => {
     const sectorXpEntries = (Object.entries(dailySummary.sectorXp) as Array<[SectorKey, number]>)
@@ -227,6 +235,10 @@ export function TodayScreen() {
   useEffect(() => {
     ensureDailySummaryCurrent()
   }, [ensureDailySummaryCurrent])
+
+  useEffect(() => {
+    ensureDailyQuestCurrent()
+  }, [ensureDailyQuestCurrent])
 
   useEffect(() => {
     updateMoodFromContext({
@@ -270,62 +282,80 @@ export function TodayScreen() {
     )
   }
 
-  const handleNextStepAction = () => {
-    if (nextStepRecommendation.id === 'body-water-low') {
+  const completeDailyQuest = () => {
+    completeDailyQuestReward(dailyQuest)
+  }
+
+  const handleDailyQuestAction = () => {
+    if (dailyQuest.actionType === 'body_checkin') {
+      const nextWaterLiters = Number((Math.max(todayBodySnapshot.waterLiters, 0) + 0.5).toFixed(1))
+
+      saveBodyCheckin({
+        waterLiters: nextWaterLiters,
+      })
+      completeDailyQuest()
+
+      return
+    }
+
+    if (dailyQuest.actionType === 'add_water') {
       const nextWaterLiters = Number((todayBodySnapshot.waterLiters + 0.5).toFixed(1))
 
       saveBodyCheckin({
         waterLiters: nextWaterLiters,
       })
-      applyLifeQuestReward(
-        {
-          xp: nextStepRecommendation.xp ?? 5,
-          consistencyXp: 1,
-          sector: 'body',
-          sourceId: `today-next-step:water:${todayBodySnapshot.date}`,
-        },
-        `Вода отмечена: ${nextWaterLiters} л. База стала спокойнее.`,
-        rewardFeedbackMessages.waterAdded,
-      )
+      completeDailyQuest()
 
       return
     }
 
-    if (nextStepRecommendation.domain === 'profile') {
+    if (dailyQuest.actionType === 'open_settings') {
       navigate('/settings')
       return
     }
 
-    if (nextStepRecommendation.domain === 'body') {
+    if (dailyQuest.actionType === 'open_body') {
       navigate('/body')
       return
     }
 
-    if (nextStepRecommendation.domain === 'money') {
+    if (dailyQuest.actionType === 'open_money') {
+      markBalanceChecked()
+      completeDailyQuest()
       navigate('/money')
       return
     }
 
-    if (nextStepRecommendation.domain === 'weekly') {
+    if (dailyQuest.actionType === 'open_prompt_center') {
+      completeDailyQuest()
       openPromptCenter()
       return
     }
 
-    if (nextStepRecommendation.domain === 'recovery') {
+    if (dailyQuest.actionType === 'open_recovery') {
+      completeDailyQuest()
       openRescue()
       return
     }
 
-    setActiveMessage(`Ядро рекомендует один шаг: ${nextStepRecommendation.title}.`)
-  }
+    if (dailyQuest.actionType === 'focus_step') {
+      const questId = nextStepRecommendation.id.startsWith('focus-')
+        ? nextStepRecommendation.id.replace(/^focus-/, '')
+        : undefined
+      const routeEntries = [
+        ['mainQuest', route.mainQuest],
+        ['quickWin', route.quickWin],
+        ['recoveryQuest', route.recoveryQuest],
+      ] as const
+      const matchedRoute = routeEntries.find(([, quest]) => quest?.id === questId)
 
-  const handleNextStepFallback = () => {
-    if (nextStepRecommendation.domain === 'body') {
-      navigate('/body')
-      return
+      if (matchedRoute?.[1]) {
+        completeRouteItem(matchedRoute[0])
+        completeQuest(matchedRoute[1].id)
+      }
+
+      completeDailyQuest()
     }
-
-    setActiveMessage(`Запасной вариант: ${nextStepRecommendation.fallbackLabel ?? 'вернуться к маршруту дня'}.`)
   }
 
   const handleBuildRoute = () => {
@@ -417,11 +447,7 @@ export function TodayScreen() {
         <ModeSelector options={modes} activeMode={currentMode} onSelect={setMode} />
       </div>
 
-      <TodayNextStepCard
-        recommendation={nextStepRecommendation}
-        onAction={handleNextStepAction}
-        onFallback={nextStepRecommendation.fallbackLabel ? handleNextStepFallback : undefined}
-      />
+      <DailyQuestCard quest={dailyQuest} onAction={handleDailyQuestAction} />
 
       {backupReminderStatus.active ? (
         <GlassCard className="mt-3 border border-cyan/20 bg-cyan/5 !p-3">

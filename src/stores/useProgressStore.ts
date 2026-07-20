@@ -43,20 +43,18 @@ function applySectorReward(sectors: SectorProgress[], reward: ProgressReward) {
     }
 
     const lift = Math.max(2, Math.round(reward.xp / 8))
-    const rawPercent = sector.percent + lift
+    let nextLevel = sector.level
+    let nextPercent = sector.percent + lift
 
-    if (rawPercent < 100) {
-      return {
-        ...sector,
-        percent: rawPercent,
-        xp: sector.xp + reward.xp,
-      }
+    while (nextPercent >= 100) {
+      nextPercent -= 100
+      nextLevel += 1
     }
 
     return {
       ...sector,
-      level: sector.level + 1,
-      percent: rawPercent - 100,
+      level: nextLevel,
+      percent: Math.min(99, Math.max(0, nextPercent)),
       xp: sector.xp + reward.xp,
     }
   })

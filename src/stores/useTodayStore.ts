@@ -2,13 +2,15 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { cloneData, getMockTodayRoute, mockModes } from '@/services/mockData'
 import { generateRouteFromQuests, getRouteCandidatesForSlot } from '@/services/routeBuilder'
+import { getLocalDateKey } from '@/shared/lib/date'
 import { mergePersistedState } from '@/shared/lib/persist'
-import type { ModeKey, QuestItem, TodayRoute, TodayRouteKey } from '@/shared/types'
+import type { DailyQuestCompletion, ModeKey, QuestItem, TodayRoute, TodayRouteKey } from '@/shared/types'
 
 interface TodayState {
   currentMode: ModeKey
   modes: typeof mockModes
   route: TodayRoute
+  dailyQuestCompletion: DailyQuestCompletion | null
   setMode: (mode: ModeKey) => void
   generateRoute: () => void
   generateRouteFromAvailableQuests: (quests: QuestItem[]) => void
@@ -17,10 +19,12 @@ interface TodayState {
   removeQuestFromRoute: (questId: string) => void
   completeRouteItem: (item: TodayRouteKey) => void
   syncRouteQuest: (quest: NonNullable<TodayRoute[TodayRouteKey]>) => void
+  completeDailyQuest: (completion: DailyQuestCompletion) => boolean
+  ensureDailyQuestCurrent: (dateKey?: string) => void
   resetDemoData: () => void
 }
 
-type TodayPersistedState = Pick<TodayState, 'currentMode' | 'route'>
+type TodayPersistedState = Pick<TodayState, 'currentMode' | 'route' | 'dailyQuestCompletion'>
 
 const routeKeys: TodayRouteKey[] = ['mainQuest', 'quickWin', 'recoveryQuest']
 
@@ -28,6 +32,7 @@ function createTodayPersistedState(): TodayPersistedState {
   return {
     currentMode: 'stable',
     route: getMockTodayRoute(),
+    dailyQuestCompletion: null,
   }
 }
 
@@ -234,6 +239,36 @@ export const useTodayStore = create<TodayState>()(
             },
           }
         }),
+      completeDailyQuest: (completion) => {
+        let completed = false
+
+        set((state) => {
+          if (
+            state.dailyQuestCompletion?.date === completion.date &&
+            state.dailyQuestCompletion.questId === completion.questId
+          ) {
+            return state
+          }
+
+          completed = true
+
+          return {
+            dailyQuestCompletion: completion,
+          }
+        })
+
+        return completed
+      },
+      ensureDailyQuestCurrent: (dateKey = getLocalDateKey()) =>
+        set((state) => {
+          if (!state.dailyQuestCompletion || state.dailyQuestCompletion.date === dateKey) {
+            return state
+          }
+
+          return {
+            dailyQuestCompletion: null,
+          }
+        }),
       resetDemoData: () =>
         set({
           ...createTodayPersistedState(),
@@ -241,12 +276,13 @@ export const useTodayStore = create<TodayState>()(
     }),
     {
       name: 'lifequest-today',
-      version: 4,
+      version: 5,
       migrate: (persistedState) =>
         mergePersistedState(createTodayPersistedState(), persistedState) as TodayPersistedState,
       partialize: (state) => ({
         currentMode: state.currentMode,
         route: state.route,
+        dailyQuestCompletion: state.dailyQuestCompletion,
       }),
     },
   ),
