@@ -7,6 +7,7 @@ import type {
   DailyQuest,
   DailyQuestCompletion,
   DailyProgressSummary,
+  LifeQuestMilestone,
   ModeKey,
   MoneyAccount,
   MoneyTransaction,
@@ -47,6 +48,7 @@ export interface SystemProfileViewModel {
   nextEvolutionRemainingPercent: number
   modules: SystemProfileModule[]
   recentMilestones: SystemProfileMilestone[]
+  milestoneCount: number
   milestoneEmptyText: string
   nextStep: {
     label: string
@@ -123,6 +125,7 @@ export interface SystemProfileInput {
   money: SystemProfileMoneyInput
   weekly: SystemProfileWeeklyInput
   today: SystemProfileTodayInput
+  milestones?: LifeQuestMilestone[]
   nextStep?: TodayNextStepRecommendation
 }
 
@@ -280,7 +283,29 @@ function getCompanionForm(level: number) {
   }
 }
 
+function buildStoredMilestones(milestones: LifeQuestMilestone[] | undefined): SystemProfileMilestone[] {
+  if (!milestones?.length) {
+    return []
+  }
+
+  return [...milestones]
+    .sort((left, right) => Date.parse(right.unlockedAt) - Date.parse(left.unlockedAt))
+    .slice(0, 5)
+    .map((milestone) => ({
+      id: milestone.id,
+      label: compactText(milestone.title, 72),
+      caption: compactText(milestone.caption, 120),
+      createdAt: milestone.unlockedAt,
+    }))
+}
+
 function buildMilestones(input: SystemProfileInput): SystemProfileMilestone[] {
+  const storedMilestones = buildStoredMilestones(input.milestones)
+
+  if (storedMilestones.length) {
+    return storedMilestones
+  }
+
   const todayKey = getLocalDateKey()
   const milestones: SystemProfileMilestone[] = []
   const lastBackupAt = input.settings.lastBackupAt ?? input.settings.lastBackupExportAt
@@ -379,6 +404,7 @@ export function buildSystemProfileViewModel(input: SystemProfileInput): SystemPr
   const title = compactText(input.settings.userRole, 48) || 'Оператор системы'
   const dailyQuest = input.today.dailyQuest
   const dailyRouteStatus = dailyQuest?.completedAt ? 'completed' : 'waiting'
+  const recentMilestones = buildMilestones(input)
 
   return {
     userName,
@@ -395,7 +421,8 @@ export function buildSystemProfileViewModel(input: SystemProfileInput): SystemPr
     nextEvolutionProgressPercent: progressPercent,
     nextEvolutionRemainingPercent: clampSystemPercent(100 - progressPercent),
     modules,
-    recentMilestones: buildMilestones(input),
+    recentMilestones,
+    milestoneCount: input.milestones?.length ?? recentMilestones.length,
     milestoneEmptyText,
     nextStep: {
       label: compactText(input.nextStep?.title, 72) || 'Начать с одного простого действия',

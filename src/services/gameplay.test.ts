@@ -44,10 +44,11 @@ async function importGameplay() {
 
   const gameplay = await import('@/services/gameplay')
   const feedback = await import('@/stores/useFeedbackStore')
+  const milestones = await import('@/stores/useMilestonesStore')
   const companion = await import('@/stores/useCompanionStore')
   const progress = await import('@/stores/useProgressStore')
 
-  return { companion, feedback, gameplay, progress }
+  return { companion, feedback, gameplay, milestones, progress }
 }
 
 async function applyReward(input: {
@@ -57,7 +58,7 @@ async function applyReward(input: {
   xp: number
   recoveryXp?: number
 }) {
-  const { companion, feedback, gameplay, progress } = await importGameplay()
+  const { companion, feedback, gameplay, milestones, progress } = await importGameplay()
 
   const applied = gameplay.applyLifeQuestReward(
     {
@@ -75,6 +76,7 @@ async function applyReward(input: {
     applied,
     companionState: companion.useCompanionStore.getState(),
     feedbackState: feedback.useFeedbackStore.getState(),
+    milestonesStore: milestones.useMilestonesStore,
     progressState: progress.useProgressStore.getState(),
   }
 }
@@ -99,7 +101,7 @@ describe('applyLifeQuestReward', () => {
   })
 
   it('body check-in даёт progress feedback', async () => {
-    const { feedbackState } = await applyReward({
+    const { feedbackState, milestonesStore } = await applyReward({
       xp: 8,
       sector: 'body',
       sourceId: 'body-checkin:test',
@@ -110,10 +112,15 @@ describe('applyLifeQuestReward', () => {
       sector: 'body',
       message: 'Чек-ин сохранён · Ядро получило сигнал',
     })
+    await vi.waitFor(() => {
+      expect(milestonesStore.getState().milestones.map((milestone) => milestone.type)).toEqual(
+        expect.arrayContaining(['body_first_signal', 'body_first_checkin']),
+      )
+    })
   })
 
   it('money import completed даёт спокойный financial feedback', async () => {
-    const { companionState, feedbackState } = await applyReward({
+    const { companionState, feedbackState, milestonesStore } = await applyReward({
       xp: 10,
       sector: 'money',
       sourceId: 'money:import:test',
@@ -126,6 +133,9 @@ describe('applyLifeQuestReward', () => {
       signal: 'Сигнал усилен.',
     })
     expect(companionState.reaction?.message).toBe('Сигнал усилен.')
+    await vi.waitFor(() => {
+      expect(milestonesStore.getState().milestones.map((milestone) => milestone.type)).toContain('money_first_import')
+    })
   })
 
   it('money import completed помечает backup как recommended', async () => {
@@ -143,7 +153,7 @@ describe('applyLifeQuestReward', () => {
   })
 
   it('weekly review saved даёт stability feedback', async () => {
-    const { companionState, feedbackState } = await applyReward({
+    const { companionState, feedbackState, milestonesStore } = await applyReward({
       xp: 14,
       recoveryXp: 4,
       sector: 'stability',
@@ -157,6 +167,41 @@ describe('applyLifeQuestReward', () => {
       message: 'Недельный итог сохранён · риск недели зафиксирован',
     })
     expect(companionState.reaction?.message).toBe('База стала стабильнее.')
+    await vi.waitFor(() => {
+      expect(milestonesStore.getState().milestones.map((milestone) => milestone.type)).toContain('weekly_review_saved')
+    })
+  })
+
+  it('onboarding completed unlocks system milestones', async () => {
+    const { gameplay, milestones } = await importGameplay()
+
+    expect(gameplay.applyLifeQuestReward(
+      { xp: 10, sector: 'stability', sourceId: 'onboarding:complete' },
+      'Настройка завершена.',
+      'Настройка завершена · система готова к первому шагу',
+    )).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(milestones.useMilestonesStore.getState().milestones.map((milestone) => milestone.type)).toEqual(
+        expect.arrayContaining(['system_activated', 'onboarding_completed']),
+      )
+    })
+  })
+
+  it('backup export unlocks backup milestone', async () => {
+    const { gameplay, milestones } = await importGameplay()
+
+    expect(gameplay.applyLifeQuestReward(
+      { xp: 2, recoveryXp: 1, sector: 'stability', sourceId: 'backup:2026-07-20T10:00:00.000Z' },
+      'База защищена.',
+      'Резервная копия создана.',
+    )).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(milestones.useMilestonesStore.getState().milestones.map((milestone) => milestone.type)).toContain(
+        'backup_created',
+      )
+    })
   })
 
   it('weekly review saved помечает backup как recommended', async () => {

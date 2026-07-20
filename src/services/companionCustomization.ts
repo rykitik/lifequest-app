@@ -1,5 +1,6 @@
 import type { CompanionCustomization } from '@/shared/types'
 import { normalizeCompanionCustomization } from '@/features/companion/lib/customization'
+import { unlockLifeQuestMilestone } from '@/services/milestones'
 import { useCompanionStore } from '@/stores/useCompanionStore'
 import { useFeedbackStore } from '@/stores/useFeedbackStore'
 
@@ -14,6 +15,7 @@ export function saveCompanionCustomization(input: Partial<CompanionCustomization
   useCompanionStore.getState().setActiveMessage('Конфигурация принята.')
   useCompanionStore.getState().triggerProgressReaction('Конфигурация принята.')
   useFeedbackStore.getState().showSystemToast('Core обновлён.', 'Конфигурация принята.')
+  unlockLifeQuestMilestone('core_customized', savedCustomization.updatedAt)
 
   return savedCustomization
 }

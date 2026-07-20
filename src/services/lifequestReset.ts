@@ -1,6 +1,7 @@
 import { useBodyStore } from '@/stores/useBodyStore'
 import { useCompanionStore } from '@/stores/useCompanionStore'
 import { useMoneyStore } from '@/stores/useMoneyStore'
+import { useMilestonesStore } from '@/stores/useMilestonesStore'
 import { useProgressStore } from '@/stores/useProgressStore'
 import { usePromptCenterStore } from '@/stores/usePromptCenterStore'
 import { useQuestStore } from '@/stores/useQuestStore'
@@ -16,6 +17,7 @@ export function resetLifeQuestDemoData(resetSettings: () => void) {
   useQuestStore.getState().resetDemoData()
   useTodayStore.getState().resetDemoData()
   useProgressStore.getState().resetDemoData()
+  useMilestonesStore.getState().resetDemoData()
   useBodyStore.getState().resetDemoData()
   useMoneyStore.getState().resetDemoData()
   useCompanionStore.getState().resetDemoData()

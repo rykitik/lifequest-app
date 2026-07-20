@@ -10,6 +10,7 @@ import { SectorStrip } from '@/features/today/components/SectorStrip'
 import { routeLabels } from '@/services/questMeta'
 import { buildDailyQuest, completeDailyQuestReward } from '@/services/dailyQuest'
 import { applyLifeQuestReward, rewardFeedbackMessages } from '@/services/gameplay'
+import { unlockLifeQuestMilestone } from '@/services/milestones'
 import {
   backupFeedbackMessages,
   exportLifeQuestBackup,
@@ -361,6 +362,7 @@ export function TodayScreen() {
   const handleBuildRoute = () => {
     generateRouteFromAvailableQuests(allQuests)
     setActiveMessage('Маршрут дня собран из текущих задач. Теперь держим только три опорные линии.')
+    unlockLifeQuestMilestone('daily_route_locked')
   }
 
   const handleBackupReminderExport = () => {

@@ -44,6 +44,7 @@ function createStorageSnapshot() {
   storage.setItem('lifequest-settings', '{"state":{"userName":"Иван"}}')
   storage.setItem('lifequest-body', '{"state":{"logs":[]}}')
   storage.setItem('lifequest-money', '{"state":{"transactions":[]}}')
+  storage.setItem('lifequest-milestones', '{"state":{"milestones":[]}}')
   storage.setItem('lifequest-weekly-reviews', '{"state":{"summaries":[]}}')
   storage.setItem('unrelated-key', 'outside')
 
@@ -59,6 +60,7 @@ describe('lifequest backup export model', () => {
 
     expect(Object.keys(backup.data)).toEqual([
       'lifequest-body',
+      'lifequest-milestones',
       'lifequest-money',
       'lifequest-settings',
       'lifequest-weekly-reviews',
@@ -77,7 +79,7 @@ describe('lifequest backup export model', () => {
       appName: 'LifeQuest',
       backupVersion: LIFEQUEST_BACKUP_VERSION,
       exportedAt: '2026-07-17T10:00:00.000Z',
-      keysCount: 4,
+      keysCount: 5,
     })
     expect(typeof backup.appVersion).toBe('string')
   })
@@ -107,8 +109,8 @@ describe('lifequest backup export model', () => {
     })
     const preview = parseLifeQuestBackupText(JSON.stringify(backup))
 
-    expect(preview.sections).toEqual(['Тело', 'Деньги', 'Настройки', 'Недельные итоги'])
-    expect(preview.keysCount).toBe(4)
+    expect(preview.sections).toEqual(['Тело', 'Вехи системы', 'Деньги', 'Настройки', 'Недельные итоги'])
+    expect(preview.keysCount).toBe(5)
   })
 
   it('import apply обновляет backup metadata в восстановленных settings', () => {

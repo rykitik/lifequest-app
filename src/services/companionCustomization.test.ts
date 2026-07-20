@@ -39,8 +39,9 @@ async function importCompanionCustomization() {
   const service = await import('@/services/companionCustomization')
   const companion = await import('@/stores/useCompanionStore')
   const feedback = await import('@/stores/useFeedbackStore')
+  const milestones = await import('@/stores/useMilestonesStore')
 
-  return { companion, feedback, service }
+  return { companion, feedback, milestones, service }
 }
 
 describe('saveCompanionCustomization', () => {
@@ -62,7 +63,7 @@ describe('saveCompanionCustomization', () => {
   })
 
   it('triggers feedback and companion reaction once per save', async () => {
-    const { companion, feedback, service } = await importCompanionCustomization()
+    const { companion, feedback, milestones, service } = await importCompanionCustomization()
 
     service.saveCompanionCustomization({
       displayName: 'Aegis',
@@ -70,11 +71,23 @@ describe('saveCompanionCustomization', () => {
       shell: 'calmSignal',
     })
 
-    expect(companion.useCompanionStore.getState().activeMessage).toBe('Конфигурация принята.')
+    expect(companion.useCompanionStore.getState().activeMessage).toBe('Сигнал сохранён в истории.')
     expect(companion.useCompanionStore.getState().reaction).toMatchObject({
-      id: 1,
-      message: 'Конфигурация принята.',
+      id: 2,
+      message: 'Веха зафиксирована.',
     })
+    expect(feedback.useFeedbackStore.getState().rewardToast).toMatchObject({
+      type: 'system',
+      message: 'Веха открыта · Core персонализирован',
+      signal: 'Веха зафиксирована.',
+    })
+    expect(milestones.useMilestonesStore.getState().milestones).toHaveLength(1)
+
+    service.saveCompanionCustomization({
+      displayName: 'Aegis Prime',
+    })
+
+    expect(milestones.useMilestonesStore.getState().milestones).toHaveLength(1)
     expect(feedback.useFeedbackStore.getState().rewardToast).toMatchObject({
       type: 'system',
       message: 'Core обновлён.',

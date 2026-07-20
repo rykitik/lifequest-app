@@ -8,6 +8,7 @@ import type {
   SectorKey,
 } from '@/shared/types'
 import { applyLifeQuestReward } from '@/services/gameplay'
+import { unlockLifeQuestMilestone } from '@/services/milestones'
 import type { TodayNextStepRecommendation } from '@/services/todayNextStep'
 import { useTodayStore } from '@/stores/useTodayStore'
 
@@ -194,7 +195,7 @@ export function completeDailyQuestReward(quest: DailyQuest, dateKey = getLocalDa
     return false
   }
 
-  return applyLifeQuestReward(
+  const applied = applyLifeQuestReward(
     {
       xp: quest.xp,
       recoveryXp: quest.domain === 'recovery' ? Math.min(quest.xp, 5) : 0,
@@ -206,4 +207,10 @@ export function completeDailyQuestReward(quest: DailyQuest, dateKey = getLocalDa
     quest.companionReaction,
     `Квест выполнен · ${quest.rewardSignal}`,
   )
+
+  if (applied) {
+    unlockLifeQuestMilestone('daily_quest_completed', completedAt, { deferFeedback: true })
+  }
+
+  return applied
 }

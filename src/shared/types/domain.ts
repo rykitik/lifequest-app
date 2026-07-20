@@ -168,6 +168,40 @@ export interface DailyQuestCompletion {
   rewardSignal: string
 }
 
+export type LifeQuestMilestoneType =
+  | 'system_activated'
+  | 'onboarding_completed'
+  | 'body_first_signal'
+  | 'body_first_checkin'
+  | 'money_baseline_created'
+  | 'money_first_import'
+  | 'weekly_review_saved'
+  | 'backup_created'
+  | 'daily_quest_completed'
+  | 'daily_route_locked'
+  | 'core_customized'
+  | 'companion_evolved'
+
+export type LifeQuestMilestoneDomain =
+  | 'body'
+  | 'money'
+  | 'focus'
+  | 'recovery'
+  | 'system'
+  | 'companion'
+
+export type LifeQuestMilestoneRarity = 'common' | 'rare' | 'core'
+
+export interface LifeQuestMilestone {
+  id: string
+  unlockedAt: string
+  type: LifeQuestMilestoneType
+  title: string
+  caption: string
+  domain: LifeQuestMilestoneDomain
+  rarity: LifeQuestMilestoneRarity
+}
+
 export interface ProgressProfile extends UserScopedEntity {
   level: number
   totalXp: number

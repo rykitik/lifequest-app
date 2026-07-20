@@ -5,6 +5,7 @@ import { useProgressStore } from '@/stores/useProgressStore'
 import { useRescueStore } from '@/stores/useRescueStore'
 import { useTodayStore } from '@/stores/useTodayStore'
 import type { LifeQuestBackupReason } from '@/services/lifequestBackup'
+import { unlockLifeQuestMilestone, unlockLifeQuestMilestones } from '@/services/milestones'
 
 export const companionProgressSignals = [
   'Шаг принят.',
@@ -73,6 +74,35 @@ function markBackupRecommended(reason: LifeQuestBackupReason) {
     })
 }
 
+function unlockMilestonesForReward(reward: ProgressReward) {
+  const sourceId = reward.sourceId ?? ''
+  const options = { deferFeedback: true }
+
+  if (sourceId.startsWith('onboarding:')) {
+    unlockLifeQuestMilestones(['system_activated', 'onboarding_completed'], undefined, options)
+    return
+  }
+
+  if (sourceId.startsWith('body:checkin:') || sourceId.startsWith('body-checkin:')) {
+    unlockLifeQuestMilestones(['body_first_signal', 'body_first_checkin'], undefined, options)
+    return
+  }
+
+  if (sourceId.startsWith('money:import')) {
+    unlockLifeQuestMilestone('money_first_import', undefined, options)
+    return
+  }
+
+  if (sourceId.startsWith('weekly-review:')) {
+    unlockLifeQuestMilestone('weekly_review_saved', undefined, options)
+    return
+  }
+
+  if (sourceId.startsWith('backup:')) {
+    unlockLifeQuestMilestone('backup_created', undefined, options)
+  }
+}
+
 export function applyLifeQuestReward(
   reward: ProgressReward,
   message: string,
@@ -98,6 +128,7 @@ export function applyLifeQuestReward(
 
   useCompanionStore.getState().triggerProgressReaction(signal)
   useFeedbackStore.getState().showRewardToast(reward, feedbackMessage, signal)
+  unlockMilestonesForReward(reward)
   markBackupRecommended(getBackupReasonForReward(reward))
 
   return true

@@ -3,7 +3,7 @@ import type { SystemProfileInput } from './systemProfile'
 import { buildSystemProfileViewModel, clampSystemPercent } from './systemProfile'
 import { defaultCompanionCustomization } from '@/features/companion/lib/customization'
 import { getLocalDateKey } from '@/shared/lib/date'
-import type { DailyQuest } from '@/shared/types'
+import type { DailyQuest, LifeQuestMilestone } from '@/shared/types'
 
 const emptyInput: SystemProfileInput = {
   settings: {
@@ -335,5 +335,43 @@ describe('system profile view model', () => {
         }),
       ]),
     )
+  })
+
+  it('shows recent stored milestones without private details', () => {
+    const milestones: LifeQuestMilestone[] = [
+      {
+        id: 'money_first_import',
+        type: 'money_first_import',
+        title: 'Первый импорт операций принят',
+        caption: 'Финансовый сигнал учтён без приватных деталей.',
+        domain: 'money',
+        rarity: 'rare',
+        unlockedAt: '2026-07-20T12:00:00.000Z',
+      },
+      {
+        id: 'body_first_signal',
+        type: 'body_first_signal',
+        title: 'Первый сигнал тела',
+        caption: 'Система приняла первый безопасный телесный сигнал.',
+        domain: 'body',
+        rarity: 'common',
+        unlockedAt: '2026-07-19T12:00:00.000Z',
+      },
+    ]
+    const profile = buildSystemProfileViewModel(
+      buildInput({
+        milestones,
+      }),
+    )
+    const copy = JSON.stringify(profile.recentMilestones)
+
+    expect(profile.milestoneCount).toBe(2)
+    expect(profile.recentMilestones.map((milestone) => milestone.label)).toEqual([
+      'Первый импорт операций принят',
+      'Первый сигнал тела',
+    ])
+    expect(copy).not.toContain('Аптека')
+    expect(copy).not.toContain('1234')
+    expect(copy).not.toContain('сумм')
   })
 })

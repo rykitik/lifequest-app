@@ -484,6 +484,7 @@ describe('useMoneyStore', () => {
 
   it('сохраняет trackingStartDate и стартовые остатки baseline', async () => {
     const { useMoneyStore } = await importMoneyStore()
+    const { useMilestonesStore } = await import('@/stores/useMilestonesStore')
 
     const result = useMoneyStore.getState().setupMoneyBaseline({
       trackingStartDate: '2026-07-10',
@@ -503,6 +504,14 @@ describe('useMoneyStore', () => {
       debt: 20_000,
       last4: '1234',
     })
+    expect(useMilestonesStore.getState().milestones).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'money_baseline_created',
+          title: 'Финансовая база создана',
+        }),
+      ]),
+    )
   })
 
   it('операции до trackingStartDate пропускаются в import preview', async () => {

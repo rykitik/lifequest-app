@@ -1,10 +1,11 @@
-import { Archive, CheckCircle2, Database, Settings2, ShieldCheck, Target } from 'lucide-react'
+import { Archive, Database, Settings2, ShieldCheck, Target } from 'lucide-react'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CompanionCustomizationPanel } from '@/features/companion/components/CompanionCustomizationPanel'
 import { CompanionCoreWidget } from '@/features/companion/components/CompanionCoreWidget'
 import { CompanionEvolutionPreview } from '@/features/companion/components/CompanionEvolutionPreview'
 import { buildSystemProfileViewModel } from '@/features/profile/lib/systemProfile'
+import { MilestonesPanel } from '@/features/progress/components/MilestonesPanel'
 import { buildDailyQuest } from '@/services/dailyQuest'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
@@ -14,6 +15,7 @@ import { formatCompact, formatPercent } from '@/shared/lib/format'
 import { buildTodayNextStepRecommendation } from '@/services/todayNextStep'
 import { useBodyStore } from '@/stores/useBodyStore'
 import { useCompanionStore } from '@/stores/useCompanionStore'
+import { useMilestonesStore } from '@/stores/useMilestonesStore'
 import { useMoneyStore } from '@/stores/useMoneyStore'
 import { useProgressStore } from '@/stores/useProgressStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
@@ -59,6 +61,7 @@ export function CoreScreen() {
   const todayRoute = useTodayStore((state) => state.route)
   const todayDailyQuestCompletion = useTodayStore((state) => state.dailyQuestCompletion)
   const weeklySummaries = useWeeklyReviewStore((state) => state.summaries)
+  const milestones = useMilestonesStore((state) => state.milestones)
 
   const nextStep = buildTodayNextStepRecommendation()
   const dailyQuest = useMemo(
@@ -157,9 +160,10 @@ export function CoreScreen() {
           summaries: weeklySummaries,
         },
         today,
+        milestones,
         nextStep,
       }),
-    [body, companion, money, nextStep, progress, settings, today, weeklySummaries],
+    [body, companion, milestones, money, nextStep, progress, settings, today, weeklySummaries],
   )
 
   const handleResetDemoData = () => {
@@ -339,39 +343,11 @@ export function CoreScreen() {
         />
       </GlassCard>
 
-      <GlassCard className="mb-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.24em] text-muted">Последние вехи</p>
-            <p className="mt-1 text-sm leading-5 text-muted">Только безопасные системные события.</p>
-          </div>
-          <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
-        </div>
-        {profile.recentMilestones.length ? (
-          <div className="space-y-2.5">
-            {profile.recentMilestones.map((milestone) => (
-              <div
-                key={milestone.id}
-                className="flex min-w-0 items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3"
-              >
-                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-cyan shadow-[0_0_12px_rgba(34,211,238,0.8)]" />
-                <div className="min-w-0">
-                  <p className="break-words text-sm font-semibold leading-tight text-white">
-                    {milestone.label}
-                  </p>
-                  {milestone.caption ? (
-                    <p className="mt-1 break-words text-xs leading-4 text-muted">{milestone.caption}</p>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-            <p className="text-sm leading-5 text-slate-200">{profile.milestoneEmptyText}</p>
-          </div>
-        )}
-      </GlassCard>
+      <MilestonesPanel
+        emptyText={profile.milestoneEmptyText}
+        milestones={profile.recentMilestones}
+        totalCount={profile.milestoneCount}
+      />
 
       <GlassCard className="mb-5 border border-primary/20 bg-primary/8">
         <div className="flex items-start gap-3">

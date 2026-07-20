@@ -16,6 +16,7 @@ import {
   normalizeMoneyValue,
   sanitizeMoneyPersistedState,
 } from '@/features/money/lib/money'
+import { unlockLifeQuestMilestone } from '@/services/milestones'
 import { getLocalDateKey } from '@/shared/lib/date'
 import type {
   Debt,
@@ -1160,6 +1161,8 @@ export const useMoneyStore = create<MoneyState>()(
             trackingStartDate: input.trackingStartDate,
           }
         })
+
+        unlockLifeQuestMilestone('money_baseline_created')
 
         return { ok: true }
       },

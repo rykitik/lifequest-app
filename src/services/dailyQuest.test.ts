@@ -111,10 +111,11 @@ async function importStores() {
 
   const dailyQuest = await import('@/services/dailyQuest')
   const feedback = await import('@/stores/useFeedbackStore')
+  const milestones = await import('@/stores/useMilestonesStore')
   const progress = await import('@/stores/useProgressStore')
   const today = await import('@/stores/useTodayStore')
 
-  return { dailyQuest, feedback, progress, today }
+  return { dailyQuest, feedback, milestones, progress, today }
 }
 
 describe('daily quest model', () => {
@@ -225,7 +226,7 @@ describe('daily quest model', () => {
 
 describe('daily quest completion', () => {
   it('is idempotent for the same day and triggers reward feedback once', async () => {
-    const { dailyQuest, feedback, progress } = await importStores()
+    const { dailyQuest, feedback, milestones, progress } = await importStores()
     const questModel = dailyQuest.buildDailyQuest(
       buildTodayNextStepRecommendation(context()),
       null,
@@ -239,6 +240,13 @@ describe('daily quest completion', () => {
     expect(dailyQuest.completeDailyQuestReward(questModel, '2026-07-20')).toBe(false)
     expect(progress.useProgressStore.getState().totalXp).toBe(totalXpAfterFirstApply)
     expect(feedback.useFeedbackStore.getState().rewardToast?.id).toBe(toastId)
+    await vi.waitFor(() => {
+      const dailyMilestones = milestones.useMilestonesStore
+        .getState()
+        .milestones.filter((milestone) => milestone.type === 'daily_quest_completed')
+
+      expect(dailyMilestones).toHaveLength(1)
+    })
   })
 
   it('resets completion on the next day', async () => {
