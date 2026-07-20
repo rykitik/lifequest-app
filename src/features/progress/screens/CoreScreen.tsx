@@ -1,11 +1,13 @@
-import { Archive, Database, Settings2, ShieldCheck, Target } from 'lucide-react'
+import { Archive, Database, Settings2, Target } from 'lucide-react'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CompanionCustomizationPanel } from '@/features/companion/components/CompanionCustomizationPanel'
 import { CompanionCoreWidget } from '@/features/companion/components/CompanionCoreWidget'
 import { CompanionEvolutionPreview } from '@/features/companion/components/CompanionEvolutionPreview'
+import { buildLifeQuestSkillTree } from '@/features/profile/lib/skillTree'
 import { buildSystemProfileViewModel } from '@/features/profile/lib/systemProfile'
 import { MilestonesPanel } from '@/features/progress/components/MilestonesPanel'
+import { SkillTreePanel } from '@/features/progress/components/SkillTreePanel'
 import { buildDailyQuest } from '@/services/dailyQuest'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
@@ -21,13 +23,6 @@ import { useProgressStore } from '@/stores/useProgressStore'
 import { useSettingsStore } from '@/stores/useSettingsStore'
 import { useTodayStore } from '@/stores/useTodayStore'
 import { useWeeklyReviewStore } from '@/stores/useWeeklyReviewStore'
-
-const moduleAccentClasses = {
-  body: 'from-success/80 to-cyan',
-  money: 'from-cyan to-primary',
-  focus: 'from-primary to-violet-300',
-  recovery: 'from-success to-warning',
-}
 
 export function CoreScreen() {
   const navigate = useNavigate()
@@ -45,6 +40,12 @@ export function CoreScreen() {
   const progressDailySummary = useProgressStore((state) => state.dailySummary)
   const userName = useSettingsStore((state) => state.userName)
   const userRole = useSettingsStore((state) => state.userRole)
+  const heightCm = useSettingsStore((state) => state.heightCm)
+  const bodyGoal = useSettingsStore((state) => state.bodyGoal)
+  const targetWeightKg = useSettingsStore((state) => state.targetWeightKg)
+  const activityLevel = useSettingsStore((state) => state.activityLevel)
+  const usualSleepTime = useSettingsStore((state) => state.usualSleepTime)
+  const usualWakeTime = useSettingsStore((state) => state.usualWakeTime)
   const lastBackupAt = useSettingsStore((state) => state.lastBackupAt)
   const lastBackupExportAt = useSettingsStore((state) => state.lastBackupExportAt)
   const onboarding = useSettingsStore((state) => state.onboarding)
@@ -53,6 +54,8 @@ export function CoreScreen() {
   const bodyDailyLogs = useBodyStore((state) => state.dailyLogs)
   const moneyAccounts = useMoneyStore((state) => state.accounts)
   const moneyTransactions = useMoneyStore((state) => state.transactions)
+  const moneyPlannedPayments = useMoneyStore((state) => state.plannedPayments)
+  const moneyDebts = useMoneyStore((state) => state.debts)
   const moneyTrackingStartDate = useMoneyStore((state) => state.trackingStartDate)
   const moneyLastImportAt = useMoneyStore((state) => state.lastImportAt)
   const moneyLastBalanceCheckAt = useMoneyStore((state) => state.lastBalanceCheckAt)
@@ -108,11 +111,29 @@ export function CoreScreen() {
     () => ({
       userName,
       userRole,
+      heightCm,
+      bodyGoal,
+      targetWeightKg,
+      activityLevel,
+      usualSleepTime,
+      usualWakeTime,
       lastBackupAt,
       lastBackupExportAt,
       onboarding,
     }),
-    [lastBackupAt, lastBackupExportAt, onboarding, userName, userRole],
+    [
+      activityLevel,
+      bodyGoal,
+      heightCm,
+      lastBackupAt,
+      lastBackupExportAt,
+      onboarding,
+      targetWeightKg,
+      userName,
+      userRole,
+      usualSleepTime,
+      usualWakeTime,
+    ],
   )
   const body = useMemo(
     () => ({
@@ -125,6 +146,8 @@ export function CoreScreen() {
     () => ({
       accounts: moneyAccounts,
       transactions: moneyTransactions,
+      plannedPayments: moneyPlannedPayments,
+      debts: moneyDebts,
       trackingStartDate: moneyTrackingStartDate,
       lastImportAt: moneyLastImportAt,
       lastBalanceCheckAt: moneyLastBalanceCheckAt,
@@ -132,9 +155,11 @@ export function CoreScreen() {
     }),
     [
       moneyAccounts,
+      moneyDebts,
       moneyImportWarnings,
       moneyLastBalanceCheckAt,
       moneyLastImportAt,
+      moneyPlannedPayments,
       moneyTrackingStartDate,
       moneyTransactions,
     ],
@@ -164,6 +189,22 @@ export function CoreScreen() {
         nextStep,
       }),
     [body, companion, milestones, money, nextStep, progress, settings, today, weeklySummaries],
+  )
+  const skillModules = useMemo(
+    () =>
+      buildLifeQuestSkillTree({
+        settings,
+        progress,
+        companion,
+        body,
+        money,
+        weekly: {
+          summaries: weeklySummaries,
+        },
+        today,
+        milestones,
+      }),
+    [body, companion, milestones, money, progress, settings, today, weeklySummaries],
   )
 
   const handleResetDemoData = () => {
@@ -301,38 +342,7 @@ export function CoreScreen() {
         </div>
       </div>
 
-      <GlassCard className="mb-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.24em] text-muted">Ветки развития</p>
-            <p className="mt-1 text-sm leading-5 text-muted">Текущий билд жизни без лишней бухгалтерии.</p>
-          </div>
-          <ShieldCheck className="h-5 w-5 shrink-0 text-cyan" />
-        </div>
-        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
-          {profile.modules.map((module) => (
-            <div
-              key={module.id}
-              className="min-h-[116px] min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-3"
-            >
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="break-words text-sm font-semibold leading-tight text-white">
-                    {module.label}
-                  </p>
-                  <p className="mt-1 break-words text-xs leading-4 text-muted">{module.caption}</p>
-                </div>
-                <p className="shrink-0 text-sm font-semibold text-white">{formatPercent(module.value)}</p>
-              </div>
-              <LinearProgress
-                value={module.value}
-                className="h-1.5"
-                barClassName={`bg-gradient-to-r ${moduleAccentClasses[module.id]}`}
-              />
-            </div>
-          ))}
-        </div>
-      </GlassCard>
+      <SkillTreePanel modules={skillModules} />
 
       <GlassCard className="mb-5">
         <CompanionEvolutionPreview
