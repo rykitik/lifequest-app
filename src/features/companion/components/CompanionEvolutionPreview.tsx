@@ -15,6 +15,7 @@ interface CompanionEvolutionPreviewProps {
   evolutionLevel: number
   progressToNextForm: number
   nextFormLabel?: string
+  showNodes?: boolean
 }
 
 function MiniCoreGlyph({
@@ -69,6 +70,7 @@ export function CompanionEvolutionPreview({
   evolutionLevel,
   progressToNextForm,
   nextFormLabel,
+  showNodes = true,
 }: CompanionEvolutionPreviewProps) {
   const reducedMotion = useReducedMotion() ?? false
   const model = buildCompanionEvolutionModel({
@@ -111,35 +113,41 @@ export function CompanionEvolutionPreview({
         />
       </div>
 
-      <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(136px,1fr))] gap-3">
-        {model.nodes.map((node) => (
-          <div
-            key={node.state}
-            className={cn(
-              'min-h-[132px] min-w-0 rounded-2xl border p-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
-              node.current
-                ? 'border-primary/55 bg-primary/15'
-                : node.future
-                  ? 'border-white/10 bg-white/[0.025]'
-                  : 'border-white/10 bg-white/[0.045]',
-            )}
-            aria-current={node.current ? 'true' : undefined}
-          >
-            <MiniCoreGlyph node={node} reducedMotion={reducedMotion} />
-            <div className="mt-3 flex items-center justify-center gap-1.5">
-              {node.future ? <Lock className="h-3.5 w-3.5 shrink-0 text-muted" /> : null}
-              {node.current ? <Sparkles className="h-3.5 w-3.5 shrink-0 text-cyan" /> : null}
-              <p className="min-w-0 break-words text-sm font-semibold leading-tight text-white">
-                {node.cardLabel}
+      {showNodes ? (
+        <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(136px,1fr))] gap-3">
+          {model.nodes.map((node) => (
+            <div
+              key={node.state}
+              className={cn(
+                'min-h-[132px] min-w-0 rounded-2xl border p-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                node.current
+                  ? 'border-primary/55 bg-primary/15'
+                  : node.future
+                    ? 'border-white/10 bg-white/[0.025]'
+                    : 'border-white/10 bg-white/[0.045]',
+              )}
+              aria-current={node.current ? 'true' : undefined}
+            >
+              <MiniCoreGlyph node={node} reducedMotion={reducedMotion} />
+              <div className="mt-3 flex items-center justify-center gap-1.5">
+                {node.future ? <Lock className="h-3.5 w-3.5 shrink-0 text-muted" /> : null}
+                {node.current ? <Sparkles className="h-3.5 w-3.5 shrink-0 text-cyan" /> : null}
+                <p className="min-w-0 break-words text-sm font-semibold leading-tight text-white">
+                  {node.cardLabel}
+                </p>
+              </div>
+              <p className="mt-1 break-words text-[11px] font-medium leading-tight text-muted">
+                {node.statusLabel}
               </p>
+              <p className="mt-1 break-words text-xs leading-4 text-slate-300">{node.caption}</p>
             </div>
-            <p className="mt-1 break-words text-[11px] font-medium leading-tight text-muted">
-              {node.statusLabel}
-            </p>
-            <p className="mt-1 break-words text-xs leading-4 text-slate-300">{node.caption}</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 break-words text-xs leading-5 text-muted">
+          Следующий виток откроется через устойчивые сигналы системы.
+        </p>
+      )}
     </div>
   )
 }

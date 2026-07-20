@@ -1,4 +1,5 @@
-import { CalendarDays, CheckCircle2, Radio, Target } from 'lucide-react'
+import { useState } from 'react'
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronUp, Radio, Target } from 'lucide-react'
 import { GlassCard } from '@/shared/components/GlassCard'
 import type {
   WeeklyRecapMilestone,
@@ -8,6 +9,7 @@ import type {
 
 interface WeeklyRecapPanelProps {
   recap: WeeklyRecapViewModel
+  initialExpanded?: boolean
 }
 
 const domainTone: Record<WeeklyRecapSignal['domain'], string> = {
@@ -50,7 +52,9 @@ function MilestoneList({ milestones }: { milestones: WeeklyRecapMilestone[] }) {
   )
 }
 
-export function WeeklyRecapPanel({ recap }: WeeklyRecapPanelProps) {
+export function WeeklyRecapPanel({ recap, initialExpanded = false }: WeeklyRecapPanelProps) {
+  const [expanded, setExpanded] = useState(initialExpanded)
+
   return (
     <GlassCard className="mb-5 overflow-hidden border-cyan/15 bg-gradient-to-br from-cyan/8 via-white/[0.03] to-primary/8">
       <div className="pointer-events-none -mx-5 -mt-5 mb-4 h-px bg-gradient-to-r from-transparent via-cyan/45 to-transparent" />
@@ -99,64 +103,76 @@ export function WeeklyRecapPanel({ recap }: WeeklyRecapPanelProps) {
         </div>
       </div>
 
-      <div className="mt-3 rounded-2xl border border-white/10 bg-black/18 p-3">
+      <div className="mt-3 min-w-0 rounded-2xl border border-primary/20 bg-primary/8 p-3">
         <div className="mb-2 flex items-center gap-2">
-          <Radio className="h-4 w-4 text-cyan" />
-          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">Сигналы недели</p>
+          <Target className="h-4 w-4 text-primary" />
+          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-primary/80">
+            Фокус следующей недели
+          </p>
         </div>
-        {recap.signals.length ? (
-          <div className="grid gap-2 min-[430px]:grid-cols-2">
-            {recap.signals.map((signal) => (
-              <div
-                className={`min-w-0 rounded-2xl border px-2.5 py-2 ${domainTone[signal.domain]}`}
-                key={signal.id}
-              >
-                <p className="break-words text-[11px] leading-4 text-current">{signal.label}</p>
-                <p className="mt-0.5 break-words text-xs font-semibold leading-4 text-white">
-                  {signal.value}
-                </p>
+        <p className="break-words text-sm font-semibold leading-tight text-white">
+          {recap.nextWeekFocus.title}
+        </p>
+        <p className="mt-1 break-words text-xs leading-4 text-muted">
+          {recap.nextWeekFocus.caption}
+        </p>
+      </div>
+
+      <button
+        className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-medium text-slate-200 transition hover:border-cyan/35 hover:text-white"
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        {expanded ? 'Свернуть сигналы' : 'Показать сигналы недели'}
+      </button>
+
+      {expanded ? (
+        <div className="mt-3 space-y-3">
+          <div className="rounded-2xl border border-white/10 bg-black/18 p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <Radio className="h-4 w-4 text-cyan" />
+              <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">Сигналы недели</p>
+            </div>
+            {recap.signals.length ? (
+              <div className="grid gap-2 min-[430px]:grid-cols-2">
+                {recap.signals.map((signal) => (
+                  <div
+                    className={`min-w-0 rounded-2xl border px-2.5 py-2 ${domainTone[signal.domain]}`}
+                    key={signal.id}
+                  >
+                    <p className="break-words text-[11px] leading-4 text-current">{signal.label}</p>
+                    <p className="mt-0.5 break-words text-xs font-semibold leading-4 text-white">
+                      {signal.value}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <p className="break-words text-sm leading-5 text-slate-200">
+                Можно начать с одного мягкого сигнала. Система продолжит с текущей точки.
+              </p>
+            )}
           </div>
-        ) : (
-          <p className="break-words text-sm leading-5 text-slate-200">
-            Можно начать с одного мягкого сигнала. Система продолжит с текущей точки.
-          </p>
-        )}
-      </div>
 
-      <div className="mt-3 grid gap-2.5 min-[430px]:grid-cols-2">
-        <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-          <div className="mb-2 flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-success" />
-            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">Вехи недели</p>
+          <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-success" />
+              <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">Вехи недели</p>
+            </div>
+            <MilestoneList milestones={recap.milestones} />
           </div>
-          <MilestoneList milestones={recap.milestones} />
-        </div>
-        <div className="min-w-0 rounded-2xl border border-primary/20 bg-primary/8 p-3">
-          <div className="mb-2 flex items-center gap-2">
-            <Target className="h-4 w-4 text-primary" />
-            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-primary/80">
-              Фокус следующей недели
-            </p>
-          </div>
-          <p className="break-words text-sm font-semibold leading-tight text-white">
-            {recap.nextWeekFocus.title}
-          </p>
-          <p className="mt-1 break-words text-xs leading-4 text-muted">
-            {recap.nextWeekFocus.caption}
-          </p>
-        </div>
-      </div>
 
-      {recap.promptCenterHint ? (
-        <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-          <p className="break-words text-xs font-semibold leading-4 text-slate-200">
-            {recap.promptCenterHint.title}
-          </p>
-          <p className="mt-1 break-words text-[11px] leading-4 text-muted">
-            {recap.promptCenterHint.caption}
-          </p>
+          {recap.promptCenterHint ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="break-words text-xs font-semibold leading-4 text-slate-200">
+                {recap.promptCenterHint.title}
+              </p>
+              <p className="mt-1 break-words text-[11px] leading-4 text-muted">
+                {recap.promptCenterHint.caption}
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </GlassCard>

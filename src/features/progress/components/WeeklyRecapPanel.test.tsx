@@ -53,10 +53,23 @@ describe('WeeklyRecapPanel', () => {
     expect(html).toContain('Недельное отражение')
     expect(html).toContain('Усилен модуль')
     expect(html).toContain('Мягкий фокус')
-    expect(html).toContain('Сигналы недели')
     expect(html).toContain('Фокус следующей недели')
+    expect(html).toContain('Показать сигналы недели')
+    expect(html).not.toContain('Завершённые шаги')
+    expect(html).not.toContain('Первый квест дня выполнен')
     expect(fetchSpy).not.toHaveBeenCalled()
 
     fetchSpy.mockRestore()
+  })
+
+  it('renders weekly signals and milestones when expanded', () => {
+    const html = renderToStaticMarkup(<WeeklyRecapPanel initialExpanded recap={recap} />)
+
+    expect(html).toContain('Сигналы недели')
+    expect(html).toContain('Завершённые шаги')
+    expect(html).toContain('Вехи недели')
+    expect(html).toContain('Первый квест дня выполнен')
+    expect(html).toContain('Для глубокого разбора')
+    expect(html.toLowerCase()).not.toMatch(/провал|плохая неделя|слабая дисциплина|серия потер|верни серию|streak/)
   })
 })
