@@ -9,8 +9,10 @@ import {
   type LifeQuestModuleSuggestion,
 } from '@/features/profile/lib/skillTree'
 import { buildSystemProfileViewModel } from '@/features/profile/lib/systemProfile'
+import { buildWeeklyRecapViewModel } from '@/features/profile/lib/weeklyRecap'
 import { MilestonesPanel } from '@/features/progress/components/MilestonesPanel'
 import { SkillTreePanel } from '@/features/progress/components/SkillTreePanel'
+import { WeeklyRecapPanel } from '@/features/progress/components/WeeklyRecapPanel'
 import { buildDailyQuest } from '@/services/dailyQuest'
 import { GlassCard } from '@/shared/components/GlassCard'
 import { LinearProgress } from '@/shared/components/LinearProgress'
@@ -216,6 +218,26 @@ export function CoreScreen() {
       }),
     [body, companion, milestones, money, progress, settings, today, weeklySummaries],
   )
+  const weeklyRecap = useMemo(
+    () =>
+      buildWeeklyRecapViewModel({
+        settings,
+        progress: {
+          recoveryXp: progress.recoveryXp,
+          dailySummary: progress.dailySummary,
+        },
+        companion,
+        body,
+        money,
+        today,
+        milestones,
+        weekly: {
+          summaries: weeklySummaries,
+        },
+        modules: skillModules,
+      }),
+    [body, companion, milestones, money, progress.dailySummary, progress.recoveryXp, settings, skillModules, today, weeklySummaries],
+  )
 
   const handleResetDemoData = () => {
     const shouldReset = window.confirm(
@@ -261,7 +283,7 @@ export function CoreScreen() {
   }
 
   return (
-    <section className="pb-6">
+    <section className="pb-10">
       <ScreenHeader title="Профиль системы" subtitle="Локальная база · Companion активен" />
 
       <GlassCard tone="strong" className="relative mb-4 overflow-hidden border-white/10">
@@ -386,6 +408,8 @@ export function CoreScreen() {
       </div>
 
       <SkillTreePanel modules={skillModules} onSuggestionAction={handleModuleSuggestionAction} />
+
+      <WeeklyRecapPanel recap={weeklyRecap} />
 
       <GlassCard className="mb-5">
         <CompanionEvolutionPreview

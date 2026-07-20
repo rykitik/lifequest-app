@@ -41,180 +41,143 @@ const moduleAccentClasses: Record<LifeQuestSkillModuleId, string> = {
   companion: 'from-primary via-cyan to-violet-300',
 }
 
-const moduleDotClasses: Record<LifeQuestSkillModuleId, string> = {
-  body: 'bg-success shadow-[0_0_12px_rgba(34,197,94,0.75)]',
-  money: 'bg-cyan shadow-[0_0_12px_rgba(34,211,238,0.75)]',
-  focus: 'bg-primary shadow-[0_0_12px_rgba(99,102,241,0.75)]',
-  recovery: 'bg-warning shadow-[0_0_12px_rgba(245,158,11,0.65)]',
-  system: 'bg-cyan shadow-[0_0_12px_rgba(34,211,238,0.75)]',
-  companion: 'bg-violet-300 shadow-[0_0_12px_rgba(167,139,250,0.75)]',
-}
-
 function getStateTone(module: LifeQuestSkillModule) {
   if (module.state === 'locked' || module.state === 'forming') {
-    return 'border-white/10 bg-white/[0.035] text-muted'
+    return 'bg-white/[0.045] text-muted'
   }
 
   if (module.state === 'evolving') {
-    return 'border-primary/30 bg-primary/10 text-primary/90'
+    return 'bg-primary/12 text-primary/90'
   }
 
   if (module.state === 'stable') {
-    return 'border-success/25 bg-success/10 text-success'
+    return 'bg-success/12 text-success'
   }
 
-  return 'border-cyan/25 bg-cyan/10 text-cyan'
+  return 'bg-cyan/12 text-cyan'
 }
 
 function getSuggestionTone(suggestion: LifeQuestModuleSuggestion) {
   if (suggestion.priority === 'high') {
-    return 'border-cyan/20 bg-cyan/10'
+    return 'bg-cyan/10'
   }
 
   if (suggestion.priority === 'normal') {
-    return 'border-primary/20 bg-primary/8'
+    return 'bg-primary/8'
   }
 
-  return 'border-white/10 bg-black/18'
+  return 'bg-white/[0.035]'
+}
+
+function getDailyQuestLabel(module: LifeQuestSkillModule) {
+  const status = module.suggestion?.linkedDailyQuest ?? module.linkedQuest?.status
+
+  if (!status) {
+    return null
+  }
+
+  return status === 'completed' ? 'Квест дня выполнен' : 'Квест дня'
 }
 
 export function SkillTreePanel({ modules, onSuggestionAction }: SkillTreePanelProps) {
   return (
-    <GlassCard className="mb-5 overflow-hidden">
-      <div className="pointer-events-none -mx-5 -mt-5 mb-4 h-px bg-gradient-to-r from-transparent via-cyan/45 to-transparent" />
+    <GlassCard className="mb-5 overflow-hidden !p-3.5">
+      <div className="pointer-events-none -mx-3.5 -mt-3.5 mb-4 h-px bg-gradient-to-r from-transparent via-cyan/45 to-transparent" />
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs uppercase tracking-[0.24em] text-muted">Ветки развития</p>
-          <p className="mt-1 text-sm leading-5 text-muted">
-            Карта жизненных модулей без лишней RPG-шумихи.
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-cyan/80">Ветки развития</p>
+          <p className="mt-1 text-[13px] leading-5 text-muted">
+            Состояние модулей и один ближайший сигнал для системы.
           </p>
         </div>
         <ShieldCheck className="h-5 w-5 shrink-0 text-cyan" />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 min-[430px]:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
         {modules.map((module) => {
           const Icon = moduleIcons[module.id]
+          const suggestion = module.suggestion
+          const dailyQuestLabel = getDailyQuestLabel(module)
+          const suggestionTitle = suggestion?.title ?? module.nextSignal
+          const suggestionCaption = suggestion?.caption
+          const canRunSuggestion = suggestion && suggestion.actionType !== 'none'
 
           return (
             <div
-              className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+              className="min-w-0 rounded-[1.35rem] border border-white/[0.08] bg-white/[0.035] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
               key={module.id}
             >
               <div className="flex items-start gap-3">
-                <div className="shrink-0 rounded-2xl border border-white/10 bg-black/20 p-2 text-cyan">
+                <div className="shrink-0 rounded-2xl bg-black/20 p-2.5 text-cyan shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                   <Icon className="h-4 w-4" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="break-words text-sm font-semibold leading-tight text-white">
-                        {module.label}
-                      </p>
-                      <p className="mt-1 break-words text-xs leading-4 text-muted">
-                        {module.summary}
-                      </p>
-                    </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 break-words text-[15px] font-semibold leading-tight text-white">
+                      {module.label}
+                    </p>
                     <span className="shrink-0 text-sm font-semibold text-white">
                       {formatPercent(module.progressPercent)}
                     </span>
                   </div>
+                  <p className="break-words text-[13px] leading-5 text-muted">
+                    {module.summary} · {module.levelLabel}
+                  </p>
                 </div>
               </div>
 
               <div className="mt-3">
                 <LinearProgress
-                  className="h-1.5"
+                  className="h-1"
                   value={module.progressPercent}
                   barClassName={`bg-gradient-to-r ${moduleAccentClasses[module.id]}`}
                 />
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className={`rounded-full border px-2 py-1 text-[11px] ${getStateTone(module)}`}>
-                  {module.levelLabel}
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <span className={`rounded-full px-2 py-0.5 text-[11px] leading-4 ${getStateTone(module)}`}>
+                  {module.state === 'locked' ? 'Нужен сигнал' : 'Модуль активен'}
                 </span>
-                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-muted">
+                {dailyQuestLabel ? (
+                  <span className="rounded-full bg-cyan/10 px-2 py-0.5 text-[11px] leading-4 text-cyan">
+                    {dailyQuestLabel}
+                  </span>
+                ) : null}
+                <span className="rounded-full bg-black/18 px-2 py-0.5 text-[11px] leading-4 text-muted">
                   Вехи: {module.relatedMilestoneCount}
                 </span>
               </div>
 
-              <div className="mt-3 rounded-2xl border border-white/10 bg-black/18 p-2.5">
-                <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
+              <div
+                className={`mt-3 rounded-2xl p-3 ${suggestion ? getSuggestionTone(suggestion) : 'bg-white/[0.035]'}`}
+                data-testid={`module-suggestion-${module.id}`}
+              >
+                <p className="text-[11px] font-medium leading-4 text-cyan/85">
                   Следующий сигнал
                 </p>
-                <p className="mt-1 break-words text-xs leading-4 text-slate-200">
-                  {module.nextSignal}
+                <p className="mt-1 break-words text-sm font-semibold leading-5 text-white">
+                  {suggestionTitle}
                 </p>
-              </div>
-
-              {module.suggestion ? (
-                <div
-                  className={`mt-2 rounded-2xl border p-2.5 ${getSuggestionTone(module.suggestion)}`}
-                  data-testid={`module-suggestion-${module.id}`}
-                >
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-cyan/80">
-                      Сигнал модуля
-                    </p>
-                    {module.suggestion.linkedDailyQuest ? (
-                      <span className="rounded-full border border-cyan/20 bg-cyan/10 px-2 py-0.5 text-[10px] text-cyan">
-                        {module.suggestion.linkedDailyQuest === 'completed' ? 'Квест дня выполнен' : 'Квест дня'}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 break-words text-xs font-semibold leading-4 text-white">
-                    {module.suggestion.title}
+                {suggestionCaption ? (
+                  <p className="mt-1 break-words text-[13px] leading-5 text-muted">
+                    {suggestionCaption}
                   </p>
-                  <p className="mt-1 break-words text-[11px] leading-4 text-muted">
-                    {module.suggestion.caption}
-                  </p>
-                  {module.suggestion.actionType !== 'none' ? (
+                ) : null}
+                {canRunSuggestion ? (
+                  <div className="mt-3">
                     <PrimaryButton
-                      className="mt-2 min-h-9 rounded-xl px-3 py-2 text-xs"
+                      className="min-h-9 rounded-xl px-3 py-2 text-xs"
                       data-testid={`module-suggestion-action-${module.id}`}
-                      fullWidth
                       icon={<ArrowRight className="h-3.5 w-3.5" />}
-                      onClick={() => onSuggestionAction?.(module.suggestion as LifeQuestModuleSuggestion, module)}
+                      onClick={() => onSuggestionAction?.(suggestion, module)}
                       tone="secondary"
                       type="button"
                     >
-                      {module.suggestion.actionLabel}
+                      {suggestion.actionLabel}
                     </PrimaryButton>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {module.linkedQuest ? (
-                <div className="mt-2 rounded-2xl border border-cyan/15 bg-cyan/8 p-2.5">
-                  <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-cyan/80">
-                    Квест дня
-                  </p>
-                  <p className="mt-1 break-words text-xs font-semibold leading-4 text-white">
-                    {module.linkedQuest.title}
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted">
-                    {module.linkedQuest.status === 'completed' ? 'Выполнен сегодня' : 'Ждёт действия'}
-                  </p>
-                </div>
-              ) : null}
-
-              {module.recentMilestones.length ? (
-                <div className="mt-3 space-y-1.5">
-                  {module.recentMilestones.map((milestone) => (
-                    <div className="flex min-w-0 items-center gap-2" key={milestone.id}>
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${moduleDotClasses[module.id]}`} />
-                      <p className="min-w-0 break-words text-[11px] leading-4 text-muted">
-                        {milestone.title}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-3 text-[11px] leading-4 text-muted">
-                  Первая веха появится после безопасного сигнала.
-                </p>
-              )}
+                  </div>
+                ) : null}
+              </div>
             </div>
           )
         })}
